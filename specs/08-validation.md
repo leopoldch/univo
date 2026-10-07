@@ -8,7 +8,7 @@
 
 Construire avant d’optimiser : un petit corpus déterministe de cas difficiles, puis un benchmark public plus large avec labels et licences vérifiés.
 
-Corpus initial proposé : au moins 200 cas ciblés couvrant les branches critiques. Suite qualité visée avant 1.0 : plusieurs milliers de paires annotées, incluant au moins 500 vrais doublons et 1 000 négatifs difficiles, à ajuster selon disponibilité. Doubler l’annotation d’un sous-ensemble ambigu et documenter les désaccords.
+Corpus initial proposé : au moins 200 cas ciblés couvrant les branches critiques. Version courante : [corpus critique](../tests/fixtures/critical/README.md), étiqueté selon les [définitions des doublons par profil](../docs/duplicate-definitions.md). Suite qualité visée avant 1.0 : plusieurs milliers de paires annotées, incluant au moins 500 vrais doublons et 1 000 négatifs difficiles, à ajuster selon disponibilité. Doubler l’annotation d’un sous-ensemble ambigu et documenter les désaccords.
 
 Familles de tests :
 
