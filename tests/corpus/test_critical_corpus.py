@@ -8,6 +8,7 @@ even if the generator produced it.
 import json
 import pathlib
 import re
+import string
 import unicodedata
 from collections import Counter
 from typing import Any
@@ -65,6 +66,9 @@ CASES = load_cases()
 VALID_CASES = [case for case in CASES if case["label"] != "invalid"]
 
 
+ASCII_LOWERCASE = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
+
+
 def nfc(text: str) -> str:
     return unicodedata.normalize("NFC", text)
 
@@ -79,7 +83,7 @@ def normalize(kind: str, value: Any) -> Any:
         if kind == TEXT:
             return ("str", nfc(nfc(value).casefold()))
         if kind == HOSTNAME:
-            return ("str", nfc(nfc(value).casefold()).removesuffix("."))
+            return ("str", nfc(value).translate(ASCII_LOWERCASE).removesuffix("."))
         return ("str", nfc(value))
     if isinstance(value, dict):
         return ("dict", tuple(sorted((key, normalize(kind, item)) for key, item in value.items())))
@@ -167,6 +171,13 @@ def test_french_cases_are_numerous_enough_for_a_separate_report() -> None:
     french = [case for case in CASES if case["lang"] == "fr"]
     assert len(french) >= 40
     assert {case["label"] for case in french} >= {"duplicate", "distinct"}
+
+
+def test_hostname_normalization_keeps_distinct_idna_domains() -> None:
+    """Full case folding would merge faß.de (xn--fa-hia.de) with fass.de."""
+    assert normalize(HOSTNAME, "Fa\u00df.DE.") == normalize(HOSTNAME, "fa\u00df.de")
+    assert normalize(HOSTNAME, "fa\u00df.de") != normalize(HOSTNAME, "fass.de")
+    assert normalize(HOSTNAME, "B\u00dcCHER.de") != normalize(HOSTNAME, "b\u00fccher.de")
 
 
 def test_organization_positives_include_different_domains() -> None:

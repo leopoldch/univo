@@ -20,7 +20,7 @@ A duplicate is defined per profile, never globally. Each profile fixes which fie
 - **Normalization depends on the field kind.**
   - Every string is put in Unicode NFC.
   - Text fields additionally use Unicode default full case folding (as Python's `str.casefold`), then NFC again. `ß` folds to `ss` and the `ﬁ` ligature to `fi`; width variants and accents are kept.
-  - Hostname fields additionally fold case and drop one trailing dot.
+  - Hostname fields additionally lowercase ASCII letters only and drop one trailing dot. Non-ASCII characters are kept as they are: full case folding would merge domains that are distinct under IDNA2008, such as `faß.de` (`xn--fa-hia.de`) and `fass.de`. IDNA mapping is not applied, so non-ASCII case variants and the punycode form of a domain are not treated as equal; this can miss an `exact` match but never creates a false one.
   - Partition keys, discriminant fields and parameters are not folded: `INFO` and `info` differ.
   - No alias, unit conversion or legal-suffix rule applies unless the schema declares it.
 - **Lists** keep their order. A reordered list is a different value unless the schema declares set semantics.
@@ -48,7 +48,7 @@ Duplicate: the two strings designate the same thing despite spelling, spacing, a
 | `id` | record identifier, never compared |
 | `tenant_id` | partition key |
 | `name` | text, hybrid |
-| `domain` | hostname; evidence, not a veto |
+| `domain` | hostname (ASCII case only); evidence, not a veto |
 | `description` | text, semantic |
 
 Duplicate: the same real-world organization within the same tenant. A different domain lowers the score but does not veto: companies own several domains, such as `amazon.com` and `amazon.fr`. Competitors, homonyms and subsidiaries are distinct.

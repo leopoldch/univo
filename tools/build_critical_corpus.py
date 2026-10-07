@@ -1802,6 +1802,24 @@ CASES = [
         "A trailing dot does not change a hostname.",
         expected_kind="exact",
     ),
+    Case(
+        "unicode-019",
+        "organizations",
+        DISTINCT,
+        org(name="Weinhaus", domain="fa\u00df.de", description="Weinhandlung"),
+        org(name="Weinhaus", domain="fass.de", description="Weinhandlung"),
+        "Distinct IDNA2008 domains (xn--fa-hia.de and fass.de): a lookalike host, never exact.",
+        lang="de",
+    ),
+    Case(
+        "unicode-020",
+        "organizations",
+        DUPLICATE,
+        org(name="B\u00fccher Online", domain="B\u00dcCHER.de", description="Buchhandel"),
+        org(name="B\u00fccher Online", domain="b\u00fccher.de", description="Buchhandel"),
+        "Same organization; only ASCII case is folded in hostnames, so not exact.",
+        lang="de",
+    ),
     # ordering
     Case(
         "ordering-001",
