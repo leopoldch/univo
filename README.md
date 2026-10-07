@@ -6,7 +6,7 @@ Univo is a planned library for finding duplicate candidates in strings and struc
 
 ## Project status
 
-The library is under construction and not published yet. The repository contains the specifications and the Rust/Python build skeleton ([development guide](docs/development.md)). API examples and performance budgets in the specifications describe the intended implementation, not existing functionality or measured results.
+The library is under construction and not published yet. Rust provides types, schemas, normalization, errors, pairwise exact matching and an [exact index](docs/exact-index.md). Python currently exposes only the version; `Finder`, lexical scoring and embeddings remain to be implemented. See the [development guide](docs/development.md). API examples and performance budgets in the specifications describe targets unless explicitly validated.
 
 ## Specifications
 

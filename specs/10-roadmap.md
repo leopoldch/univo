@@ -34,6 +34,8 @@ Chaque PR indique son contrat, ses tests, les chiffres pertinents et les limites
 
 Chemin critique : corpus → choix modèle → moteur exact → API → qualité → persistance/mutations → ANN → packaging final. La portabilité des wheels est testée tôt pour éviter une refonte tardive.
 
+U-007 status: the [Rust normalized-equality index](../docs/exact-index.md) is implemented, with batches validated before insertion, typed IDs, verified partitions and observable output limits. Tests compare it with the exhaustive `exact_match` oracle and inject collisions. This does not complete U-010 (candidate union and scoring oracle) or U-011 (Python `Finder`).
+
 Les tâches indépendantes peuvent être développées séparément, mais les contrats de schéma, modèle et résultats doivent être fixés avant leur intégration.
 
 ## 24. Jalons et estimation de charge

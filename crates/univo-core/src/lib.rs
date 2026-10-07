@@ -14,7 +14,7 @@ mod schema;
 mod value;
 
 pub use error::{Detail, Error, ErrorCode, ErrorKind, RecordLocation, Result};
-pub use exact::{ExactMatch, exact_match};
+pub use exact::{ExactMatch, exact_fingerprint, exact_match};
 pub use normalize::{
     InvalidHostname, KeyCollision, NORMALIZER_VERSION, NormalizedValue, Transforms,
     normalize_hostname, normalize_text, normalize_value,

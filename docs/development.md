@@ -22,7 +22,7 @@ uv run ruff check . && uv run ruff format --check .
 uv run mypy
 uv run pytest
 python tools/check_links.py .
-python tools/check_native_dependencies.py univo-python
+python tools/check_native_dependencies.py univo-python univo-engine
 python tools/build_critical_corpus.py --check
 uv run pytest tests/tools tests/corpus
 ```
@@ -51,6 +51,7 @@ On macOS, Python 3.13 and later skip `.pth` files that carry the `hidden` file f
 | Path | Role |
 | --- | --- |
 | `crates/univo-core` | Values, schema, normalization, record preparation and exact matching; no Python, network or inference dependency |
+| `crates/univo-engine` | Schema-bound exact index, typed IDs, atomic batch insertion and bounded exact-search output; see [exact index](exact-index.md) |
 | `crates/univo-python` | PyO3 extension `univo._univo`; conversions only |
 | `python/univo` | Public Python package |
 | `tests/python` | Tests of the installed package, run on every platform, including `perf` budget checks |

@@ -1,8 +1,8 @@
 //! 64-bit fingerprints of a value at each normalization step.
 //!
-//! They only explain exact matches: a collision can make an explanation
-//! incomplete, never a match wrong, since equality is always decided on the
-//! normalized values themselves. Strings, values and normalized values that
+//! They explain normalization and provide exact-index candidate keys: a
+//! collision never makes a match wrong, since equality is always decided on
+//! the normalized values themselves. Strings, values and normalized values that
 //! hold the same content in the same order produce the same fingerprint.
 
 use std::hash::Hasher;
@@ -86,7 +86,7 @@ pub(crate) fn normalized(input: &NormalizedValue) -> u64 {
     hasher.finish()
 }
 
-fn write_str(hasher: &mut FxHasher, text: &str) {
+pub(crate) fn write_str(hasher: &mut FxHasher, text: &str) {
     hasher.write_usize(text.len());
     hasher.write(text.as_bytes());
 }
@@ -140,7 +140,7 @@ fn write_value(hasher: &mut FxHasher, input: &Value, nfc: bool) {
     }
 }
 
-fn write_normalized(hasher: &mut FxHasher, input: &NormalizedValue) {
+pub(crate) fn write_normalized(hasher: &mut FxHasher, input: &NormalizedValue) {
     match input {
         NormalizedValue::Null => hasher.write_u8(NULL),
         NormalizedValue::Bool(flag) => {

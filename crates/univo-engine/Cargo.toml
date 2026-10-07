@@ -1,0 +1,18 @@
+[package]
+name = "univo-engine"
+description = "Local indexing and search for Univo."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+univo-core.workspace = true
+
+[dev-dependencies]
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+
+[lints]
+workspace = true

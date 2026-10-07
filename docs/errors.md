@@ -350,4 +350,34 @@ hint: Prepare both records with the schema used for the comparison.
 code: state.schema_mismatch (https://github.com/leopoldch/univo/blob/main/docs/errors.md#stateschema_mismatch)
 ```
 
+### record.duplicate_id
+
+A record identifier is already present.
+
+- Kind: `DuplicateId` (Python: `univo.DuplicateIdError`)
+- Fix: Give each record a distinct identifier; replacing an existing record requires upsert, when available.
+
+Example:
+
+```text
+record 1: the record identifier is already present in the index or batch
+hint: Give each record a distinct identifier; replacing an existing record requires upsert, when available.
+code: record.duplicate_id (https://github.com/leopoldch/univo/blob/main/docs/errors.md#recordduplicate_id)
+```
+
+### limit.index_capacity
+
+The index record limit would be exceeded.
+
+- Kind: `ResourceLimit` (Python: `univo.ResourceLimitError`)
+- Fix: Use a smaller index or raise its explicit record limit before adding this batch.
+
+Example:
+
+```text
+the batch would bring the index to 3 records, above its limit of 2
+hint: Use a smaller index or raise its explicit record limit before adding this batch.
+code: limit.index_capacity (https://github.com/leopoldch/univo/blob/main/docs/errors.md#limitindex_capacity)
+```
+
 <!-- catalog:end -->

@@ -649,6 +649,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "univo-engine"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "univo-core",
+]
+
+[[package]]
 name = "univo-python"
 version = "0.0.0"
 dependencies = [
