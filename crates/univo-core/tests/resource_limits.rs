@@ -205,3 +205,41 @@ fn records_prepared_without_a_requirement_cannot_bypass_it() {
     let right = prepare(&lenient, &record).unwrap();
     assert!(univo_core::exact_match(&strict, &left, &right).is_err());
 }
+
+/// The deepest value accepted under the highest depth limit must be
+/// prepared, compared and dropped on a small stack, in debug as in release.
+#[test]
+fn the_deepest_accepted_values_need_little_stack() {
+    on_small_stack(|| {
+        let limits = univo_core::Limits {
+            max_depth: univo_core::MAX_NESTING_DEPTH,
+            ..univo_core::Limits::default()
+        };
+        let schema = Schema::builder()
+            .exact(path("params"), Exact::default())
+            .limits(limits)
+            .build()
+            .unwrap();
+        // Unsorted keys and a decomposed leaf make normalization change the
+        // value, so that the explanation fingerprints are computed too.
+        for list in [false, true] {
+            let mut nested = Value::Str("Cafe\u{301}".into());
+            for level in 0..univo_core::MAX_NESTING_DEPTH {
+                nested = if list {
+                    Value::List(vec![nested, Value::Int(i64::try_from(level).unwrap())])
+                } else {
+                    object(vec![("level", nested), ("Zz", Value::Int(1))])
+                };
+            }
+            let record = object(vec![("params", nested)]);
+            let left = prepare(&schema, &record).unwrap();
+            let right = prepare(&schema, &record).unwrap();
+            assert!(
+                univo_core::exact_match(&schema, &left, &right)
+                    .unwrap()
+                    .is_some()
+            );
+            drop((left, right, record));
+        }
+    });
+}
