@@ -269,45 +269,49 @@ impl SchemaBuilder {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidSchema`] when no field is selected, too many
-    /// are, a weight is not a positive finite number, a limit is zero, or two
-    /// paths among the identifier, partition keys and fields overlap.
+    /// Returns an error of kind [`crate::ErrorKind::InvalidSchema`] when no
+    /// field is selected, too many are, a weight is not a positive finite
+    /// number, a limit is out of range, or two paths among the identifier,
+    /// partition keys and fields overlap.
     pub fn build(self) -> Result<Schema> {
         let limits = self.limits;
-        if limits.max_fields == 0 || limits.max_depth == 0 || limits.max_selected_bytes == 0 {
-            return Err(Error::schema("limits must be positive"));
+        for (name, value) in [
+            ("max_fields", limits.max_fields),
+            ("max_depth", limits.max_depth),
+            ("max_selected_bytes", limits.max_selected_bytes),
+        ] {
+            if value == 0 {
+                return Err(Error::invalid_limit(
+                    name,
+                    value,
+                    "limits must be greater than zero",
+                ));
+            }
         }
         if limits.max_depth > MAX_NESTING_DEPTH {
-            return Err(Error::schema(format!(
-                "max_depth must not exceed {MAX_NESTING_DEPTH}"
-            )));
+            return Err(Error::invalid_limit(
+                "max_depth",
+                limits.max_depth,
+                "it cannot exceed 128, which bounds the stack used by normalization",
+            ));
         }
         if self.fields.is_empty() {
-            return Err(Error::schema("at least one field must be compared"));
+            return Err(Error::no_fields());
         }
         if self.fields.len() > limits.max_fields {
-            return Err(Error::schema(format!(
-                "{} fields selected, above the limit of {}",
-                self.fields.len(),
-                limits.max_fields
-            )));
+            return Err(Error::too_many_fields(self.fields.len(), limits.max_fields));
         }
         for field in &self.fields {
             let weight = field.kind.weight();
             if !(weight.is_finite() && weight > 0.0) {
-                return Err(Error::schema(format!(
-                    "weight of {} must be a positive finite number",
-                    field.path
-                )));
+                return Err(Error::invalid_weight(&field.path, weight));
             }
             if field.path.is_root() {
-                return Err(Error::schema(
-                    "the whole record can only be compared with Schema::strings",
-                ));
+                return Err(Error::whole_record_field());
             }
         }
 
-        let mut paths: Vec<(&FieldPath, &str)> = Vec::new();
+        let mut paths: Vec<(&FieldPath, &'static str)> = Vec::new();
         paths.extend(self.id_field.iter().map(|path| (path, "identifier")));
         paths.extend(self.partition_by.iter().map(|path| (path, "partition key")));
         paths.extend(
@@ -317,13 +321,14 @@ impl SchemaBuilder {
         );
         for (index, (path, role)) in paths.iter().enumerate() {
             if path.is_root() {
-                return Err(Error::schema(format!("the {role} path must not be empty")));
+                return Err(Error::invalid_path(
+                    "",
+                    &format!("the {role} cannot designate the whole record"),
+                ));
             }
             for (other, other_role) in &paths[..index] {
                 if path.is_prefix_of(other) || other.is_prefix_of(path) {
-                    return Err(Error::schema(format!(
-                        "{other_role} {other} and {role} {path} overlap"
-                    )));
+                    return Err(Error::overlapping_paths(other_role, other, role, path));
                 }
             }
         }

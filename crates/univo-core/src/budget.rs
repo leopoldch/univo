@@ -1,6 +1,6 @@
 //! Size and depth accounting of a record, charged before anything is copied.
 
-use crate::error::{Error, Resource, Result};
+use crate::error::{Error, Result};
 use crate::path::FieldPath;
 use crate::schema::Limits;
 use crate::value::Value;
@@ -49,12 +49,7 @@ impl Budget {
                 };
                 if let Some(children) = children {
                     if frames.len() == self.limits.max_depth {
-                        return Err(Error::ResourceLimit {
-                            path: path.clone(),
-                            resource: Resource::NestingDepth,
-                            limit: self.limits.max_depth,
-                            actual: self.limits.max_depth + 1,
-                        });
+                        return Err(Error::nesting_too_deep(path, self.limits.max_depth));
                     }
                     frames.push(children);
                 }
@@ -81,12 +76,11 @@ impl Budget {
     pub(crate) fn charge(&mut self, path: &FieldPath, bytes: usize) -> Result<()> {
         self.used = self.used.saturating_add(bytes);
         if self.used > self.limits.max_selected_bytes {
-            return Err(Error::ResourceLimit {
-                path: path.clone(),
-                resource: Resource::SelectedBytes,
-                limit: self.limits.max_selected_bytes,
-                actual: self.used,
-            });
+            return Err(Error::record_too_large(
+                path,
+                self.limits.max_selected_bytes,
+                self.used,
+            ));
         }
         Ok(())
     }
@@ -95,6 +89,7 @@ impl Budget {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::ErrorCode;
     use crate::value::Map;
 
     fn limits(max_depth: usize, max_selected_bytes: usize) -> Limits {
@@ -113,11 +108,8 @@ mod tests {
         value
     }
 
-    fn resource(result: &Result<()>) -> Option<Resource> {
-        match result {
-            Err(Error::ResourceLimit { resource, .. }) => Some(*resource),
-            _ => None,
-        }
+    fn resource(result: &Result<()>) -> Option<ErrorCode> {
+        result.as_ref().err().map(Error::code)
     }
 
     #[test]
@@ -128,7 +120,7 @@ mod tests {
         let mut budget = Budget::new(limits(16, usize::MAX));
         assert_eq!(
             resource(&budget.charge_value(&path, &nested(17))),
-            Some(Resource::NestingDepth)
+            Some(ErrorCode::NestingTooDeep)
         );
     }
 
@@ -146,7 +138,7 @@ mod tests {
         );
         assert_eq!(
             resource(&Budget::new(limits(16, exact - 1)).charge_value(&path, &value)),
-            Some(Resource::SelectedBytes)
+            Some(ErrorCode::RecordTooLarge)
         );
     }
 
@@ -161,7 +153,7 @@ mod tests {
         );
         assert_eq!(
             resource(&budget.charge_value(&path, &Value::Str("abc".into()))),
-            Some(Resource::SelectedBytes)
+            Some(ErrorCode::RecordTooLarge)
         );
     }
 }

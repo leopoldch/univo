@@ -7,6 +7,7 @@ Each record captures one decision, the alternatives considered, the evidence, th
 | [0001](0001-project-name-and-license.md) | Project name and license | Accepted |
 | [0002](0002-python-abi-and-wheel-strategy.md) | Python ABI and wheel strategy | Accepted |
 | [0003](0003-unicode-normalization.md) | Unicode normalization and case folding | Accepted |
+| [0004](0004-error-model.md) | Error model shared by every binding | Accepted |
 
 ## Template
 

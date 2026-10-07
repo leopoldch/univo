@@ -44,11 +44,11 @@ impl Map {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidRecord`] if a key appears twice.
-    pub fn new(entries: Vec<(String, Value)>) -> Result<Self> {
+    /// Returns [`DuplicateKey`] if a key appears twice; bindings turn it into
+    /// [`Error::duplicate_key`] with the path they are converting.
+    pub fn new(entries: Vec<(String, Value)>) -> Result<Self, DuplicateKey> {
         if let Some(key) = first_duplicate_key(&entries) {
-            let path = FieldPath::from_keys([key]).unwrap_or_default();
-            return Err(Error::record(&path, "duplicate key in object"));
+            return Err(DuplicateKey(key.to_owned()));
         }
         Ok(Self(entries))
     }
@@ -88,6 +88,10 @@ fn first_duplicate_key(entries: &[(String, Value)]) -> Option<&str> {
         .find_map(|(key, _)| (!seen.insert(key.as_str())).then_some(key.as_str()))
 }
 
+/// A key found twice while building a [`Map`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateKey(pub String);
+
 /// Result of looking up a path: absent and null are different states.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Lookup<'a> {
@@ -116,16 +120,16 @@ impl Value {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidRecord`] when the path traverses a value that
-    /// is not an object: a schema mistake must not read as missing data.
+    /// Returns a `record.wrong_shape` error when the path traverses a value
+    /// that is not an object: a schema mistake must not read as missing data.
     pub fn lookup(&self, path: &FieldPath) -> Result<Lookup<'_>> {
         let mut current = self;
         for (depth, key) in path.keys().iter().enumerate() {
             let Self::Map(map) = current else {
-                let parent = FieldPath::from_keys(path.keys()[..depth].iter().map(AsRef::as_ref))?;
-                return Err(Error::record(
-                    &parent,
-                    format!("expected an object, found {}", current.type_name()),
+                return Err(Error::wrong_shape(
+                    &path.prefix(depth),
+                    "an object",
+                    current.type_name(),
                 ));
             };
             match map.get(key) {
@@ -189,6 +193,7 @@ mod tests {
         let error = record
             .lookup(&FieldPath::parse("a.b").unwrap())
             .unwrap_err();
-        assert!(matches!(error, Error::InvalidRecord { .. }));
+        assert_eq!(error.code(), crate::ErrorCode::WrongShape);
+        assert_eq!(error.path().map(ToString::to_string).as_deref(), Some("a"));
     }
 }

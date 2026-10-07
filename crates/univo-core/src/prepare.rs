@@ -71,17 +71,19 @@ impl PreparedRecord {
 ///
 /// # Errors
 ///
-/// Returns [`Error::InvalidRecord`] when the record has the wrong shape, a
-/// field has the wrong type, a hostname is invalid, or a required field, the
-/// identifier or a partition key is missing; [`Error::ResourceLimit`] when a
-/// selected value is nested too deeply or the selected values, identifier
-/// and partition keys included, are too large.
+/// Returns an error of kind [`crate::ErrorKind::InvalidRecord`] when the
+/// record has the wrong shape, a field has the wrong type, a hostname is
+/// invalid, object keys collide, or a required field, the identifier or a
+/// partition key is missing; of kind [`crate::ErrorKind::ResourceLimit`]
+/// when a selected value is nested too deeply or the selected values,
+/// identifier and partition keys included, are too large. The error names
+/// the field path and carries a hint; see `docs/errors.md`.
 pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
     let root = FieldPath::root();
     let mut budget = Budget::new(schema.limits());
     if schema.compares_whole_record() {
         let Value::Str(text) = record else {
-            return Err(type_error(&root, "a string", record));
+            return Err(Error::wrong_shape(&root, "a string", record.type_name()));
         };
         budget.charge_value(&root, record)?;
         let case_fold = match &schema.fields()[0].kind {
@@ -96,7 +98,7 @@ pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
         });
     }
     if !matches!(record, Value::Map(_)) {
-        return Err(type_error(&root, "an object", record));
+        return Err(Error::wrong_shape(&root, "an object", record.type_name()));
     }
 
     let id = match schema.id_field() {
@@ -115,7 +117,8 @@ pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
             Lookup::Present(value) if !matches!(value, Value::Null) => value,
             missing => {
                 if field.kind.is_required() {
-                    return Err(Error::record(&field.path, "required field is missing"));
+                    let null = matches!(missing, Lookup::Present(_));
+                    return Err(Error::missing_required_field(&field.path, null));
                 }
                 let state = match missing {
                     Lookup::Absent => FieldState::Absent,
@@ -130,13 +133,23 @@ pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
             }
         };
         if matches!(field.kind, FieldKind::Text(_)) && !matches!(value, Value::Str(_)) {
-            return Err(type_error(&field.path, "a string", value));
+            return Err(Error::wrong_type(
+                &field.path,
+                "a string",
+                value.type_name(),
+            ));
         }
         budget.charge_value(&field.path, value)?;
         fields.push(match (&field.kind, value) {
             (FieldKind::Text(text), Value::Str(input)) => prepare_text(input, text.case_fold),
             (FieldKind::Exact(exact), _) => prepare_exact(&field.path, value, exact.normalizer)?,
-            (FieldKind::Text(_), other) => return Err(type_error(&field.path, "a string", other)),
+            (FieldKind::Text(_), other) => {
+                return Err(Error::wrong_type(
+                    &field.path,
+                    "a string",
+                    other.type_name(),
+                ));
+            }
         });
     }
 
@@ -150,16 +163,19 @@ pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
 
 fn prepare_id(path: &FieldPath, lookup: Lookup<'_>, budget: &mut Budget) -> Result<RecordId> {
     let value = match lookup {
-        Lookup::Absent | Lookup::Present(Value::Null) => {
-            return Err(Error::record(path, "identifier is missing"));
-        }
+        Lookup::Absent => return Err(Error::missing_identifier(path, false)),
+        Lookup::Present(Value::Null) => return Err(Error::missing_identifier(path, true)),
         Lookup::Present(value) => value,
     };
     budget.charge_value(path, value)?;
     match value {
         Value::Str(id) => Ok(RecordId::Str(id.as_str().into())),
         Value::Int(id) => Ok(RecordId::Int(*id)),
-        other => Err(type_error(path, "a string or an integer", other)),
+        other => Err(Error::wrong_type(
+            path,
+            "a string or an integer",
+            other.type_name(),
+        )),
     }
 }
 
@@ -169,17 +185,20 @@ fn prepare_partition(
     budget: &mut Budget,
 ) -> Result<NormalizedValue> {
     let value = match lookup {
-        Lookup::Absent | Lookup::Present(Value::Null) => {
-            return Err(Error::record(path, "partition key is missing"));
-        }
+        Lookup::Absent => return Err(Error::missing_partition_key(path, false)),
+        Lookup::Present(Value::Null) => return Err(Error::missing_partition_key(path, true)),
         Lookup::Present(value @ (Value::List(_) | Value::Map(_))) => {
-            return Err(type_error(path, "a scalar", value));
+            return Err(Error::wrong_type(
+                path,
+                "a string, number or boolean",
+                value.type_name(),
+            ));
         }
         Lookup::Present(value) => value,
     };
     budget.charge_value(path, value)?;
     Ok(normalize_value(value)
-        .map_err(|_| Error::record(path, "invalid partition key"))?
+        .map_err(|collision| Error::key_collision(path, &collision.0))?
         .0)
 }
 
@@ -210,11 +229,15 @@ fn prepare_exact(
 ) -> Result<PreparedField> {
     if normalizer == ExactNormalizer::Hostname {
         let Value::Str(input) = value else {
-            return Err(type_error(path, "a hostname string", value));
+            return Err(Error::wrong_type(
+                path,
+                "a hostname string",
+                value.type_name(),
+            ));
         };
         let mut out = String::with_capacity(input.len());
-        let transforms = normalize_hostname(input, &mut out)
-            .map_err(|_| Error::record(path, "hostname ends with more than one dot"))?;
+        let transforms =
+            normalize_hostname(input, &mut out).map_err(|_| Error::invalid_hostname(path))?;
         let stages = hostname_stages(input, &out, transforms);
         return Ok(PreparedField {
             state: FieldState::Exact(NormalizedValue::Str(out.into_boxed_str())),
@@ -223,15 +246,8 @@ fn prepare_exact(
         });
     }
 
-    let (canonical, transforms) = normalize_value(value).map_err(|collision| {
-        Error::record(
-            path,
-            format!(
-                "object keys collide after Unicode normalization: {}",
-                collision.0
-            ),
-        )
-    })?;
+    let (canonical, transforms) =
+        normalize_value(value).map_err(|collision| Error::key_collision(path, &collision.0))?;
     let mut stages = Stages::default();
     if transforms.contains(Transforms::UNICODE_FORM) {
         stages.0[0] = fingerprint::value(value, false);
@@ -264,11 +280,4 @@ fn hostname_stages(input: &str, out: &str, transforms: Transforms) -> Stages {
         stages.0[2] = fingerprint::text(&format!("{out}."));
     }
     stages
-}
-
-fn type_error(path: &FieldPath, expected: &str, found: &Value) -> Error {
-    Error::record(
-        path,
-        format!("expected {expected}, found {}", found.type_name()),
-    )
 }
