@@ -19,6 +19,7 @@ The normalization rules of [docs/duplicate-definitions.md](../duplicate-definiti
 - Hostnames lowercase ASCII only and are recomposed afterwards, so that the function is idempotent (`T` + U+0308 becomes U+1E97).
 - Exact matches report which normalization steps were needed per field. Each prepared field keeps a fingerprint of the value before every step that changed it; the explanation keeps the steps up to the first stage where both sides agree.
 - `NORMALIZER_VERSION` is incremented whenever any input normalizes differently.
+- A hostname ending with more than one dot is rejected, which keeps hostname normalization idempotent on every accepted input.
 
 ## Alternatives
 
@@ -45,10 +46,11 @@ Apple M2, release build, single thread:
 
 - Python and Rust agree on normalization by construction of the tests, not by sharing code: the corpus oracle in `tests/corpus` and the CPython fixtures in `tests/fixtures/unicode` are independent of the Rust implementation.
 - A dependency update that changes any output fails the oracle tests and requires a `NORMALIZER_VERSION` increment.
-- Every prepared field carries 24 bytes of fingerprints.
+- Every prepared field carries 24 bytes of fingerprints: a prepared field takes 56 bytes, 32 without them. On the standard workload, a prepared record takes about 690 bytes, of which 72 are fingerprints (about 10 %); with 64 fields, fingerprints alone would take 1.5 KiB per record, 154 MB for 100 000 records.
 
 ## Revisit when
 
 - A dependency is unmaintained when a Unicode update is needed.
 - Profiling of the full pipeline (U-010) shows normalization above 5 % of the end-to-end insertion or search time.
+- The index storage format is designed (U-010): store fingerprints only for fields whose transforms are not empty, in a side table, or make explanations optional, if records with many fields make the 24 bytes per field significant.
 - Explanations prove unnecessary for most users, which would allow dropping the fingerprints.

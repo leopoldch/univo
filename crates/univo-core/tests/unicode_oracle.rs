@@ -73,8 +73,13 @@ fn strings_match_cpython_for_text_and_hostnames() {
             "{input:?}"
         );
         let mut host = String::new();
-        normalize_hostname(input, &mut host);
-        assert_eq!(host, case["hostname"].as_str().unwrap(), "{input:?}");
+        match case["hostname"].as_str() {
+            Some(expected) => {
+                normalize_hostname(input, &mut host).unwrap();
+                assert_eq!(host, expected, "{input:?}");
+            }
+            None => assert!(normalize_hostname(input, &mut host).is_err(), "{input:?}"),
+        }
         checked += 1;
     }
     assert!(checked >= 1000);

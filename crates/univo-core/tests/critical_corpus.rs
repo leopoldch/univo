@@ -146,7 +146,7 @@ fn reproduces_every_label_of_the_critical_corpus() {
             }
         };
         let expected_exact = case["expected_kind"] == "exact";
-        let exact = exact_match(&schema, &left, &right);
+        let exact = exact_match(&schema, &left, &right).unwrap();
         if exact.is_some() != expected_exact {
             failures.push(format!(
                 "{id}: exact is {}, expected {expected_exact}",
@@ -179,7 +179,9 @@ fn exact_matches_report_what_normalization_ignored() {
         let case = cases.iter().find(|case| case["case_id"] == id).unwrap();
         let schema = schema(case["profile"].as_str().unwrap());
         let (left, right) = prepare_pair(case, &schema);
-        let exact = exact_match(&schema, &left.unwrap(), &right.unwrap()).unwrap();
+        let exact = exact_match(&schema, &left.unwrap(), &right.unwrap())
+            .unwrap()
+            .unwrap();
         let ignored = exact
             .normalized_fields
             .iter()
@@ -193,7 +195,7 @@ fn identical_originals_report_no_normalization() {
     let schema = Schema::strings();
     let left = prepare(&schema, &Value::Str("IBM".into())).unwrap();
     let right = prepare(&schema, &Value::Str("IBM".into())).unwrap();
-    let exact = exact_match(&schema, &left, &right).unwrap();
+    let exact = exact_match(&schema, &left, &right).unwrap().unwrap();
     assert_eq!(exact.normalized_fields, []);
 }
 
@@ -213,5 +215,9 @@ fn case_folding_can_be_disabled_per_field() {
         |unit: &str| Value::Map(Map::new(vec![("unit".into(), Value::Str(unit.into()))]).unwrap());
     let milliampere = prepare(&schema, &record("mA")).unwrap();
     let megaampere = prepare(&schema, &record("MA")).unwrap();
-    assert!(exact_match(&schema, &milliampere, &megaampere).is_none());
+    assert!(
+        exact_match(&schema, &milliampere, &megaampere)
+            .unwrap()
+            .is_none()
+    );
 }

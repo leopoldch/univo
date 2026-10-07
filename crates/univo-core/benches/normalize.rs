@@ -35,7 +35,7 @@ fn hostname(c: &mut Criterion) {
     c.bench_function("normalize_hostname", |b| {
         b.iter(|| {
             out.clear();
-            black_box(normalize_hostname(black_box("WWW.Example.COM."), &mut out));
+            black_box(normalize_hostname(black_box("WWW.Example.COM."), &mut out)).unwrap();
         });
     });
 }

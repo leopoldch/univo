@@ -19,7 +19,7 @@ Règles obligatoires :
 - `hostname` normalise un nom d’hôte ; il ne ramène pas automatiquement `amazon.fr` et `amazon.com` à la même société.
 - Les alias de champs, conversions d’unités et valeurs par défaut viennent d’un schéma explicite.
 - Ne pas retirer les suffixes juridiques d’une organisation sans profil choisi et évalué.
-- Plafonds proposés : 64 champs sélectionnés, profondeur 16, objet sélectionné 1 MiB ; paramétrables et testés.
+- Plafonds proposés : 64 champs sélectionnés, profondeur 16, objet sélectionné 1 MiB ; paramétrables et testés. La profondeur paramétrable est plafonnée à 128, ce qui borne aussi la pile utilisée. Les limites sont vérifiées par un parcours itératif avant toute copie ou normalisation, identifiant et clés de partition compris.
 - Dépassement du budget sémantique : erreur par défaut ; troncature explicitement activée et signalée. Les règles exactes vérifient toujours les valeurs complètes.
 
 Chaque normaliseur possède une version. L’invariant principal est l’idempotence : `normalize(normalize(x)) == normalize(x)`.

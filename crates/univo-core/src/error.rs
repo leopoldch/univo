@@ -11,7 +11,10 @@ pub enum Error {
     InvalidSchema { reason: String },
     /// A record does not satisfy the schema.
     InvalidRecord { path: FieldPath, reason: String },
-    /// A record exceeds a configured resource limit.
+    /// Records prepared with different schemas were compared.
+    SchemaMismatch,
+    /// A record exceeds a configured resource limit. When the check stops
+    /// at the first excess, `actual` is the first value above `limit`.
     ResourceLimit {
         path: FieldPath,
         resource: Resource,
@@ -49,6 +52,9 @@ impl fmt::Display for Error {
         match self {
             Self::InvalidSchema { reason } => write!(f, "invalid schema: {reason}"),
             Self::InvalidRecord { path, reason } => write!(f, "invalid record at {path}: {reason}"),
+            Self::SchemaMismatch => f.write_str(
+                "records were prepared with a schema whose preparation differs from this one",
+            ),
             Self::ResourceLimit {
                 path,
                 resource,

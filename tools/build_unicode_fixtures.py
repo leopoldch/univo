@@ -66,7 +66,10 @@ def fold_text(text: str) -> str:
 ASCII_LOWERCASE = str.maketrans(string.ascii_uppercase, string.ascii_lowercase)
 
 
-def hostname(text: str) -> str:
+def hostname(text: str) -> str | None:
+    """None for an invalid hostname: more than one trailing dot."""
+    if text.endswith(".."):
+        return None
     return nfc(nfc(text).translate(ASCII_LOWERCASE)).removesuffix(".")
 
 
@@ -80,6 +83,8 @@ EDGE_CASES = [
     _chars(0x66, 0x61, 0xDF, 0x2E, 0x64, 0x65),
     "Stripe.COM.",
     "a..",
+    "a.",
+    ".",
 ]
 
 
@@ -122,7 +127,11 @@ def main() -> int:
     rng = random.Random(SEED)
     records = []
     for text in EDGE_CASES + [random_string(rng) for _ in range(STRING_COUNT)]:
-        record = {"input": text, "text": fold_text(text), "text_no_fold": nfc(text)}
+        record: dict[str, str | None] = {
+            "input": text,
+            "text": fold_text(text),
+            "text_no_fold": nfc(text),
+        }
         record["hostname"] = hostname(text)
         records.append(json.dumps(record, ensure_ascii=False) + "\n")
     (OUTPUT / "strings.jsonl").write_text("".join(records), encoding="utf-8")

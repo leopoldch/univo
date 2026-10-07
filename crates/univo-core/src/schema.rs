@@ -1,5 +1,14 @@
+use std::hash::Hasher;
+
+use rustc_hash::FxHasher;
+
 use crate::error::{Error, Result};
+use crate::normalize::NORMALIZER_VERSION;
 use crate::path::FieldPath;
+
+/// Highest accepted `max_depth`: normalization recurses once per level of
+/// an accepted value, so the limit also bounds the stack it uses.
+pub const MAX_NESTING_DEPTH: usize = 128;
 
 /// Fields to compare, record identity, partitions and resource limits.
 ///
@@ -11,6 +20,7 @@ pub struct Schema {
     partition_by: Vec<FieldPath>,
     fields: Vec<Field>,
     limits: Limits,
+    preparation_fingerprint: u64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -126,15 +136,62 @@ impl FieldKind {
 impl Schema {
     /// Schema for plain string records, compared as one text field.
     pub fn strings() -> Self {
-        Self {
-            id_field: None,
-            partition_by: Vec::new(),
-            fields: vec![Field {
+        Self::assemble(
+            None,
+            Vec::new(),
+            vec![Field {
                 path: FieldPath::root(),
                 kind: FieldKind::Text(Text::default()),
             }],
-            limits: Limits::default(),
+            Limits::default(),
+        )
+    }
+
+    fn assemble(
+        id_field: Option<FieldPath>,
+        partition_by: Vec<FieldPath>,
+        fields: Vec<Field>,
+        limits: Limits,
+    ) -> Self {
+        let mut hasher = FxHasher::default();
+        hasher.write_u32(NORMALIZER_VERSION);
+        write_path(&mut hasher, id_field.as_ref());
+        hasher.write_usize(partition_by.len());
+        for path in &partition_by {
+            write_path(&mut hasher, Some(path));
         }
+        hasher.write_usize(fields.len());
+        for field in &fields {
+            write_path(&mut hasher, Some(&field.path));
+            match &field.kind {
+                FieldKind::Text(text) => {
+                    hasher.write_u8(1);
+                    hasher.write_u8(u8::from(text.case_fold));
+                }
+                FieldKind::Exact(exact) => {
+                    hasher.write_u8(2);
+                    hasher.write_u8(match exact.normalizer {
+                        ExactNormalizer::Identity => 0,
+                        ExactNormalizer::Hostname => 1,
+                    });
+                }
+            }
+        }
+        Self {
+            id_field,
+            partition_by,
+            fields,
+            limits,
+            preparation_fingerprint: hasher.finish(),
+        }
+    }
+
+    /// Identifies everything that determines the result of
+    /// [`crate::prepare`]: paths, field kinds, case folding, normalizers and
+    /// [`NORMALIZER_VERSION`]. Weights, modes, vetoes, requirements and
+    /// limits are excluded, since they do not change a prepared record.
+    pub fn preparation_fingerprint(&self) -> u64 {
+        self.preparation_fingerprint
     }
 
     pub fn builder() -> SchemaBuilder {
@@ -220,6 +277,11 @@ impl SchemaBuilder {
         if limits.max_fields == 0 || limits.max_depth == 0 || limits.max_selected_bytes == 0 {
             return Err(Error::schema("limits must be positive"));
         }
+        if limits.max_depth > MAX_NESTING_DEPTH {
+            return Err(Error::schema(format!(
+                "max_depth must not exceed {MAX_NESTING_DEPTH}"
+            )));
+        }
         if self.fields.is_empty() {
             return Err(Error::schema("at least one field must be compared"));
         }
@@ -266,12 +328,25 @@ impl SchemaBuilder {
             }
         }
 
-        Ok(Schema {
-            id_field: self.id_field,
-            partition_by: self.partition_by,
-            fields: self.fields,
+        Ok(Schema::assemble(
+            self.id_field,
+            self.partition_by,
+            self.fields,
             limits,
-        })
+        ))
+    }
+}
+
+fn write_path(hasher: &mut FxHasher, path: Option<&FieldPath>) {
+    let Some(path) = path else {
+        hasher.write_u8(0);
+        return;
+    };
+    hasher.write_u8(1);
+    hasher.write_usize(path.keys().len());
+    for key in path.keys() {
+        hasher.write_usize(key.len());
+        hasher.write(key.as_bytes());
     }
 }
 
@@ -350,6 +425,62 @@ mod tests {
             builder = builder.text(path(&format!("f{index}")), Text::default());
         }
         assert!(builder.build().is_err());
+    }
+
+    #[test]
+    fn rejects_depth_limits_above_the_stack_bound() {
+        let limits = Limits {
+            max_depth: MAX_NESTING_DEPTH + 1,
+            ..Limits::default()
+        };
+        assert!(
+            Schema::builder()
+                .text(path("name"), Text::default())
+                .limits(limits)
+                .build()
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn preparation_fingerprint_ignores_scoring_parameters() {
+        let base = || Schema::builder().id_field(path("id"));
+        let schema = base().text(path("name"), Text::default()).build().unwrap();
+        let reweighted = base()
+            .text(
+                path("name"),
+                Text {
+                    weight: 3.0,
+                    mode: TextMode::Lexical,
+                    required: true,
+                    ..Text::default()
+                },
+            )
+            .build()
+            .unwrap();
+        let unfolded = base()
+            .text(
+                path("name"),
+                Text {
+                    case_fold: false,
+                    ..Text::default()
+                },
+            )
+            .build()
+            .unwrap();
+        let renamed = base().text(path("title"), Text::default()).build().unwrap();
+        assert_eq!(
+            schema.preparation_fingerprint(),
+            reweighted.preparation_fingerprint()
+        );
+        assert_ne!(
+            schema.preparation_fingerprint(),
+            unfolded.preparation_fingerprint()
+        );
+        assert_ne!(
+            schema.preparation_fingerprint(),
+            renamed.preparation_fingerprint()
+        );
     }
 
     #[test]

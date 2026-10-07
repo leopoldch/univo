@@ -3,6 +3,10 @@ use crate::path::FieldPath;
 
 /// A record value. Types are never coerced: `Int(3)` and `Str("3")` differ,
 /// and so do `Int(0)` and `Bool(false)`.
+///
+/// Nesting is bounded by [`crate::Limits`] when a record is prepared, not
+/// when a value is built: bindings must bound it while converting foreign
+/// objects, since dropping a value recurses as deeply as it is nested.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Null,
@@ -131,37 +135,6 @@ impl Value {
         }
         Ok(Lookup::Present(current))
     }
-
-    /// Number of nested lists and objects, counting this value.
-    pub fn depth(&self) -> usize {
-        match self {
-            Self::List(items) => 1 + items.iter().map(Self::depth).max().unwrap_or(0),
-            Self::Map(map) => {
-                1 + map
-                    .0
-                    .iter()
-                    .map(|(_, value)| value.depth())
-                    .max()
-                    .unwrap_or(0)
-            }
-            _ => 0,
-        }
-    }
-
-    /// Approximate size used for resource limits: UTF-8 bytes of strings
-    /// and keys, plus eight bytes per scalar or container.
-    pub fn selected_bytes(&self) -> usize {
-        8 + match self {
-            Self::Str(text) => text.len(),
-            Self::List(items) => items.iter().map(Self::selected_bytes).sum(),
-            Self::Map(map) => map
-                .0
-                .iter()
-                .map(|(key, value)| key.len() + value.selected_bytes())
-                .sum(),
-            _ => 0,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -217,11 +190,5 @@ mod tests {
             .lookup(&FieldPath::parse("a.b").unwrap())
             .unwrap_err();
         assert!(matches!(error, Error::InvalidRecord { .. }));
-    }
-
-    #[test]
-    fn depth_counts_containers() {
-        assert_eq!(Value::Int(1).depth(), 0);
-        assert_eq!(object(vec![("a", Value::List(vec![]))]).depth(), 2);
     }
 }

@@ -3,7 +3,9 @@
 {"input": "ẗ", "text": "ẗ", "text_no_fold": "ẗ", "hostname": "ẗ"}
 {"input": "faß.de", "text": "fass.de", "text_no_fold": "faß.de", "hostname": "faß.de"}
 {"input": "Stripe.COM.", "text": "stripe.com.", "text_no_fold": "Stripe.COM.", "hostname": "stripe.com"}
-{"input": "a..", "text": "a..", "text_no_fold": "a..", "hostname": "a."}
+{"input": "a..", "text": "a..", "text_no_fold": "a..", "hostname": null}
+{"input": "a.", "text": "a.", "text_no_fold": "a.", "hostname": "a"}
+{"input": ".", "text": ".", "text_no_fold": ".", "hostname": ""}
 {"input": "Β京Œûﺤメî", "text": "β京œûﺤメî", "text_no_fold": "Β京Œûﺤメî", "hostname": "Β京Œûﺤメî"}
 {"input": "̊̀ﬃ", "text": "̊̀ffi", "text_no_fold": "̊̀ﬃ", "hostname": "̊̀ﬃ"}
 {"input": "lﴔ۟ 勚6", "text": "lﴔ۟ 勚6", "text_no_fold": "lﴔ۟ 勚6", "hostname": "lﴔ۟ 勚6"}

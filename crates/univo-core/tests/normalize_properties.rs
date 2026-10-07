@@ -9,10 +9,10 @@ fn text(input: &str, case_fold: bool) -> (String, Transforms) {
     (out, transforms)
 }
 
-fn hostname(input: &str) -> String {
+fn hostname(input: &str) -> Option<(String, Transforms)> {
     let mut out = String::new();
-    normalize_hostname(input, &mut out);
-    out
+    let transforms = normalize_hostname(input, &mut out).ok()?;
+    Some((out, transforms))
 }
 
 /// Strings biased towards the characters that exercise normalization.
@@ -61,16 +61,18 @@ proptest! {
     }
 
     #[test]
-    fn hostname_normalization_is_idempotent_except_repeated_dots(input in interesting()) {
-        let once = hostname(&input);
-        let twice = hostname(&once);
-        // Only one trailing dot is removed per pass, by definition.
-        prop_assert!(twice == once || (once.ends_with('.') && twice == once[..once.len() - 1]));
+    fn hostname_normalization_is_idempotent(input in interesting()) {
+        prop_assert_eq!(hostname(&input).is_none(), input.ends_with(".."));
+        if let Some((once, _)) = hostname(&input) {
+            prop_assert_eq!(hostname(&once), Some((once.clone(), Transforms::NONE)));
+        }
     }
 
     #[test]
     fn hostname_never_changes_non_ascii_letters(input in interesting()) {
-        let out = hostname(&input);
+        let Some((out, _)) = hostname(&input) else {
+            return Ok(());
+        };
         let folded_non_ascii = out.chars().filter(|c| !c.is_ascii()).count();
         let composed: String = {
             use unicode_normalization::UnicodeNormalization;

@@ -1,5 +1,6 @@
 //! Exact matches: equality of every selected field after normalization.
 
+use crate::error::{Error, Result};
 use crate::fingerprint::{self, Trace};
 use crate::normalize::{NormalizedValue, Transforms};
 use crate::prepare::{FieldState, PreparedField, PreparedRecord};
@@ -17,6 +18,11 @@ pub struct ExactMatch {
 /// Returns the exact match between two records prepared with `schema`, if
 /// any.
 ///
+/// # Errors
+///
+/// Returns [`Error::SchemaMismatch`] if either record was prepared with a
+/// schema whose [`Schema::preparation_fingerprint`] differs from `schema`'s.
+///
 /// Both records must share their partition, every field must be in the same
 /// missing state with equal normalized values, and at least one informative
 /// field must be present: identifiers and partition keys are not evidence.
@@ -24,16 +30,20 @@ pub fn exact_match(
     schema: &Schema,
     left: &PreparedRecord,
     right: &PreparedRecord,
-) -> Option<ExactMatch> {
+) -> Result<Option<ExactMatch>> {
+    let expected = schema.preparation_fingerprint();
+    if left.schema != expected || right.schema != expected {
+        return Err(Error::SchemaMismatch);
+    }
     if left.partition != right.partition {
-        return None;
+        return Ok(None);
     }
     let mut informative = false;
     let mut normalized_fields = Vec::new();
     let pairs = left.fields.iter().zip(right.fields.iter());
     for (index, (field, (a, b))) in schema.fields().iter().zip(pairs).enumerate() {
         if a.state != b.state {
-            return None;
+            return Ok(None);
         }
         informative |= is_informative(&field.kind, &a.state);
         if a.transforms.is_empty() && b.transforms.is_empty() {
@@ -45,7 +55,7 @@ pub fn exact_match(
             normalized_fields.push((index, needed));
         }
     }
-    informative.then_some(ExactMatch { normalized_fields })
+    Ok(informative.then_some(ExactMatch { normalized_fields }))
 }
 
 /// Fingerprints of every normalization stage of a field.

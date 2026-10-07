@@ -3,6 +3,7 @@
 //! This crate has no dependency on Python, on network clients or on an
 //! inference runtime. Bindings and the engine build on top of it.
 
+mod budget;
 mod error;
 mod exact;
 mod fingerprint;
@@ -15,14 +16,14 @@ mod value;
 pub use error::{Error, Resource, Result};
 pub use exact::{ExactMatch, exact_match};
 pub use normalize::{
-    KeyCollision, NORMALIZER_VERSION, NormalizedValue, Transforms, normalize_hostname,
-    normalize_text, normalize_value,
+    InvalidHostname, KeyCollision, NORMALIZER_VERSION, NormalizedValue, Transforms,
+    normalize_hostname, normalize_text, normalize_value,
 };
 pub use path::FieldPath;
 pub use prepare::{FieldState, PreparedField, PreparedRecord, RecordId, prepare};
 pub use schema::{
-    Conflict, Exact, ExactNormalizer, Field, FieldKind, Limits, Schema, SchemaBuilder, Text,
-    TextMode,
+    Conflict, Exact, ExactNormalizer, Field, FieldKind, Limits, MAX_NESTING_DEPTH, Schema,
+    SchemaBuilder, Text, TextMode,
 };
 pub use value::{Finite, Lookup, Map, Value};
 

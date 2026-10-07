@@ -300,13 +300,26 @@ pub(crate) fn normalize_text_observed(
     transforms
 }
 
+/// A hostname ending with more than one dot: removing a single trailing
+/// dot would leave another one, and normalization would not be idempotent.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct InvalidHostname;
+
 /// Normalizes a hostname into `out`: NFC, ASCII-only lowercasing, NFC again,
 /// and removal of one trailing dot. Non-ASCII characters are kept, because
 /// full case folding would merge distinct IDNA2008 names such as `faß.de`
 /// and `fass.de`. The second NFC composes a lowered letter with a following
 /// combining mark (`T` + U+0308 becomes U+1E97), which keeps the function
 /// idempotent.
-pub fn normalize_hostname(input: &str, out: &mut String) -> Transforms {
+///
+/// # Errors
+///
+/// Returns [`InvalidHostname`] when `input` ends with more than one dot;
+/// `out` is then left unchanged.
+pub fn normalize_hostname(input: &str, out: &mut String) -> Result<Transforms, InvalidHostname> {
+    if input.ends_with("..") {
+        return Err(InvalidHostname);
+    }
     let start = out.len();
     let mut transforms = Transforms::NONE;
     if push_nfc(input, out) {
@@ -321,7 +334,7 @@ pub fn normalize_hostname(input: &str, out: &mut String) -> Transforms {
         out.pop();
         transforms |= Transforms::TRAILING_DOT;
     }
-    transforms
+    Ok(transforms)
 }
 
 /// Canonical form of a value compared for typed equality: strings and keys
@@ -416,7 +429,7 @@ mod tests {
 
     fn hostname(input: &str) -> (String, Transforms) {
         let mut out = String::new();
-        let transforms = normalize_hostname(input, &mut out);
+        let transforms = normalize_hostname(input, &mut out).unwrap();
         (out, transforms)
     }
 
@@ -468,7 +481,15 @@ mod tests {
         assert_ne!(hostname("faß.de").0, hostname("fass.de").0);
         assert_eq!(hostname("BÜCHER.de").0, "bÜcher.de");
         assert_eq!(hostname("").0, "");
-        assert_eq!(hostname("a..").0, "a.");
+        assert_eq!(hostname(".").0, "");
+    }
+
+    #[test]
+    fn hostname_rejects_repeated_trailing_dots() {
+        let mut out = String::from("kept");
+        assert_eq!(normalize_hostname("a..", &mut out), Err(InvalidHostname));
+        assert_eq!(normalize_hostname("..", &mut out), Err(InvalidHostname));
+        assert_eq!(out, "kept");
     }
 
     #[test]

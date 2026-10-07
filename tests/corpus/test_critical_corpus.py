@@ -83,6 +83,8 @@ def normalize(kind: str, value: Any) -> Any:
         if kind == TEXT:
             return ("str", nfc(nfc(value).casefold()))
         if kind == HOSTNAME:
+            if value.endswith(".."):
+                raise ValueError(f"invalid hostname {value!r}")
             return ("str", nfc(nfc(value).translate(ASCII_LOWERCASE)).removesuffix("."))
         return ("str", nfc(value))
     if isinstance(value, dict):
