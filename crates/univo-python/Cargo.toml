@@ -1,0 +1,25 @@
+[package]
+name = "univo-python"
+description = "Python bindings for Univo."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lib]
+name = "_univo"
+crate-type = ["cdylib"]
+
+[dependencies]
+univo-core.workspace = true
+pyo3 = { workspace = true, features = ["macros", "abi3-py311"] }
+
+[features]
+# Enabled by maturin for wheel builds; plain cargo builds link libpython instead.
+extension-module = ["pyo3/extension-module"]
+
+[lints]
+workspace = true
