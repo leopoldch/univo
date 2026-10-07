@@ -19,8 +19,8 @@ A duplicate is defined per profile, never globally. Each profile fixes which fie
 - **Types.** Values of different types are different values: `3` and `"3"` contradict, `0` and `false` contradict.
 - **Normalization depends on the field kind.**
   - Every string is put in Unicode NFC.
-  - Text fields additionally use Unicode default full case folding (as Python's `str.casefold`), then NFC again. `ß` folds to `ss` and the `ﬁ` ligature to `fi`; width variants and accents are kept.
-  - Hostname fields additionally lowercase ASCII letters only and drop one trailing dot. Non-ASCII characters are kept as they are: full case folding would merge domains that are distinct under IDNA2008, such as `faß.de` (`xn--fa-hia.de`) and `fass.de`. IDNA mapping is not applied, so non-ASCII case variants and the punycode form of a domain are not treated as equal; this can miss an `exact` match but never creates a false one.
+  - Text fields additionally use Unicode default full case folding (as Python's `str.casefold`), then NFC again. `ß` folds to `ss` and the `ﬁ` ligature to `fi`; width variants and accents are kept. Case folding can be disabled per text field (`case_fold=False`) when case carries meaning, such as `mA` and `MA`.
+  - Hostname fields additionally lowercase ASCII letters only, are put in NFC again (a lowered letter can compose with a following combining mark), and drop one trailing dot. A hostname ending with more than one dot is invalid, so that normalization stays idempotent. Non-ASCII characters are kept as they are: full case folding would merge domains that are distinct under IDNA2008, such as `faß.de` (`xn--fa-hia.de`) and `fass.de`. IDNA mapping is not applied, so non-ASCII case variants and the punycode form of a domain are not treated as equal; this can miss an `exact` match but never creates a false one.
   - Partition keys, discriminant fields and parameters are not folded: `INFO` and `info` differ.
   - No alias, unit conversion or legal-suffix rule applies unless the schema declares it.
 - **Lists** keep their order. A reordered list is a different value unless the schema declares set semantics.
@@ -28,6 +28,7 @@ A duplicate is defined per profile, never globally. Each profile fixes which fie
 - **Vetoes.** A field declared as discriminant (`conflict="reject"`) forbids a match when both values are present and differ, even if every other field is equal.
 - **Informative evidence.** A pair whose informative fields are all missing or blank has no score and is not a match. Identifiers and partition keys are not informative.
 - **Exact matches.** A pair is `exact` when every selected field is equal after the normalization of its kind, each field has the same missing state on both sides (absent and `null` differ), and at least one informative field is present.
+- **Normalization is reported.** Normalization only builds comparison keys; records are never modified. An exact match lists, for each field whose original values differ, the steps that were needed to make them equal: `unicode form`, `case`, `trailing dot` or `key order`. Identical originals report nothing.
 
 ## Profiles
 
@@ -82,6 +83,6 @@ Inputs are rejected instead of being coerced. The critical corpus pins these err
 
 | Input | Error |
 | --- | --- |
-| a record of the wrong shape, a text field holding a number or boolean, a missing `id` or partition key | `InvalidRecordError` |
+| a record of the wrong shape, a text field holding a number or boolean, a missing `id` or partition key, a hostname ending with more than one dot | `InvalidRecordError` |
 | two records with the same `id` in one call | `DuplicateIdError` |
-| nesting deeper than the configured limit | `ResourceLimitError` |
+| nesting deeper than the configured limit, or selected values (identifier and partition keys included) larger than the configured size | `ResourceLimitError` |

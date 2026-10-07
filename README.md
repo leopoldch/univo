@@ -21,6 +21,7 @@ The library is under construction and not published yet. The repository contains
 - [Repository instructions](AGENTS.md)
 - [Architecture decision records](docs/adr/README.md)
 - [Duplicate definitions per profile](docs/duplicate-definitions.md)
+- [Dependency register](docs/dependencies.md)
 
 ## Design priorities
 

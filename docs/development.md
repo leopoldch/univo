@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Rust stable (minimum supported version: 1.85).
+- Rust stable (minimum supported version: 1.86).
 - Python 3.11 or later and [uv](https://docs.astral.sh/uv/).
 
 ## Setup
@@ -36,7 +36,11 @@ python tools/check_wheel.py dist/*.whl
 
 ## Performance tests
 
-Tests marked `perf` enforce the budgets in [benchmarks/budgets.toml](../benchmarks/budgets.toml). Run them alone with `uv run pytest -m perf`. See [performance.md](performance.md) for the measurement policy.
+Budgets live in [benchmarks/budgets.toml](../benchmarks/budgets.toml). Python tests marked `perf` enforce them (`uv run pytest -m perf`); Rust budget tests run in release builds only (`cargo test --release`). Benchmarks: `cargo bench -p univo-core`.
+
+## Unicode fixtures
+
+`tests/fixtures/unicode` holds CPython's NFC and case folding results, the oracle of the Rust normalizers. Regenerate them with `python -I tools/build_unicode_fixtures.py` when the Unicode version changes, and increment `NORMALIZER_VERSION` if any output changes. See [performance.md](performance.md) for the measurement policy.
 
 ## Troubleshooting
 
@@ -46,7 +50,7 @@ On macOS, Python 3.13 and later skip `.pth` files that carry the `hidden` file f
 
 | Path | Role |
 | --- | --- |
-| `crates/univo-core` | Types and matching logic; no Python, network or inference dependency |
+| `crates/univo-core` | Values, schema, normalization, record preparation and exact matching; no Python, network or inference dependency |
 | `crates/univo-python` | PyO3 extension `univo._univo`; conversions only |
 | `python/univo` | Public Python package |
 | `tests/python` | Tests of the installed package, run on every platform, including `perf` budget checks |
