@@ -5,6 +5,7 @@ Each record captures one decision, the alternatives considered, the evidence, th
 | ADR | Title | Status |
 | --- | --- | --- |
 | [0001](0001-project-name-and-license.md) | Project name and license | Accepted |
+| [0002](0002-python-abi-and-wheel-strategy.md) | Python ABI and wheel strategy | Accepted |
 
 ## Template
 

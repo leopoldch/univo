@@ -19,11 +19,14 @@ Matrice proposée pour la 1.0 :
 | Plateforme | Architecture | Niveau |
 | --- | --- | --- |
 | Linux glibc | x86_64 | obligatoire |
-| Linux glibc | aarch64 | obligatoire si runner réel disponible ; sinon beta explicite |
+| Linux glibc | aarch64 | obligatoire |
 | macOS | arm64 | obligatoire |
 | macOS | x86_64 | obligatoire |
 | Windows | x86_64 | obligatoire |
-| Linux musl, Windows ARM, PyPy, Python free-threaded | divers | différés jusqu’à tests dédiés |
+| Windows | arm64 | obligatoire |
+| Linux musl, PyPy, Python free-threaded | divers | différés jusqu’à tests dédiés |
+
+Décision du mainteneur du 2026-10-07 : amd64 et arm64 sont pris en charge à égalité. Chaque wheel est construite et testée en CI sur un runner natif de son architecture, avec vérification de l’architecture de l’interpréteur ([ADR 0002](../docs/adr/0002-python-abi-and-wheel-strategy.md)).
 
 Proposition : CPython 3.11 à 3.14, à confirmer au démarrage sur les versions effectivement disponibles et dépendances choisies. Évaluer abi3 pour réduire le nombre de wheels ; ne pas présumer que cela couvre les variantes free-threaded ou tous les backends.
 

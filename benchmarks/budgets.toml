@@ -1,0 +1,15 @@
+# Resource budgets enforced by the perf test suites.
+#
+# Values come from specs/07-performance.md. They are upper bounds on the
+# reference machine described in docs/performance.md. Shared CI runners apply
+# the documented UNIVO_PERF_SLACK multiplier to time budgets only; size
+# budgets are never relaxed.
+
+[python.import]
+# Wall time of `import univo` in a fresh interpreter, model never loaded.
+p95_ms = 20.0
+samples = 30
+
+[wheel]
+# Compressed wheel size, model weights excluded.
+max_compressed_mib = 30.0

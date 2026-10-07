@@ -30,7 +30,7 @@ Workload standard proposé : 100 000 objets, ID + tenant + nom de 20 caractères
 
 | Mesure | Budget initial proposé |
 | --- | --- |
-| Import Python sans modèle | p95 ≤ 100 ms |
+| Import Python sans modèle | p95 ≤ 20 ms (resserré de 100 ms le 2026-10-07 : l’import doit rester imperceptible ; mesuré à 0,85 ms en U-005) |
 | Construction Finder sans modèle | p95 ≤ 20 ms |
 | Premier encodage, modèle local en cache | p95 ≤ 2 s |
 | Recherche chaude complète à 100k, 4 threads | p95 ≤ 50 ms ; p99 publié |
@@ -48,5 +48,7 @@ Mesurer : normalisation, tokenization/encodage, retrieval, reranking, conversion
 Protocole : warmup, au moins 1 000 requêtes pour p95, volume supérieur pour p99 stable ; cinq répétitions indépendantes ; mêmes corpus, threads et conditions pour les baselines. Publier médiane, dispersion et taux d’erreur. Mesurer un seul thread puis quatre, pas seulement tous les cœurs.
 
 La vitesse ANN est comparée à rappel équivalent. Pour un profil ANN viser recall@k ≥ 99 % contre l’oracle exact sur les requêtes d’évaluation, et mesurer séparément le rappel final des doublons hybrides. Un bon recall vectoriel ne prouve pas un bon rappel métier.
+
+Les budgets appliqués par les tests sont centralisés dans [benchmarks/budgets.toml](../benchmarks/budgets.toml) ; la politique de mesure est décrite dans [docs/performance.md](../docs/performance.md).
 
 Gates de non-régression proposés sur runner stable : alerte dès +10 % de p95, +10 % de RSS ou +10 % de taille ; confirmation par répétition avant blocage. GitHub runners partagés servent aux smoke tests, pas aux petites différences de performance.

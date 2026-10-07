@@ -1,0 +1,57 @@
+[build-system]
+requires = ["maturin>=1.15,<2"]
+build-backend = "maturin"
+
+[project]
+name = "univo"
+description = "Fast, local duplicate detection for your data."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "Léopold Chappuis" }]
+dynamic = ["version"]
+dependencies = []
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Rust",
+    "Topic :: Database",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Repository = "https://github.com/leopoldch/univo"
+
+[dependency-groups]
+dev = ["maturin>=1.15,<2", "pytest>=9.1", "ruff>=0.16", "mypy>=2.4"]
+
+[tool.maturin]
+manifest-path = "crates/univo-python/Cargo.toml"
+module-name = "univo._univo"
+python-source = "python"
+features = ["extension-module"]
+profile = "release"
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python", "tests/tools"]
+pythonpath = ["tools"]
+addopts = ["--strict-markers", "--import-mode=importlib"]
+markers = ["perf: resource budget checks from benchmarks/budgets.toml"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["specs", "docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PT"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+mypy_path = ["python", "tools"]
+files = ["python/univo", "tests/python", "tests/tools", "tools"]

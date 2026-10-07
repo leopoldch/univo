@@ -1,0 +1,54 @@
+# Development
+
+## Requirements
+
+- Rust stable (minimum supported version: 1.85).
+- Python 3.11 or later and [uv](https://docs.astral.sh/uv/).
+
+## Setup
+
+```bash
+uv sync --group dev          # creates .venv and builds the extension in release mode
+uv run maturin develop -r    # rebuild after Rust changes
+```
+
+## Checks run in CI
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace --all-targets --locked -- -D warnings
+cargo test --workspace --locked
+uv run ruff check . && uv run ruff format --check .
+uv run mypy
+uv run pytest
+python tools/check_links.py .
+python tools/check_native_dependencies.py univo-python
+uv run pytest tests/tools
+```
+
+Wheel checks:
+
+```bash
+uv run maturin build --release --out dist
+python tools/check_wheel.py dist/*.whl
+```
+
+## Performance tests
+
+Tests marked `perf` enforce the budgets in [benchmarks/budgets.toml](../benchmarks/budgets.toml). Run them alone with `uv run pytest -m perf`. See [performance.md](performance.md) for the measurement policy.
+
+## Troubleshooting
+
+On macOS, Python 3.13 and later skip `.pth` files that carry the `hidden` file flag, which breaks editable installs (`ModuleNotFoundError: No module named 'univo'`). Clear the flag with `chflags -R nohidden .venv`.
+
+## Layout
+
+| Path | Role |
+| --- | --- |
+| `crates/univo-core` | Types and matching logic; no Python, network or inference dependency |
+| `crates/univo-python` | PyO3 extension `univo._univo`; conversions only |
+| `python/univo` | Public Python package |
+| `tests/python` | Tests of the installed package, run on every platform, including `perf` budget checks |
+| `tests/tools` | Tests of the repository tools, run once |
+| `benchmarks/budgets.toml` | Single source for enforced resource budgets |
+| `tools` | Repository checks used by CI |
