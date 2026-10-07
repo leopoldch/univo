@@ -84,13 +84,9 @@ fn to_value(json: &Json) -> Value {
     }
 }
 
-fn error_name(error: &Error) -> &'static str {
-    match error {
-        Error::InvalidRecord { .. } => "InvalidRecordError",
-        Error::ResourceLimit { .. } => "ResourceLimitError",
-        Error::InvalidSchema { .. } => "InvalidSchemaError",
-        _ => "other",
-    }
+/// Corpus labels name the exception a binding raises for the error kind.
+fn error_name(error: &Error) -> String {
+    format!("{}Error", error.kind().name())
 }
 
 fn cases() -> Vec<Json> {
@@ -132,7 +128,7 @@ fn reproduces_every_label_of_the_critical_corpus() {
                 .into_iter()
                 .filter_map(|result| result.as_ref().err().map(error_name))
                 .collect();
-            if actual != [expected] {
+            if actual != [expected.to_owned()] {
                 failures.push(format!("{id}: expected one {expected}, got {actual:?}"));
             }
             continue;

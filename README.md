@@ -22,6 +22,7 @@ The library is under construction and not published yet. The repository contains
 - [Architecture decision records](docs/adr/README.md)
 - [Duplicate definitions per profile](docs/duplicate-definitions.md)
 - [Dependency register](docs/dependencies.md)
+- [Error catalog](docs/errors.md)
 
 ## Design priorities
 

@@ -13,7 +13,7 @@ mod prepare;
 mod schema;
 mod value;
 
-pub use error::{Error, Resource, Result};
+pub use error::{Detail, Error, ErrorCode, ErrorKind, RecordLocation, Result};
 pub use exact::{ExactMatch, exact_match};
 pub use normalize::{
     InvalidHostname, KeyCollision, NORMALIZER_VERSION, NormalizedValue, Transforms,
@@ -25,7 +25,7 @@ pub use schema::{
     Conflict, Exact, ExactNormalizer, Field, FieldKind, Limits, MAX_NESTING_DEPTH, Schema,
     SchemaBuilder, Text, TextMode,
 };
-pub use value::{Finite, Lookup, Map, Value};
+pub use value::{DuplicateKey, Finite, Lookup, Map, Value};
 
 /// Version of the Univo core, shared by every binding.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

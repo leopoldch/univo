@@ -352,7 +352,13 @@ pub enum NormalizedValue {
 
 /// Two keys of one object became equal after NFC.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct KeyCollision(pub Box<str>);
+pub struct KeyCollision {
+    /// The key both became.
+    pub key: Box<str>,
+    /// Where the ambiguous object sits inside the normalized value, such as
+    /// `nested.items[2]`; empty when it is the value itself.
+    pub location: String,
+}
 
 /// Normalizes a value for typed equality.
 ///
@@ -433,7 +439,14 @@ fn normalize_value_into(
                         next = Some(item);
                         break;
                     }
-                    finished = Some(finish_map(std::mem::take(done), transforms)?);
+                    let entries = std::mem::take(done);
+                    frames.pop();
+                    finished =
+                        Some(finish_map(entries, transforms).map_err(|key| KeyCollision {
+                            key,
+                            location: location(&frames),
+                        })?);
+                    continue;
                 }
             }
             frames.pop();
@@ -451,11 +464,35 @@ fn normalize_scalar(value: &Value, transforms: &mut Transforms) -> NormalizedVal
     }
 }
 
-/// Sorts the keys of a normalized object and rejects keys made equal by NFC.
+/// Location of the value being normalized, from the frames of its
+/// ancestors: object keys joined by dots, list positions in brackets.
+/// Only computed on the failure path.
+fn location(frames: &[Frame<'_>]) -> String {
+    let mut out = String::new();
+    for frame in frames {
+        match frame {
+            Frame::List { done, .. } => {
+                out.push('[');
+                out.push_str(&done.len().to_string());
+                out.push(']');
+            }
+            Frame::Map { key, .. } => {
+                if !out.is_empty() {
+                    out.push('.');
+                }
+                out.push_str(key);
+            }
+        }
+    }
+    out
+}
+
+/// Sorts the keys of a normalized object; returns the key shared by two
+/// entries that NFC made equal.
 fn finish_map(
     mut entries: Vec<(Box<str>, NormalizedValue)>,
     transforms: &mut Transforms,
-) -> Result<NormalizedValue, KeyCollision> {
+) -> Result<NormalizedValue, Box<str>> {
     if !entries.is_sorted_by(|left, right| left.0 <= right.0) {
         entries.sort_unstable_by(|left, right| left.0.cmp(&right.0));
         *transforms |= Transforms::KEY_ORDER;
@@ -464,7 +501,7 @@ fn finish_map(
         .windows(2)
         .find(|pair| pair[0].0.cmp(&pair[1].0) == Ordering::Equal)
     {
-        return Err(KeyCollision(pair[0].0.clone()));
+        return Err(pair[0].0.clone());
     }
     Ok(NormalizedValue::Map(entries.into_boxed_slice()))
 }
@@ -585,6 +622,27 @@ mod tests {
         assert_eq!(sorted, reordered);
         assert_eq!(sorted_transforms, Transforms::NONE);
         assert_eq!(reordered_transforms, Transforms::KEY_ORDER);
+    }
+
+    #[test]
+    fn collisions_report_their_location() {
+        let ambiguous = Value::Map(
+            Map::new(vec![
+                ("caf\u{e9}".to_owned(), Value::Null),
+                ("cafe\u{301}".to_owned(), Value::Null),
+            ])
+            .unwrap(),
+        );
+        let nested = Value::Map(
+            Map::new(vec![(
+                "nested".to_owned(),
+                Value::List(vec![Value::Null, ambiguous]),
+            )])
+            .unwrap(),
+        );
+        let collision = normalize_value(&nested).unwrap_err();
+        assert_eq!(collision.location, "nested[1]");
+        assert_eq!(&*collision.key, "caf\u{e9}");
     }
 
     #[test]

@@ -1,0 +1,3 @@
+# Every text file is checked out with LF endings on every platform, so that
+# generated files and fixtures compare byte for byte with their generators.
+* text=auto eol=lf

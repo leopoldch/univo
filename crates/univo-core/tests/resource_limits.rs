@@ -3,7 +3,7 @@
 
 use std::time::{Duration, Instant};
 
-use univo_core::{Error, Exact, FieldPath, Map, Resource, Schema, Text, Value, prepare};
+use univo_core::{Detail, ErrorCode, Exact, FieldPath, Map, Schema, Text, Value, prepare};
 
 const SMALL_STACK: usize = 256 * 1024;
 
@@ -52,13 +52,7 @@ fn deep_nesting_is_rejected_without_deep_recursion() {
             .unwrap();
         let record = object(vec![("params", deeply_nested(100_000))]);
         let error = prepare(&schema, &record).unwrap_err();
-        assert!(matches!(
-            error,
-            Error::ResourceLimit {
-                resource: Resource::NestingDepth,
-                ..
-            }
-        ));
+        assert_eq!(error.code(), ErrorCode::NestingTooDeep);
         // Dropping the value would recurse as deeply as it is nested; the
         // engine never owns such values, so the test leaks it instead.
         std::mem::forget(record);
@@ -77,28 +71,34 @@ fn deep_nesting_inside_objects_is_rejected_without_deep_recursion() {
             .build()
             .unwrap();
         let record = object(vec![("params", nested)]);
-        assert!(matches!(
-            prepare(&schema, &record),
-            Err(Error::ResourceLimit {
-                resource: Resource::NestingDepth,
-                ..
-            })
-        ));
+        assert_eq!(
+            prepare(&schema, &record)
+                .map_err(|error| error.code())
+                .err(),
+            Some(ErrorCode::NestingTooDeep)
+        );
         std::mem::forget(record);
     });
 }
 
-/// Selected size reached when preparation stopped, for a size rejection.
+fn count(error: &univo_core::Error, key: &str) -> usize {
+    error
+        .details()
+        .iter()
+        .find_map(|(name, detail)| match detail {
+            Detail::Count(value) if *name == key => usize::try_from(*value).ok(),
+            _ => None,
+        })
+        .unwrap()
+}
+
+/// Limit, size reached when preparation stopped, and path of a size
+/// rejection.
 fn rejected_size(schema: &Schema, record: &Value) -> (usize, usize, String) {
-    match prepare(schema, record) {
-        Err(Error::ResourceLimit {
-            resource: Resource::SelectedBytes,
-            limit,
-            actual,
-            path,
-        }) => (limit, actual, path.to_string()),
-        other => panic!("expected a size rejection, got {other:?}"),
-    }
+    let error = prepare(schema, record).unwrap_err();
+    assert_eq!(error.code(), ErrorCode::RecordTooLarge, "{error}");
+    let path = error.path().unwrap().to_string();
+    (count(&error, "limit"), count(&error, "reached"), path)
 }
 
 /// A single string is charged from its length, without being read: even in
@@ -177,10 +177,8 @@ fn records_from_another_schema_cannot_be_compared() {
         .unwrap();
     let left = prepare(&folded, &Value::Str("Acme".into())).unwrap();
     let right = prepare(&exact, &object(vec![("name", Value::Str("Acme".into()))])).unwrap();
-    assert_eq!(
-        univo_core::exact_match(&folded, &left, &right),
-        Err(Error::SchemaMismatch)
-    );
+    let error = univo_core::exact_match(&folded, &left, &right).unwrap_err();
+    assert_eq!(error.code(), ErrorCode::SchemaMismatch);
 }
 
 #[test]

@@ -18,7 +18,7 @@ impl FieldPath {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidSchema`] if a key is empty.
+    /// Returns a `schema.invalid_path` error if a key is empty.
     pub fn from_keys<I, S>(keys: I) -> Result<Self>
     where
         I: IntoIterator<Item = S>,
@@ -26,7 +26,7 @@ impl FieldPath {
     {
         let keys: Box<[Box<str>]> = keys.into_iter().map(Into::into).collect();
         if keys.iter().any(|key| key.is_empty()) {
-            return Err(Error::schema("field path keys must not be empty"));
+            return Err(Error::invalid_path(&keys.join("."), "a key is empty"));
         }
         Ok(Self(keys))
     }
@@ -35,13 +35,19 @@ impl FieldPath {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::InvalidSchema`] if the path or one of its keys is
-    /// empty.
+    /// Returns a `schema.invalid_path` error if the path or one of its keys
+    /// is empty.
     pub fn parse(dotted: &str) -> Result<Self> {
         if dotted.is_empty() {
-            return Err(Error::schema("field path must not be empty"));
+            return Err(Error::invalid_path(dotted, "the path is empty"));
         }
         Self::from_keys(dotted.split('.'))
+    }
+
+    /// The first `len` keys of this path.
+    #[must_use]
+    pub fn prefix(&self, len: usize) -> Self {
+        Self(self.0[..len.min(self.0.len())].into())
     }
 
     pub fn keys(&self) -> &[Box<str>] {

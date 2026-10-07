@@ -20,7 +20,7 @@ pub struct ExactMatch {
 ///
 /// # Errors
 ///
-/// Returns [`Error::SchemaMismatch`] if either record was prepared with a
+/// Returns a `state.schema_mismatch` error if either record was prepared with a
 /// schema whose [`Schema::preparation_fingerprint`] differs from `schema`'s.
 ///
 /// Both records must share their partition, every field must be in the same
@@ -33,7 +33,7 @@ pub fn exact_match(
 ) -> Result<Option<ExactMatch>> {
     let expected = schema.preparation_fingerprint();
     if left.schema != expected || right.schema != expected {
-        return Err(Error::SchemaMismatch);
+        return Err(Error::schema_mismatch());
     }
     if left.partition != right.partition {
         return Ok(None);
