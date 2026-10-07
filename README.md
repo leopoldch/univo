@@ -20,6 +20,7 @@ The library is under construction and not published yet. The repository contains
 - [Implementation roadmap and acceptance criteria](specs/10-roadmap.md)
 - [Repository instructions](AGENTS.md)
 - [Architecture decision records](docs/adr/README.md)
+- [Duplicate definitions per profile](docs/duplicate-definitions.md)
 
 ## Design priorities
 
