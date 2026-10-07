@@ -10,6 +10,7 @@ Each record captures one decision, the alternatives considered, the evidence, th
 | [0004](0004-error-model.md) | Error model shared by every binding | Accepted |
 | [0005](0005-exact-index.md) | Verified exact-index keys and record identity | Accepted |
 | [0006](0006-incremental-exact-postings.md) | Incremental ordering of exact postings | Accepted |
+| [0007](0007-default-embedding-model.md) | Default embedding model and model selection | Proposed |
 
 ## Template
 

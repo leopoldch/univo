@@ -57,3 +57,12 @@ Cache en mémoire borné en octets, avec éviction documentée ; cache disque op
 - Aucun télémétrie par défaut, aucune inclusion du contenu utilisateur dans une requête HTTP ou un message de log.
 
 Prévoir `python -m univo.models download default` et `python -m univo.models inspect` pour le préchargement des images d’entreprise. Ce CLI minimal sert le déploiement, pas un produit séparé.
+
+### Modèles choisis par l’utilisateur
+
+Exigence du mainteneur (2026-10-07) : le modèle se change par une chaîne — dépôt Hugging Face, chemin local ou miroir — selon les règles de [l’API Python](02-python-api.md). Pour tout modèle, y compris hors du défaut :
+
+- seuls les fichiers attendus par le backend sont téléchargés (configuration, poids `safetensors`, tokenizer JSON), avec une taille maximale annoncée ;
+- l’intégrité est vérifiée par les empreintes SHA-256 publiées par le hub pour les fichiers LFS, et par les checksums de la release pour le défaut ;
+- l’empreinte complète du modèle (dépôt, révision, fichiers, dimension, normalisation, version du backend) entre dans la clé du cache d’embeddings et dans la compatibilité des index ;
+- un format non pris en charge produit une erreur `model.unsupported_format` indiquant la conversion possible, par exemple la distillation d’un modèle sentence-transformers au format statique (voir [ADR 0007](../docs/adr/0007-default-embedding-model.md)).
