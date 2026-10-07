@@ -13,8 +13,10 @@ ALLOWED_METADATA = re.compile(r"^univo-[^/]+\.dist-info/")
 MIB = 1024 * 1024
 
 
-def check(wheel: pathlib.Path, max_mib: float) -> list[str]:
+def check(wheel: pathlib.Path, max_mib: float, platform_tag: str | None) -> list[str]:
     errors = []
+    if platform_tag is not None and platform_tag not in wheel.name:
+        errors.append(f"{wheel.name}: platform tag does not contain {platform_tag!r}")
     size_mib = wheel.stat().st_size / MIB
     if size_mib > max_mib:
         errors.append(f"{wheel.name}: {size_mib:.2f} MiB exceeds {max_mib:.2f} MiB")
@@ -43,11 +45,19 @@ def main() -> int:
     parser.add_argument(
         "--budgets", type=pathlib.Path, default=pathlib.Path("benchmarks/budgets.toml")
     )
+    parser.add_argument(
+        "--platform-tag",
+        help="substring the wheel platform tag must contain, such as win_arm64",
+    )
     arguments = parser.parse_args()
 
     with arguments.budgets.open("rb") as handle:
         max_mib = tomllib.load(handle)["wheel"]["max_compressed_mib"]
-    errors = [error for wheel in arguments.wheels for error in check(wheel, max_mib)]
+    errors = [
+        error
+        for wheel in arguments.wheels
+        for error in check(wheel, max_mib, arguments.platform_tag)
+    ]
     for error in errors:
         print(error, file=sys.stderr)
     return 1 if errors else 0

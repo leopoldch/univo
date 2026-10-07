@@ -15,7 +15,7 @@ Univo ships a native extension that must install without a Rust toolchain on eve
 - `pyo3/extension-module` is a crate feature enabled only by maturin, so that `cargo build`, `cargo test` and `cargo clippy` work on every platform without custom linker flags.
 - Release profile: `opt-level = 3`, fat LTO, one codegen unit, stripped symbols. Panics unwind so that PyO3 converts them instead of aborting the interpreter.
 - CPU baseline: the default Rust target of each platform (x86-64 baseline, aarch64 baseline). No `target-cpu=native`; faster instruction sets will require runtime detection and a tested fallback.
-- Pilot platforms (U-005): Linux glibc x86_64 (manylinux), macOS arm64, Windows x86_64. The rest of the 1.0 matrix is added in U-019.
+- Architectures: x86_64 (amd64) and arm64 (aarch64) are equally supported on Linux glibc (manylinux), macOS and Windows. Every wheel is built and tested on a native runner of its architecture; CI asserts the interpreter architecture so that emulation (Rosetta, x64 on Windows ARM) cannot hide a failure.
 - The version is defined once in the Cargo workspace; maturin derives the wheel version from it and the extension exposes it as `univo.__version__`.
 
 ## Alternatives
@@ -34,16 +34,19 @@ Measured on Apple M2, 16 GiB, macOS 27.0, CPython 3.14.7, Rust 1.99.0, PyO3 0.29
 | `import univo`, 50 fresh isolated interpreters | median 0.72 ms, p95 0.85 ms | 20 ms p95 |
 | Modules added by `import univo` | `univo`, `univo._univo` | univo only |
 
-Linux and Windows results come from CI (`wheels`, `wheel-test` and `wheel-test-no-rust` jobs).
+Results for the other five platforms come from CI (`wheels`, `wheel-test` and `wheel-test-no-rust` jobs), each on a native runner.
 
 ## Consequences
 
 - The ergonomic Python layer may only use the limited API from Rust; conversions are written against PyO3's abi3-compatible paths.
 - Free-threaded CPython is not covered by abi3 wheels and stays out of scope ([09-distribution.md](../../specs/09-distribution.md)).
 - Fat LTO lengthens release builds; debug builds remain fast for development.
+- Six native runners per CI run, including macOS runners that are billed at a higher rate on private repositories.
+- Any architecture-specific optimization must pass on both architectures before merge.
 
 ## Revisit when
 
 - Batch conversion benchmarks (U-011) show that a non-limited API would reduce end-to-end latency by more than 10 %.
 - Free-threaded CPython support becomes a goal.
-- The release build time becomes a CI bottleneck.
+- The release build time or the cost of native runners becomes a CI bottleneck.
+- A hosted native runner for one of the six platforms is withdrawn.

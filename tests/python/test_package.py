@@ -1,10 +1,16 @@
 import os
 import pathlib
+import platform
 import sysconfig
 
 import univo
 
 from ._subprocess import run_isolated
+
+MACHINE_ALIASES = {
+    "x86_64": {"x86_64", "amd64"},
+    "aarch64": {"aarch64", "arm64"},
+}
 
 MODULES_ADDED_BY_IMPORT = """
 import json, sys
@@ -37,3 +43,11 @@ def test_installed_package_is_used_when_required() -> None:
         return
     site_packages = pathlib.Path(sysconfig.get_paths()["purelib"]).resolve()
     assert pathlib.Path(univo.__file__).resolve().is_relative_to(site_packages)
+
+
+def test_interpreter_runs_on_expected_architecture() -> None:
+    """Guards CI against emulated runs (Rosetta, x64 emulation on Windows ARM)."""
+    expected = os.environ.get("UNIVO_EXPECT_MACHINE")
+    if expected is None:
+        return
+    assert platform.machine().lower() in MACHINE_ALIASES[expected]

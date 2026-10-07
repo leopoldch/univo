@@ -35,6 +35,10 @@ python tools/check_wheel.py dist/*.whl
 
 Tests marked `perf` enforce the budgets in [benchmarks/budgets.toml](../benchmarks/budgets.toml). Run them alone with `uv run pytest -m perf`. See [performance.md](performance.md) for the measurement policy.
 
+## Troubleshooting
+
+On macOS, Python 3.13 and later skip `.pth` files that carry the `hidden` file flag, which breaks editable installs (`ModuleNotFoundError: No module named 'univo'`). Clear the flag with `chflags -R nohidden .venv`.
+
 ## Layout
 
 | Path | Role |
