@@ -13,7 +13,7 @@ use crate::schema::{ExactNormalizer, FieldKind, Schema};
 use crate::value::{Lookup, Value};
 
 /// External identifier of a record; never normalized, typed.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RecordId {
     Str(Box<str>),
     Int(i64),

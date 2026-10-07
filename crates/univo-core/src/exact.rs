@@ -1,5 +1,9 @@
 //! Exact matches: equality of every selected field after normalization.
 
+use std::hash::Hasher;
+
+use rustc_hash::FxHasher;
+
 use crate::error::{Error, Result};
 use crate::fingerprint::{self, Trace};
 use crate::normalize::{NormalizedValue, Transforms};
@@ -13,6 +17,44 @@ pub struct ExactMatch {
     /// that were needed to make them equal. Empty when the selected
     /// originals are identical.
     pub normalized_fields: Vec<(usize, Transforms)>,
+}
+
+/// In-memory candidate key for a record's partition and selected fields.
+///
+/// IDs and normalization explanations do not participate. Types, missing
+/// states and lengths do. Equal records have equal keys, but a key collision
+/// is never evidence: every candidate must be checked with [`exact_match`].
+/// This key is not a persistent format or a cryptographic digest.
+///
+/// # Errors
+///
+/// Returns `state.schema_mismatch` for a record prepared with another schema.
+pub fn exact_fingerprint(schema: &Schema, record: &PreparedRecord) -> Result<u64> {
+    if record.schema != schema.preparation_fingerprint() {
+        return Err(Error::schema_mismatch());
+    }
+    let mut hasher = FxHasher::default();
+    hasher.write_u64(record.schema);
+    hasher.write_usize(record.partition.len());
+    for value in &record.partition {
+        fingerprint::write_normalized(&mut hasher, value);
+    }
+    hasher.write_usize(record.fields.len());
+    for field in &record.fields {
+        match &field.state {
+            FieldState::Absent => hasher.write_u8(0),
+            FieldState::Null => hasher.write_u8(1),
+            FieldState::Text(text) => {
+                hasher.write_u8(2);
+                fingerprint::write_str(&mut hasher, text);
+            }
+            FieldState::Exact(value) => {
+                hasher.write_u8(3);
+                fingerprint::write_normalized(&mut hasher, value);
+            }
+        }
+    }
+    Ok(hasher.finish())
 }
 
 /// Returns the exact match between two records prepared with `schema`, if

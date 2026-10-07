@@ -1,4 +1,4 @@
-//! Every error code, triggered by a real situation.
+//! Every error code, with a representative example.
 //!
 //! The examples check that each code is reachable, that messages name paths
 //! and types but never field values, and they generate the catalog in
@@ -95,6 +95,23 @@ fn organization(overrides: Vec<(&str, Option<Value>)>) -> Value {
     )
 }
 
+fn mismatched_records() -> Error {
+    let unfolded = Schema::builder()
+        .text(
+            path("name"),
+            Text {
+                case_fold: false,
+                ..Text::default()
+            },
+        )
+        .build()
+        .unwrap();
+    let strings = Schema::strings();
+    let left = prepare(&strings, &secret("left")).unwrap();
+    let right = prepare(&unfolded, &object(vec![("name", secret("right"))])).unwrap();
+    exact_match(&strings, &left, &right).unwrap_err()
+}
+
 fn examples() -> Vec<Error> {
     let name = || path("name");
     let organizations = organizations();
@@ -110,19 +127,6 @@ fn examples() -> Vec<Error> {
         })
         .build()
         .unwrap();
-    let unfolded = Schema::builder()
-        .text(
-            name(),
-            Text {
-                case_fold: false,
-                ..Text::default()
-            },
-        )
-        .build()
-        .unwrap();
-    let strings = Schema::strings();
-    let left = prepare(&strings, &secret("left")).unwrap();
-    let right = prepare(&unfolded, &object(vec![("name", secret("right"))])).unwrap();
 
     vec![
         schema_error(Schema::builder()),
@@ -192,7 +196,12 @@ fn examples() -> Vec<Error> {
             &small,
             &object(vec![("name", Value::Str(SECRET.repeat(20)))]),
         ),
-        exact_match(&strings, &left, &right).unwrap_err(),
+        mismatched_records(),
+        Error::duplicate_id().with_record(
+            1,
+            Some(univo_core::RecordId::Str(format!("{SECRET}-id").into())),
+        ),
+        Error::index_capacity(3, 2),
     ]
 }
 

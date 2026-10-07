@@ -22,3 +22,12 @@ max_compressed_mib = 30.0
 # and fails on regressions such as the first, unoptimized version (300 ms).
 records = 100000
 max_ms = 150.0
+
+[engine.dense_insert]
+# One dense group, one thread, median of five after one warmup.
+# Both one batch and single-record batches, with no IDs or descending integer IDs.
+# Input preparation and index destruction are excluded. Full add() is timed.
+# At 40k: measured ~2 ms without IDs and ~7 ms with IDs on the reference machine.
+# The previous full-bucket sort took ~718 ms without IDs.
+records = 40000
+max_ms = 25.0

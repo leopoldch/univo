@@ -13,14 +13,18 @@ Every dependency is recorded here with its purpose, enabled features, license, f
 
 `caseless` was checked against CPython's `str.casefold` on every Unicode code point (0 differences); the check runs in `crates/univo-core/tests/unicode_oracle.rs`. See [ADR 0003](adr/0003-unicode-normalization.md).
 
+`univo-engine` depends only on the local `univo-core` crate (MIT, no additional features). Its index uses standard-library collections and the core's existing fingerprint code. It adds no third-party or native dependency and is not yet linked into the Python wheel.
+
 ## Development only
 
 | Crate | Version | Purpose | Features | License |
 | --- | --- | --- | --- | --- |
 | `criterion` | 0.8.2 | Benchmarks (`cargo bench`) | `cargo_bench_support` only | Apache-2.0 OR MIT |
 | `proptest` | 1.11.0 | Property tests | `std` only | MIT OR Apache-2.0 |
-| `serde_json` | 1.0.151 | Reading JSON fixtures in tests | `preserve_order` | MIT OR Apache-2.0 |
+| `serde_json` | 1.0.151 | Reading JSON fixtures in core and engine tests | `preserve_order` | MIT OR Apache-2.0 |
 | `toml` | 1.1.6 | Reading `benchmarks/budgets.toml` in tests | `parse`, `serde` | MIT OR Apache-2.0 |
+
+The engine's dense-insertion budget test reuses this `toml` development dependency. It enables the same features as the core test, adds no new transitive package and does not affect distributed wheels.
 
 `criterion` requires Rust 1.86, which sets the minimum supported Rust version of the workspace.
 

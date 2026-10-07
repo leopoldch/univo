@@ -23,6 +23,8 @@ pub enum ErrorKind {
     InvalidSchema,
     /// A record does not satisfy the schema.
     InvalidRecord,
+    /// An identifier already exists in a batch or index.
+    DuplicateId,
     /// A record exceeds a configured resource limit.
     ResourceLimit,
     /// Records prepared with different schemas were compared.
@@ -35,6 +37,7 @@ impl ErrorKind {
         match self {
             Self::InvalidSchema => "InvalidSchema",
             Self::InvalidRecord => "InvalidRecord",
+            Self::DuplicateId => "DuplicateId",
             Self::ResourceLimit => "ResourceLimit",
             Self::SchemaMismatch => "SchemaMismatch",
         }
@@ -149,6 +152,12 @@ error_codes! {
     SchemaMismatch => "state.schema_mismatch", SchemaMismatch,
         "Records prepared with different schemas were compared",
         "Prepare both records with the schema used for the comparison.";
+    DuplicateId => "record.duplicate_id", DuplicateId,
+        "A record identifier is already present",
+        "Give each record a distinct identifier; replacing an existing record requires upsert, when available.";
+    IndexCapacity => "limit.index_capacity", ResourceLimit,
+        "The index record limit would be exceeded",
+        "Use a smaller index or raise its explicit record limit before adding this batch.";
 }
 
 /// Base URL of the error catalog; each code has an anchor there.
@@ -531,12 +540,30 @@ impl Error {
         .count("reached", reached)
     }
 
-    pub(crate) fn schema_mismatch() -> Self {
+    pub fn schema_mismatch() -> Self {
         Self::new(
             ErrorCode::SchemaMismatch,
             "the records were prepared with a schema that normalizes differently from the one used to compare them"
                 .to_owned(),
         )
+    }
+
+    pub fn duplicate_id() -> Self {
+        Self::new(
+            ErrorCode::DuplicateId,
+            "the record identifier is already present in the index or batch".to_owned(),
+        )
+    }
+
+    pub fn index_capacity(requested: usize, limit: usize) -> Self {
+        Self::new(
+            ErrorCode::IndexCapacity,
+            format!(
+                "the batch would bring the index to {requested} records, above its limit of {limit}"
+            ),
+        )
+        .count("requested", requested)
+        .count("limit", limit)
     }
 }
 
