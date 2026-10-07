@@ -35,7 +35,9 @@ jobs:
       - run: uv run --only-group dev ruff format --check .
       - run: uv run --only-group dev mypy
       - run: python tools/check_links.py .
+      - run: python tools/check_native_dependencies.py univo-python
       - run: python tools/build_critical_corpus.py --check
+      - run: uv run --only-group dev pytest tests/tools tests/corpus
 
   rust:
     name: rust (${{ matrix.platform }}, ${{ matrix.toolchain }})
