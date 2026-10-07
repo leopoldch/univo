@@ -88,48 +88,58 @@ fn deep_nesting_inside_objects_is_rejected_without_deep_recursion() {
     });
 }
 
-/// Copying and normalizing 64 MiB takes tens of milliseconds even in a
-/// release build; rejecting it from its length takes microseconds. The
-/// bound is loose enough for debug builds and shared runners.
-const REJECTION_BOUND: Duration = Duration::from_millis(5);
-
-fn assert_rejected_quickly(schema: &Schema, record: &Value) {
-    let start = Instant::now();
-    let result = prepare(schema, record);
-    let elapsed = start.elapsed();
-    assert!(
-        matches!(
-            result,
-            Err(Error::ResourceLimit {
-                resource: Resource::SelectedBytes,
-                ..
-            })
-        ),
-        "{result:?}"
-    );
-    assert!(elapsed < REJECTION_BOUND, "rejection took {elapsed:?}");
+/// Selected size reached when preparation stopped, for a size rejection.
+fn rejected_size(schema: &Schema, record: &Value) -> (usize, usize, String) {
+    match prepare(schema, record) {
+        Err(Error::ResourceLimit {
+            resource: Resource::SelectedBytes,
+            limit,
+            actual,
+            path,
+        }) => (limit, actual, path.to_string()),
+        other => panic!("expected a size rejection, got {other:?}"),
+    }
 }
+
+/// A single string is charged from its length, without being read: even in
+/// a debug build on a slow runner, rejecting 64 MiB takes microseconds,
+/// while copying and normalizing it takes tens of milliseconds.
+const STRING_REJECTION_BOUND: Duration = Duration::from_millis(10);
 
 #[test]
 fn oversized_text_is_rejected_before_being_copied() {
     let huge = "A".repeat(64 << 20);
-    assert_rejected_quickly(&Schema::strings(), &Value::Str(huge.clone()));
-
     let schema = Schema::builder()
         .text(path("name"), Text::default())
         .build()
         .unwrap();
-    assert_rejected_quickly(&schema, &object(vec![("name", Value::Str(huge))]));
+    for (schema, record) in [
+        (Schema::strings(), Value::Str(huge.clone())),
+        (schema, object(vec![("name", Value::Str(huge))])),
+    ] {
+        let start = Instant::now();
+        let (limit, actual, _) = rejected_size(&schema, &record);
+        let elapsed = start.elapsed();
+        assert!(actual > limit);
+        assert!(
+            elapsed < STRING_REJECTION_BOUND,
+            "rejection took {elapsed:?}"
+        );
+    }
 }
 
 #[test]
 fn oversized_collections_stop_at_the_limit() {
-    let wide = Value::List(vec![Value::Int(1); 8 << 20]);
     let schema = Schema::builder()
         .exact(path("params"), Exact::default())
         .build()
         .unwrap();
-    assert_rejected_quickly(&schema, &object(vec![("params", wide)]));
+    let wide = object(vec![("params", Value::List(vec![Value::Int(1); 8 << 20]))]);
+    // The full list weighs 64 MiB; the traversal must stop at the first
+    // element above the 1 MiB limit, each element being charged 8 bytes.
+    let (limit, actual, path) = rejected_size(&schema, &wide);
+    assert!(actual > limit && actual <= limit + 8, "stopped at {actual}");
+    assert_eq!(path, "params");
 }
 
 #[test]
@@ -141,13 +151,14 @@ fn identifiers_and_partition_keys_count_towards_the_budget() {
         .build()
         .unwrap();
     let huge = "x".repeat(2 << 20);
-    for (id, tenant) in [(huge.as_str(), "t"), ("1", huge.as_str())] {
+    for (id, tenant, rejected_at) in [(huge.as_str(), "t", "id"), ("1", huge.as_str(), "tenant")] {
         let record = object(vec![
             ("id", Value::Str(id.into())),
             ("tenant", Value::Str(tenant.into())),
             ("name", Value::Str("Acme".into())),
         ]);
-        assert_rejected_quickly(&schema, &record);
+        let (_, _, path) = rejected_size(&schema, &record);
+        assert_eq!(path, rejected_at);
     }
 }
 
