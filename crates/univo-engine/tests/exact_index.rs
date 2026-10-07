@@ -108,12 +108,12 @@ fn ids_are_typed_ordered_and_excluded_without_normalization() {
         text("1"),
         text("A"),
     ];
-    let records = ids
-        .into_iter()
-        .map(|id| record(&schema, id, text("tenant"), "same"))
-        .collect();
     let mut index = ExactIndex::new(schema.clone(), 5);
-    index.add(records).unwrap();
+    for id in ids {
+        index
+            .add(vec![record(&schema, id, text("tenant"), "same")])
+            .unwrap();
+    }
     let query = record(&schema, text("1"), text("tenant"), "same");
     let result = index.search(&query, 10).unwrap();
     let slots: Vec<_> = result.matches.iter().map(|hit| hit.slot).collect();

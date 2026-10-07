@@ -1,6 +1,6 @@
 //! Local exact indexing with verified equality and bounded search output.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::ops::Range;
 
 use univo_core::{
@@ -14,7 +14,23 @@ pub struct ExactIndex {
     max_records: usize,
     records: Vec<PreparedRecord>,
     ids: HashSet<RecordId>,
-    buckets: HashMap<u64, Vec<usize>>,
+    buckets: HashMap<u64, Bucket>,
+}
+
+#[derive(Debug, Default)]
+struct Bucket {
+    slots: Vec<usize>,
+    ids: BTreeMap<RecordId, usize>,
+}
+
+impl Bucket {
+    fn insert(&mut self, slot: usize, id: Option<&RecordId>) {
+        if let Some(id) = id {
+            self.ids.insert(id.clone(), slot);
+        } else {
+            self.slots.push(slot);
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,7 +39,7 @@ pub struct ExactHit {
     pub evidence: ExactMatch,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ExactSearch {
     pub matches: Vec<ExactHit>,
     pub total_matches: usize,
@@ -85,19 +101,16 @@ impl ExactIndex {
                 }
             }
         }
-        let touched: HashSet<_> = fingerprints.iter().copied().collect();
         for (record, fingerprint) in records.into_iter().zip(fingerprints) {
             let slot = self.len();
             if let Some(id) = record.id() {
                 self.ids.insert(id.clone());
             }
-            self.buckets.entry(fingerprint).or_default().push(slot);
+            self.buckets
+                .entry(fingerprint)
+                .or_default()
+                .insert(slot, record.id());
             self.records.push(record);
-        }
-        for fingerprint in touched {
-            if let Some(bucket) = self.buckets.get_mut(&fingerprint) {
-                bucket.sort_unstable_by_key(|&slot| (self.records[slot].id(), slot));
-            }
         }
         Ok(start..end)
     }
@@ -109,13 +122,24 @@ impl ExactIndex {
     /// Rejects a query prepared with an incompatible schema.
     pub fn search(&self, query: &PreparedRecord, limit: usize) -> Result<ExactSearch> {
         let fingerprint = exact_fingerprint(&self.schema, query)?;
-        let mut matches = Vec::new();
-        let mut total_matches = 0;
-        let candidates = self
-            .buckets
-            .get(&fingerprint)
-            .map_or(&[][..], Vec::as_slice);
-        for &slot in candidates {
+        match self.buckets.get(&fingerprint) {
+            Some(bucket) if bucket.ids.is_empty() => {
+                self.search_slots(query, bucket.slots.iter().copied(), limit)
+            }
+            Some(bucket) => self.search_slots(query, bucket.ids.values().copied(), limit),
+            None => Ok(ExactSearch::default()),
+        }
+    }
+
+    fn search_slots(
+        &self,
+        query: &PreparedRecord,
+        slots: impl Iterator<Item = usize>,
+        limit: usize,
+    ) -> Result<ExactSearch> {
+        let mut result = ExactSearch::default();
+        for slot in slots {
+            result.candidates_examined += 1;
             let record = &self.records[slot];
             if query.id().is_some() && query.id() == record.id() {
                 continue;
@@ -123,16 +147,12 @@ impl ExactIndex {
             let Some(evidence) = exact_match(&self.schema, query, record)? else {
                 continue;
             };
-            total_matches += 1;
-            if matches.len() < limit {
-                matches.push(ExactHit { slot, evidence });
+            result.total_matches += 1;
+            if result.matches.len() < limit {
+                result.matches.push(ExactHit { slot, evidence });
             }
         }
-        Ok(ExactSearch {
-            matches,
-            total_matches,
-            candidates_examined: candidates.len(),
-        })
+        Ok(result)
     }
 }
 
@@ -167,7 +187,13 @@ mod tests {
         let mut index = ExactIndex::new(schema, 3);
         index.add(records).unwrap();
         index.buckets.clear();
-        index.buckets.insert(fingerprint, vec![0, 1, 2]);
+        index.buckets.insert(
+            fingerprint,
+            Bucket {
+                slots: vec![0, 1, 2],
+                ..Bucket::default()
+            },
+        );
         let result = index.search(&query, 3).unwrap();
         assert_eq!(result.total_matches, 1);
         assert_eq!(result.candidates_examined, 3);

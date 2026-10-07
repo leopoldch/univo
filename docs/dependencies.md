@@ -24,6 +24,8 @@ Every dependency is recorded here with its purpose, enabled features, license, f
 | `serde_json` | 1.0.151 | Reading JSON fixtures in core and engine tests | `preserve_order` | MIT OR Apache-2.0 |
 | `toml` | 1.1.6 | Reading `benchmarks/budgets.toml` in tests | `parse`, `serde` | MIT OR Apache-2.0 |
 
+The engine's dense-insertion budget test reuses this `toml` development dependency. It enables the same features as the core test, adds no new transitive package and does not affect distributed wheels.
+
 `criterion` requires Rust 1.86, which sets the minimum supported Rust version of the workspace.
 
 Python development tools (`maturin`, `pytest`, `ruff`, `mypy`) are pinned in `uv.lock`; the package has no runtime Python dependency.

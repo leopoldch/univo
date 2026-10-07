@@ -38,6 +38,8 @@ python tools/check_wheel.py dist/*.whl
 
 Budgets live in [benchmarks/budgets.toml](../benchmarks/budgets.toml). Python tests marked `perf` enforce them (`uv run pytest -m perf`); Rust budget tests run in release builds only (`cargo test --release`). Benchmarks: `cargo bench -p univo-core`.
 
+Dense exact-index insertion: `cargo test -p univo-engine --release --locked --test perf_budget -- --nocapture` reports one-batch and single-record insertion at 10k/20k/40k, with and without IDs, and enforces the insertion budget in CI.
+
 ## Unicode fixtures
 
 `tests/fixtures/unicode` holds CPython's NFC and case folding results, the oracle of the Rust normalizers. Regenerate them with `python -I tools/build_unicode_fixtures.py` when the Unicode version changes, and increment `NORMALIZER_VERSION` if any output changes. See [performance.md](performance.md) for the measurement policy.
