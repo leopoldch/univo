@@ -15,7 +15,7 @@ Univo ships a native extension that must install without a Rust toolchain on eve
 - `pyo3/extension-module` is a crate feature enabled only by maturin, so that `cargo build`, `cargo test` and `cargo clippy` work on every platform without custom linker flags.
 - Release profile: `opt-level = 3`, fat LTO, one codegen unit, stripped symbols. Panics unwind so that PyO3 converts them instead of aborting the interpreter.
 - CPU baseline: the default Rust target of each platform (x86-64 baseline, aarch64 baseline). No `target-cpu=native`; faster instruction sets will require runtime detection and a tested fallback.
-- Architectures: x86_64 (amd64) and arm64 (aarch64) are equally supported on Linux glibc (manylinux), macOS and Windows. Every wheel is built and tested on a native runner of its architecture; CI asserts the interpreter architecture so that emulation (Rosetta, x64 on Windows ARM) cannot hide a failure.
+- Architectures: x86_64 (amd64) and arm64 (aarch64) are equally supported on Linux glibc (manylinux), macOS and Windows. Every wheel is built and tested on a native runner of its architecture. CI also asserts the architecture of the interpreter process: from the interpreter build platform on Windows (where `platform.machine()` may report the host CPU of an emulated process), from `uname` plus the Rosetta translation flag on macOS, and from `uname` on Linux. Linux user-mode emulation (qemu-user) is not detected; native runner labels are relied upon there.
 - The version is defined once in the Cargo workspace; maturin derives the wheel version from it and the extension exposes it as `univo.__version__`.
 
 ## Alternatives
@@ -46,6 +46,7 @@ Results for the other five platforms come from CI (`wheels`, `wheel-test` and `w
 
 ## Revisit when
 
+- The engine exists (U-010): measure whether fat LTO and a single codegen unit improve end-to-end latency enough to justify their build time.
 - Batch conversion benchmarks (U-011) show that a non-limited API would reduce end-to-end latency by more than 10 %.
 - Free-threaded CPython support becomes a goal.
 - The release build time or the cost of native runners becomes a CI bottleneck.

@@ -1,0 +1,57 @@
+"""What `import univo` may load and do.
+
+Each check runs in a fresh isolated interpreter, and first asserts that the
+modules it looks for are not already loaded, so preloading cannot hide a use.
+"""
+
+from ._subprocess import run_isolated
+
+FORBIDDEN_AT_IMPORT = (
+    "asyncio",
+    "http",
+    "huggingface_hub",
+    "httpx",
+    "numpy",
+    "onnxruntime",
+    "pandas",
+    "requests",
+    "safetensors",
+    "socket",
+    "ssl",
+    "tokenizers",
+    "torch",
+    "transformers",
+    "urllib.request",
+    "urllib3",
+)
+
+LOADED_MODULES = """
+import json, sys
+forbidden = {forbidden!r}
+preloaded = sorted(name for name in forbidden if name in sys.modules)
+import univo
+loaded = sorted(name for name in forbidden if name in sys.modules)
+print(json.dumps({{"preloaded": preloaded, "loaded": loaded}}))
+"""
+
+SOCKET_AUDIT_EVENTS = """
+import json, sys
+events = []
+sys.addaudithook(
+    lambda event, args: events.append(event) if event.startswith("socket.") else None
+)
+import univo
+print(json.dumps(events))
+"""
+
+
+def test_import_loads_no_heavy_or_network_module() -> None:
+    result = run_isolated(LOADED_MODULES.format(forbidden=FORBIDDEN_AT_IMPORT))
+
+    assert result["preloaded"] == [], "the check is void: modules were already loaded"
+    assert result["loaded"] == []
+
+
+def test_import_opens_no_python_socket() -> None:
+    """Covers Python-level sockets; native code is covered by tools/check_native_dependencies.py."""
+    assert run_isolated(SOCKET_AUDIT_EVENTS) == []

@@ -22,6 +22,8 @@ uv run ruff check . && uv run ruff format --check .
 uv run mypy
 uv run pytest
 python tools/check_links.py .
+python tools/check_native_dependencies.py univo-python
+uv run pytest tests/tools
 ```
 
 Wheel checks:
@@ -46,6 +48,7 @@ On macOS, Python 3.13 and later skip `.pth` files that carry the `hidden` file f
 | `crates/univo-core` | Types and matching logic; no Python, network or inference dependency |
 | `crates/univo-python` | PyO3 extension `univo._univo`; conversions only |
 | `python/univo` | Public Python package |
-| `tests/python` | Python tests, including `perf` budget checks |
+| `tests/python` | Tests of the installed package, run on every platform, including `perf` budget checks |
+| `tests/tools` | Tests of the repository tools, run once |
 | `benchmarks/budgets.toml` | Single source for enforced resource budgets |
 | `tools` | Repository checks used by CI |
