@@ -125,6 +125,21 @@ fn schema() -> Schema {
         .unwrap()
 }
 
+/// Prints a measurement, and records it in the job summary on GitHub
+/// Actions so that every platform's numbers are kept, not only failures.
+fn report(line: &str) {
+    eprintln!("{line}");
+    if let Some(summary) = std::env::var_os("GITHUB_STEP_SUMMARY") {
+        use std::io::Write as _;
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(summary)
+            .unwrap();
+        writeln!(file, "- `{}`: {line}", std::env::consts::ARCH).unwrap();
+    }
+}
+
 fn median(mut samples: Vec<Duration>) -> Duration {
     samples.sort_unstable();
     samples[samples.len() / 2]
@@ -156,10 +171,10 @@ fn preparing_the_standard_workload_stays_within_budget() {
     let limit = Duration::from_secs_f64(
         budget("core.prepare", "max_ms").as_float().unwrap() / 1000.0 * time_slack(),
     );
-    eprintln!(
+    report(&format!(
         "prepared {records} records in {elapsed:?} (median of 5), {:.0} ns per record, limit {limit:?}",
         elapsed.as_secs_f64() * 1e9 / f64::from(u32::try_from(records).unwrap())
-    );
+    ));
     assert!(
         elapsed <= limit,
         "preparation took {elapsed:?}, above {limit:?}"
