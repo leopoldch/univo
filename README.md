@@ -19,6 +19,7 @@ This repository currently contains the product and engineering specifications. T
 - [Validation strategy](specs/08-validation.md)
 - [Implementation roadmap and acceptance criteria](specs/10-roadmap.md)
 - [Repository instructions](AGENTS.md)
+- [Architecture decision records](docs/adr/README.md)
 
 ## Design priorities
 
@@ -29,3 +30,7 @@ This repository currently contains the product and engineering specifications. T
 - Explicit uncertainty: similarity is not identity, and no records are deleted or merged implicitly.
 
 The model, approximate-search backend and default thresholds will be selected through the experiments in the roadmap. Java bindings and other integrations follow validation of the Rust/Python core.
+
+## License
+
+MIT, see [LICENSE](LICENSE).
