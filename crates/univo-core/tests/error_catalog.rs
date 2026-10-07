@@ -218,6 +218,46 @@ fn messages_never_contain_field_values() {
 }
 
 #[test]
+fn record_identifiers_never_appear_in_text_or_debug_output() {
+    let id = univo_core::RecordId::Str(format!("{SECRET}-id").into());
+    for error in examples() {
+        let located = error.with_record(3, Some(id.clone()));
+        assert_eq!(
+            located.record().and_then(|record| record.id.as_ref()),
+            Some(&id)
+        );
+        for text in [
+            located.to_string(),
+            format!("{located:?}"),
+            format!("{located:#?}"),
+        ] {
+            assert!(!text.contains(SECRET), "{text}");
+        }
+    }
+}
+
+#[test]
+fn nested_key_collisions_name_their_location() {
+    let ambiguous = object(vec![
+        ("cafe\u{301}", secret("a")),
+        ("caf\u{e9}", secret("b")),
+    ]);
+    let record = organization(vec![(
+        "params",
+        Some(object(vec![(
+            "nested",
+            Value::List(vec![Value::Null, ambiguous]),
+        )])),
+    )]);
+    let error = record_error(&organizations(), &record);
+    assert_eq!(error.code(), ErrorCode::KeyCollision);
+    assert_eq!(
+        error.message(),
+        "field `params` contains, at `nested[1]`, an object with two keys that both become \"caf\u{e9}\" after Unicode normalization"
+    );
+}
+
+#[test]
 fn field_errors_name_their_path() {
     for error in examples() {
         if let Some(path) = error.path().filter(|path| !path.is_root()) {

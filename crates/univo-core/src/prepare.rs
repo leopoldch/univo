@@ -198,7 +198,7 @@ fn prepare_partition(
     };
     budget.charge_value(path, value)?;
     Ok(normalize_value(value)
-        .map_err(|collision| Error::key_collision(path, &collision.0))?
+        .map_err(|collision| Error::key_collision(path, &collision))?
         .0)
 }
 
@@ -247,7 +247,7 @@ fn prepare_exact(
     }
 
     let (canonical, transforms) =
-        normalize_value(value).map_err(|collision| Error::key_collision(path, &collision.0))?;
+        normalize_value(value).map_err(|collision| Error::key_collision(path, &collision))?;
     let mut stages = Stages::default();
     if transforms.contains(Transforms::UNICODE_FORM) {
         stages.0[0] = fingerprint::value(value, false);

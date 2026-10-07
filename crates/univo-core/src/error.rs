@@ -11,6 +11,7 @@
 
 use std::fmt;
 
+use crate::normalize::KeyCollision;
 use crate::path::FieldPath;
 use crate::prepare::RecordId;
 
@@ -184,13 +185,31 @@ impl fmt::Display for Detail {
 }
 
 /// Position of a record in a batch, set by batch operations.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct RecordLocation {
     /// Zero-based position in the batch.
     pub index: usize,
-    /// Identifier, when the record has a valid one. Kept out of the message
-    /// because identifiers can be personal data.
+    /// Identifier, when the record has a valid one. Identifiers can be
+    /// personal data: they are never printed, by `Display` or by `Debug`.
     pub id: Option<RecordId>,
+}
+
+impl fmt::Debug for RecordLocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RecordLocation")
+            .field("index", &self.index)
+            .field("id", &self.id.as_ref().map(|_| Redacted))
+            .finish()
+    }
+}
+
+/// Placeholder printed instead of a record identifier.
+struct Redacted;
+
+impl fmt::Debug for Redacted {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("<redacted>")
+    }
 }
 
 /// An error with its code, message, hint and context.
@@ -465,15 +484,22 @@ impl Error {
         .text("key", key)
     }
 
-    pub(crate) fn key_collision(path: &FieldPath, key: &str) -> Self {
-        Self::new(
-            ErrorCode::KeyCollision,
+    pub(crate) fn key_collision(path: &FieldPath, collision: &KeyCollision) -> Self {
+        let key = &collision.key;
+        let message = if collision.location.is_empty() {
             format!(
                 "the object at `{path}` holds two keys that both become {key:?} after Unicode normalization"
-            ),
-        )
-        .at(path)
-        .text("key", key)
+            )
+        } else {
+            format!(
+                "field `{path}` contains, at `{}`, an object with two keys that both become {key:?} after Unicode normalization",
+                collision.location
+            )
+        };
+        Self::new(ErrorCode::KeyCollision, message)
+            .at(path)
+            .text("key", &**key)
+            .text("location", collision.location.clone())
     }
 
     pub(crate) fn invalid_hostname(path: &FieldPath) -> Self {
