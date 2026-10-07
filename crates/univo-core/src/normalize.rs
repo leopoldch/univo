@@ -366,46 +366,107 @@ pub fn normalize_value(value: &Value) -> Result<(NormalizedValue, Transforms), K
     Ok((normalized, transforms))
 }
 
+/// A list or object whose children are being normalized.
+enum Frame<'a> {
+    List {
+        items: std::slice::Iter<'a, Value>,
+        done: Vec<NormalizedValue>,
+    },
+    Map {
+        entries: std::slice::Iter<'a, (String, Value)>,
+        key: &'a str,
+        done: Vec<(Box<str>, NormalizedValue)>,
+    },
+}
+
+/// Iterative depth-first normalization: the stack used does not grow with
+/// the nesting of the value, whatever the build profile.
 fn normalize_value_into(
     value: &Value,
     transforms: &mut Transforms,
 ) -> Result<NormalizedValue, KeyCollision> {
-    Ok(match value {
-        Value::Null => NormalizedValue::Null,
+    let mut frames: Vec<Frame<'_>> = Vec::new();
+    let mut next = Some(value);
+    loop {
+        let mut finished = match next.take() {
+            Some(Value::List(items)) => {
+                frames.push(Frame::List {
+                    items: items.iter(),
+                    done: Vec::with_capacity(items.len()),
+                });
+                None
+            }
+            Some(Value::Map(map)) => {
+                frames.push(Frame::Map {
+                    entries: map.entries().iter(),
+                    key: "",
+                    done: Vec::with_capacity(map.len()),
+                });
+                None
+            }
+            Some(scalar) => Some(normalize_scalar(scalar, transforms)),
+            None => None,
+        };
+        loop {
+            let Some(frame) = frames.last_mut() else {
+                return Ok(finished.unwrap_or(NormalizedValue::Null));
+            };
+            match frame {
+                Frame::List { items, done } => {
+                    if let Some(child) = finished.take() {
+                        done.push(child);
+                    }
+                    if let Some(item) = items.next() {
+                        next = Some(item);
+                        break;
+                    }
+                    finished = Some(NormalizedValue::List(
+                        std::mem::take(done).into_boxed_slice(),
+                    ));
+                }
+                Frame::Map { entries, key, done } => {
+                    if let Some(child) = finished.take() {
+                        done.push((nfc_boxed(key, transforms), child));
+                    }
+                    if let Some((entry_key, item)) = entries.next() {
+                        *key = entry_key;
+                        next = Some(item);
+                        break;
+                    }
+                    finished = Some(finish_map(std::mem::take(done), transforms)?);
+                }
+            }
+            frames.pop();
+        }
+    }
+}
+
+fn normalize_scalar(value: &Value, transforms: &mut Transforms) -> NormalizedValue {
+    match value {
         Value::Bool(flag) => NormalizedValue::Bool(*flag),
         Value::Int(number) => NormalizedValue::Int(*number),
         Value::Float(number) => NormalizedValue::Float(*number),
         Value::Str(text) => NormalizedValue::Str(nfc_boxed(text, transforms)),
-        Value::List(items) => NormalizedValue::List(
-            items
-                .iter()
-                .map(|item| normalize_value_into(item, transforms))
-                .collect::<Result<_, _>>()?,
-        ),
-        Value::Map(map) => {
-            let mut entries = map
-                .entries()
-                .iter()
-                .map(|(key, item)| {
-                    Ok((
-                        nfc_boxed(key, transforms),
-                        normalize_value_into(item, transforms)?,
-                    ))
-                })
-                .collect::<Result<Vec<_>, _>>()?;
-            if !entries.is_sorted_by(|left, right| left.0 <= right.0) {
-                entries.sort_unstable_by(|left, right| left.0.cmp(&right.0));
-                *transforms |= Transforms::KEY_ORDER;
-            }
-            if let Some(pair) = entries
-                .windows(2)
-                .find(|pair| pair[0].0.cmp(&pair[1].0) == Ordering::Equal)
-            {
-                return Err(KeyCollision(pair[0].0.clone()));
-            }
-            NormalizedValue::Map(entries.into_boxed_slice())
-        }
-    })
+        Value::Null | Value::List(_) | Value::Map(_) => NormalizedValue::Null,
+    }
+}
+
+/// Sorts the keys of a normalized object and rejects keys made equal by NFC.
+fn finish_map(
+    mut entries: Vec<(Box<str>, NormalizedValue)>,
+    transforms: &mut Transforms,
+) -> Result<NormalizedValue, KeyCollision> {
+    if !entries.is_sorted_by(|left, right| left.0 <= right.0) {
+        entries.sort_unstable_by(|left, right| left.0.cmp(&right.0));
+        *transforms |= Transforms::KEY_ORDER;
+    }
+    if let Some(pair) = entries
+        .windows(2)
+        .find(|pair| pair[0].0.cmp(&pair[1].0) == Ordering::Equal)
+    {
+        return Err(KeyCollision(pair[0].0.clone()));
+    }
+    Ok(NormalizedValue::Map(entries.into_boxed_slice()))
 }
 
 fn nfc_boxed(text: &str, transforms: &mut Transforms) -> Box<str> {

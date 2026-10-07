@@ -20,6 +20,7 @@ The normalization rules of [docs/duplicate-definitions.md](../duplicate-definiti
 - Exact matches report which normalization steps were needed per field. Each prepared field keeps a fingerprint of the value before every step that changed it; the explanation keeps the steps up to the first stage where both sides agree.
 - `NORMALIZER_VERSION` is incremented whenever any input normalizes differently.
 - A hostname ending with more than one dot is rejected, which keeps hostname normalization idempotent on every accepted input.
+- Value normalization is iterative, like the validation of limits. The remaining recursive operations on nested values (fingerprints, comparison, deallocation) need less than 64 KiB of stack at the highest accepted depth of 128, in debug builds as in release; a test runs them on a 256 KiB thread.
 
 ## Alternatives
 

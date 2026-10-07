@@ -6,8 +6,10 @@ use crate::error::{Error, Result};
 use crate::normalize::NORMALIZER_VERSION;
 use crate::path::FieldPath;
 
-/// Highest accepted `max_depth`: normalization recurses once per level of
-/// an accepted value, so the limit also bounds the stack it uses.
+/// Highest accepted `max_depth`. Validation and normalization are
+/// iterative; explanation fingerprints, comparisons and deallocation recurse
+/// once per level, which at this depth needs less than 64 KiB of stack even
+/// in debug builds (tested on a 256 KiB thread).
 pub const MAX_NESTING_DEPTH: usize = 128;
 
 /// Fields to compare, record identity, partitions and resource limits.
