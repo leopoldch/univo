@@ -1,0 +1,167 @@
+//! Resource budgets for record preparation, from `benchmarks/budgets.toml`.
+//!
+//! Budgets apply to release builds on the reference machine described in
+//! `docs/performance.md`; shared CI runners multiply time budgets by
+//! `UNIVO_PERF_SLACK`.
+
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
+
+use univo_core::{Exact, ExactNormalizer, FieldPath, Map, Schema, Text, TextMode, Value, prepare};
+
+const WORDS: &[&str] = &[
+    "online",
+    "retail",
+    "cloud",
+    "services",
+    "platform",
+    "payments",
+    "logistics",
+    "software",
+    "consulting",
+    "energy",
+    "Société",
+    "française",
+    "spécialisée",
+    "distribution",
+    "hypermarchés",
+    "électronique",
+    "européenne",
+    "Zürich",
+    "Straße",
+    "café",
+    "data",
+    "analytics",
+    "security",
+];
+
+fn budget(section: &str, key: &str) -> toml::Value {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../benchmarks/budgets.toml");
+    let budgets: toml::Table = std::fs::read_to_string(path).unwrap().parse().unwrap();
+    let mut table = &budgets;
+    for part in section.split('.') {
+        table = table[part].as_table().unwrap();
+    }
+    table[key].clone()
+}
+
+fn time_slack() -> f64 {
+    let slack: f64 = std::env::var("UNIVO_PERF_SLACK").map_or(1.0, |value| value.parse().unwrap());
+    assert!(slack >= 1.0, "UNIVO_PERF_SLACK must be >= 1.0");
+    slack
+}
+
+/// Deterministic xorshift generator, so every run measures the same input.
+struct Rng(u64);
+
+impl Rng {
+    fn next(&mut self) -> usize {
+        self.0 ^= self.0 << 13;
+        self.0 ^= self.0 >> 7;
+        self.0 ^= self.0 << 17;
+        usize::try_from(self.0 % 1_000_003).unwrap()
+    }
+
+    fn sentence(&mut self, words: usize) -> String {
+        (0..words)
+            .map(|_| WORDS[self.next() % WORDS.len()])
+            .collect::<Vec<_>>()
+            .join(" ")
+    }
+}
+
+/// The standard workload of specs/07-performance.md: identifier, tenant, a
+/// name of about 20 characters and a description of about 30 tokens. One
+/// record in 20 is in decomposed Unicode form.
+fn workload(records: usize) -> Vec<Value> {
+    let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
+    (0..records)
+        .map(|index| {
+            let mut name = rng.sentence(2);
+            name.truncate(name.char_indices().nth(20).map_or(name.len(), |(at, _)| at));
+            let mut description = rng.sentence(30);
+            if index % 20 == 0 {
+                description = description.replace('é', "e\u{301}");
+            }
+            let entries = vec![
+                ("id".to_owned(), Value::Str(format!("record-{index}"))),
+                (
+                    "tenant_id".to_owned(),
+                    Value::Str(format!("tenant-{}", rng.next() % 50)),
+                ),
+                ("name".to_owned(), Value::Str(name)),
+                (
+                    "domain".to_owned(),
+                    Value::Str(format!("Company{index}.COM")),
+                ),
+                ("description".to_owned(), Value::Str(description)),
+            ];
+            Value::Map(Map::new(entries).unwrap())
+        })
+        .collect()
+}
+
+fn schema() -> Schema {
+    let path = |dotted| FieldPath::parse(dotted).unwrap();
+    Schema::builder()
+        .id_field(path("id"))
+        .partition_by(path("tenant_id"))
+        .text(path("name"), Text::default())
+        .exact(
+            path("domain"),
+            Exact {
+                normalizer: ExactNormalizer::Hostname,
+                ..Exact::default()
+            },
+        )
+        .text(
+            path("description"),
+            Text {
+                mode: TextMode::Semantic,
+                ..Text::default()
+            },
+        )
+        .build()
+        .unwrap()
+}
+
+fn median(mut samples: Vec<Duration>) -> Duration {
+    samples.sort_unstable();
+    samples[samples.len() / 2]
+}
+
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "performance budgets apply to release builds"
+)]
+fn preparing_the_standard_workload_stays_within_budget() {
+    let records = budget("core.prepare", "records").as_integer().unwrap();
+    let records = usize::try_from(records).unwrap();
+    let values = workload(records);
+    let schema = schema();
+
+    let mut samples = Vec::new();
+    for _ in 0..5 {
+        let start = Instant::now();
+        let prepared: Vec<_> = values
+            .iter()
+            .map(|value| prepare(&schema, value).unwrap())
+            .collect();
+        samples.push(start.elapsed());
+        assert_eq!(std::hint::black_box(prepared).len(), records);
+    }
+
+    let elapsed = median(samples);
+    let limit = Duration::from_secs_f64(
+        budget("core.prepare", "max_ms").as_float().unwrap() / 1000.0 * time_slack(),
+    );
+    eprintln!(
+        "prepared {records} records in {elapsed:?} (median of 5), {:.0} ns per record, limit {limit:?}",
+        elapsed.as_secs_f64() * 1e9 / f64::from(u32::try_from(records).unwrap())
+    );
+    assert!(
+        elapsed <= limit,
+        "preparation took {elapsed:?}, above {limit:?}"
+    );
+}

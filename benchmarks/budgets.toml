@@ -13,3 +13,12 @@ samples = 30
 [wheel]
 # Compressed wheel size, model weights excluded.
 max_compressed_mib = 30.0
+
+[core.prepare]
+# Validation and normalization of the standard workload of
+# specs/07-performance.md (identifier, tenant, 20-character name, hostname,
+# 30-token description), single thread, median of five runs. Measured at
+# 86 ms on the reference machine (U-006); the budget leaves room for noise
+# and fails on regressions such as the first, unoptimized version (300 ms).
+records = 100000
+max_ms = 150.0

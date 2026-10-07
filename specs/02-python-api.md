@@ -63,6 +63,8 @@ finder.add(records)
 result = finder.search(new_record, limit=10)
 ```
 
+`Text(..., case_fold=False)` désactive le pliage de casse d’un champ textuel lorsque la casse porte du sens (`mA` / `MA`) ; il est activé par défaut.
+
 Ces poids illustrent la syntaxe ; ils ne constituent pas des valeurs validées. `domain` n’est ni un identifiant unique ni un veto par défaut. Le champ environnement ne bloque que si les deux valeurs sont présentes et contradictoires. Un champ requis absent provoque une erreur d’entrée, pas une égalité fictive.
 
 ### 5.5 Mode entreprise et hors ligne
@@ -129,7 +131,7 @@ Match(
 )
 ```
 
-`exact` signifie égalité vérifiée des champs sélectionnés après leur normalisation documentée. Il ne signifie pas « même entité réelle » lorsque des champs ont été ignorés.
+`exact` signifie égalité vérifiée des champs sélectionnés après leur normalisation documentée. Il ne signifie pas « même entité réelle » lorsque des champs ont été ignorés. La normalisation ne construit que des clés de comparaison et ne modifie jamais les données : un match `exact` indique, pour chaque champ dont les valeurs d’origine diffèrent, les étapes nécessaires pour les rendre égales (forme Unicode, casse, point final, ordre des clés).
 
 `rule_match` signifie qu’une règle d’identité configurée a été satisfaite, sous réserve des veto et des partitions. Exemple : même identifiant fournisseur déclaré unique par l’utilisateur.
 

@@ -83,7 +83,7 @@ def normalize(kind: str, value: Any) -> Any:
         if kind == TEXT:
             return ("str", nfc(nfc(value).casefold()))
         if kind == HOSTNAME:
-            return ("str", nfc(value).translate(ASCII_LOWERCASE).removesuffix("."))
+            return ("str", nfc(nfc(value).translate(ASCII_LOWERCASE)).removesuffix("."))
         return ("str", nfc(value))
     if isinstance(value, dict):
         return ("dict", tuple(sorted((key, normalize(kind, item)) for key, item in value.items())))

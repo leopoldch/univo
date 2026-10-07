@@ -28,3 +28,8 @@ GitHub-hosted runners are noisy. CI sets `UNIVO_PERF_SLACK=2.0`, which multiplie
 | --- | --- | --- | --- |
 | `import univo` p95, 50 fresh interpreters | 0.85 ms | 20 ms | 2026-10-07, U-005 |
 | Compressed wheel, macOS arm64 | 0.154 MiB | 30 MiB | 2026-10-07, U-005 |
+| `prepare` on the standard workload, 100 000 records, single thread | 845 ns per record (85 ms) | 150 ms | 2026-10-07, U-006 |
+| `normalize_text`, 140-byte French description | 150 ns | — | 2026-10-07, U-006 |
+| `normalize_text`, ASCII name | 8.7 ns | — | 2026-10-07, U-006 |
+
+Rust performance budgets live in `crates/*/tests/perf_budget.rs`; they are ignored in debug builds and run by `cargo test --release`. Detailed numbers come from `cargo bench -p univo-core`.
