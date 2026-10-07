@@ -182,3 +182,28 @@ fn records_from_another_schema_cannot_be_compared() {
         Err(Error::SchemaMismatch)
     );
 }
+
+#[test]
+fn records_prepared_without_a_requirement_cannot_bypass_it() {
+    let schema = |required| {
+        Schema::builder()
+            .text(path("name"), Text::default())
+            .exact(
+                path("sku"),
+                Exact {
+                    required,
+                    ..Exact::default()
+                },
+            )
+            .build()
+            .unwrap()
+    };
+    let lenient = schema(false);
+    let strict = schema(true);
+    let record = object(vec![("name", Value::Str("Acme".into()))]);
+    assert!(prepare(&strict, &record).is_err());
+
+    let left = prepare(&lenient, &record).unwrap();
+    let right = prepare(&lenient, &record).unwrap();
+    assert!(univo_core::exact_match(&strict, &left, &right).is_err());
+}
