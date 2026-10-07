@@ -42,7 +42,7 @@ Les décisions prises par le mainteneur pour une tâche priment sur ce plan init
 - Une recherche exhaustive couvre les paires admissibles définies par le schéma et les partitions. Une recherche bornée ou ANN ne garantit pas l’absence de doublons manqués.
 - Une opération atomique locale ne couvre pas une DB externe ni plusieurs services indépendants.
 - L’identifiant d’un modèle, sa révision, son tokenizer et ses paramètres font partie du contrat de compatibilité des vecteurs.
-- Le nom du dépôt est réservé ici, mais la disponibilité du nom de distribution sur PyPI/crates.io et les éventuels conflits restent à vérifier (U-001).
+- Le nom de distribution `univo` était libre sur PyPI et crates.io au 2026-10-07 ([ADR 0001](../docs/adr/0001-project-name-and-license.md)) ; il n’est réservé qu’à la première publication et PyPI peut encore refuser un nom jugé trop proche d’un projet existant.
 
 ## Traçabilité
 

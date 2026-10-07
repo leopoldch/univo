@@ -66,7 +66,7 @@ Le mode exact doit rester disponible après l’ajout d’ANN. La 0.1 limite vol
 | Modèle par défaut | à choisir après benchmark statique vs contextuel |
 | Index ANN | à choisir après benchmark de rappel, mémoire, licence et mutations |
 | Stockage persistant | snapshots immuables versionnés initialement |
-| Licence du projet | MIT proposée ; vérifier compatibilité des dépendances et modèles |
-| Nom | Univo proposé, disponibilité non confirmée |
+| Licence du projet | MIT, décidée dans l’[ADR 0001](../docs/adr/0001-project-name-and-license.md) ; vérifier la compatibilité de chaque dépendance et modèle |
+| Nom | `univo` (PyPI) et `univo-*` (crates.io), libres au 2026-10-07 selon l’[ADR 0001](../docs/adr/0001-project-name-and-license.md) ; réservation à la première publication |
 
 Ne pas figer prématurément un modèle, une dimension, une crate ANN ou un seuil global. En revanche, chaque release doit fixer et exposer les choix effectivement retenus.
