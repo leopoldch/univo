@@ -155,6 +155,9 @@ impl Schema {
     ) -> Self {
         let mut hasher = FxHasher::default();
         hasher.write_u32(NORMALIZER_VERSION);
+        hasher.write_usize(limits.max_fields);
+        hasher.write_usize(limits.max_depth);
+        hasher.write_usize(limits.max_selected_bytes);
         write_path(&mut hasher, id_field.as_ref());
         hasher.write_usize(partition_by.len());
         for path in &partition_by {
@@ -163,6 +166,7 @@ impl Schema {
         hasher.write_usize(fields.len());
         for field in &fields {
             write_path(&mut hasher, Some(&field.path));
+            hasher.write_u8(u8::from(field.kind.is_required()));
             match &field.kind {
                 FieldKind::Text(text) => {
                     hasher.write_u8(1);
@@ -186,10 +190,13 @@ impl Schema {
         }
     }
 
-    /// Identifies everything that determines the result of
-    /// [`crate::prepare`]: paths, field kinds, case folding, normalizers and
-    /// [`NORMALIZER_VERSION`]. Weights, modes, vetoes, requirements and
-    /// limits are excluded, since they do not change a prepared record.
+    /// Identifies everything that determines whether [`crate::prepare`]
+    /// accepts a record and what it produces: paths, field kinds,
+    /// requirements, case folding, normalizers, limits and
+    /// [`NORMALIZER_VERSION`]. Weights, modes and vetoes are excluded, since
+    /// they change neither. Records prepared under one fingerprint are only
+    /// compared under the same one, so that no rule of the comparing schema
+    /// is bypassed.
     pub fn preparation_fingerprint(&self) -> u64 {
         self.preparation_fingerprint
     }
@@ -448,7 +455,7 @@ mod tests {
     }
 
     #[test]
-    fn preparation_fingerprint_ignores_scoring_parameters() {
+    fn preparation_fingerprint_covers_acceptance_but_not_scoring() {
         let base = || Schema::builder().id_field(path("id"));
         let schema = base().text(path("name"), Text::default()).build().unwrap();
         let reweighted = base()
@@ -457,10 +464,27 @@ mod tests {
                 Text {
                     weight: 3.0,
                     mode: TextMode::Lexical,
+                    ..Text::default()
+                },
+            )
+            .build()
+            .unwrap();
+        let required = base()
+            .text(
+                path("name"),
+                Text {
                     required: true,
                     ..Text::default()
                 },
             )
+            .build()
+            .unwrap();
+        let stricter = base()
+            .text(path("name"), Text::default())
+            .limits(Limits {
+                max_depth: 4,
+                ..Limits::default()
+            })
             .build()
             .unwrap();
         let unfolded = base()
@@ -478,14 +502,12 @@ mod tests {
             schema.preparation_fingerprint(),
             reweighted.preparation_fingerprint()
         );
-        assert_ne!(
-            schema.preparation_fingerprint(),
-            unfolded.preparation_fingerprint()
-        );
-        assert_ne!(
-            schema.preparation_fingerprint(),
-            renamed.preparation_fingerprint()
-        );
+        for other in [&unfolded, &renamed, &required, &stricter] {
+            assert_ne!(
+                schema.preparation_fingerprint(),
+                other.preparation_fingerprint()
+            );
+        }
     }
 
     #[test]
