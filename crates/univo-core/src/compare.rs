@@ -9,10 +9,13 @@ use crate::lexical;
 use crate::normalize::NormalizedValue;
 use crate::prepare::{FieldState, PreparedField, PreparedRecord};
 use crate::schema::{Conflict, ExactNormalizer, Field, FieldKind, Schema, TextMode};
+use crate::semantic::semantic_similarity;
 
 /// Version of the comparison rules. Any change in a similarity, a signal or
 /// the score for some pair must increment it.
-pub const SCORING_VERSION: u32 = 1;
+///
+/// 2: semantic text fields compared by the cosine of their embeddings.
+pub const SCORING_VERSION: u32 = 2;
 
 /// What produced a field's similarity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,7 +31,8 @@ pub enum Signal {
     Exact,
     /// Objects compared key by key, on the keys present on both sides.
     Keys,
-    /// Text compared semantically only; no similarity until embeddings.
+    /// Text of a semantic field, compared by the cosine of its embeddings;
+    /// without both embeddings, no similarity.
     Semantic,
 }
 
@@ -80,6 +84,25 @@ pub fn compare(
     left: &PreparedRecord,
     right: &PreparedRecord,
 ) -> Result<Option<Comparison>> {
+    compare_with_vectors(schema, left, &[], right, &[])
+}
+
+/// Compares two records prepared with `schema`, using the embeddings of
+/// their semantic text fields: `vectors[i]` is the unit vector of field
+/// `i`, or `None` when the field is not embedded or its text has no
+/// embedding. A shorter slice leaves the remaining fields without
+/// embeddings; vectors of other fields are ignored.
+///
+/// # Errors
+///
+/// As [`compare`].
+pub fn compare_with_vectors(
+    schema: &Schema,
+    left: &PreparedRecord,
+    left_vectors: &[Option<&[f32]>],
+    right: &PreparedRecord,
+    right_vectors: &[Option<&[f32]>],
+) -> Result<Option<Comparison>> {
     let expected = schema.preparation_fingerprint();
     if left.schema != expected || right.schema != expected {
         return Err(Error::schema_mismatch());
@@ -92,7 +115,11 @@ pub fn compare(
         .fields()
         .iter()
         .zip(left.fields.iter().zip(right.fields.iter()))
-        .map(|(field, (a, b))| compare_field(field, a, b))
+        .enumerate()
+        .map(|(index, (field, (a, b)))| {
+            let vectors = field_vector(left_vectors, index).zip(field_vector(right_vectors, index));
+            compare_field(field, a, b, vectors)
+        })
         .collect();
 
     let mut total = 0.0f64;
@@ -123,6 +150,10 @@ pub fn compare(
     }))
 }
 
+fn field_vector<'a>(vectors: &[Option<&'a [f32]>], index: usize) -> Option<&'a [f32]> {
+    vectors.get(index).copied().flatten()
+}
+
 fn missing(incomplete: bool) -> FieldComparison {
     FieldComparison {
         similarity: None,
@@ -134,14 +165,19 @@ fn missing(incomplete: bool) -> FieldComparison {
     }
 }
 
-fn compare_field(field: &Field, left: &PreparedField, right: &PreparedField) -> FieldComparison {
+fn compare_field(
+    field: &Field,
+    left: &PreparedField,
+    right: &PreparedField,
+    vectors: Option<(&[f32], &[f32])>,
+) -> FieldComparison {
     let (left_present, right_present) = (is_present(field, left), is_present(field, right));
     if !(left_present && right_present) {
         return missing(left_present || right_present);
     }
     match (&field.kind, &left.state, &right.state) {
         (FieldKind::Text(text), FieldState::Text(a), FieldState::Text(b)) => {
-            compare_text(text.mode, a, b, left, right)
+            compare_text(text.mode, a, b, left, right, vectors)
         }
         (FieldKind::Exact(exact), FieldState::Exact(a), FieldState::Exact(b)) => {
             compare_exact(exact.conflict, a, b)
@@ -170,33 +206,38 @@ fn compare_text(
     right: &str,
     left_field: &PreparedField,
     right_field: &PreparedField,
+    vectors: Option<(&[f32], &[f32])>,
 ) -> FieldComparison {
-    let lexical = match (&left_field.trigrams, &right_field.trigrams) {
-        (Some(a), Some(b)) if mode != TextMode::Semantic => Some((a, b)),
+    let lexical = match (mode, &left_field.trigrams, &right_field.trigrams) {
+        (TextMode::Lexical | TextMode::Hybrid, Some(a), Some(b)) => {
+            let trigrams = lexical::jaccard(a, b);
+            Some(match lexical::edit_similarity(left, right) {
+                Some(edit) if edit >= trigrams => (edit, Signal::EditDistance),
+                _ => (trigrams, Signal::Trigrams),
+            })
+        }
         _ => None,
     };
-    let Some((left_trigrams, right_trigrams)) = lexical else {
-        return FieldComparison {
-            similarity: None,
-            signal: Signal::Semantic,
-            contradiction: false,
-            veto: false,
-            incomplete: false,
-            evidence: 0.0,
-        };
+    let semantic = match (mode, vectors) {
+        (TextMode::Semantic, Some((a, b))) if a.len() == b.len() => {
+            Some((semantic_similarity(a, b), Signal::Semantic))
+        }
+        _ => None,
     };
-    let trigrams = lexical::jaccard(left_trigrams, right_trigrams);
-    let (similarity, signal) = match lexical::edit_similarity(left, right) {
-        Some(edit) if edit >= trigrams => (edit, Signal::EditDistance),
-        _ => (trigrams, Signal::Trigrams),
+    // Hybrid fields are scored lexically: on the critical corpus, adding
+    // their cosine lowered the ranking quality (ADR 0009).
+    let best = lexical.or(semantic);
+    let (similarity, signal, evidence) = match best {
+        Some((similarity, signal)) => (Some(similarity), signal, 1.0),
+        None => (None, Signal::Semantic, 0.0),
     };
     FieldComparison {
-        similarity: Some(similarity),
+        similarity,
         signal,
         contradiction: false,
         veto: false,
         incomplete: false,
-        evidence: 1.0,
+        evidence,
     }
 }
 

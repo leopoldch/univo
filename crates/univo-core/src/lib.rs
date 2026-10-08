@@ -13,9 +13,12 @@ mod normalize;
 mod path;
 mod prepare;
 mod schema;
+mod semantic;
 mod value;
 
-pub use compare::{Comparison, FieldComparison, SCORING_VERSION, Signal, compare};
+pub use compare::{
+    Comparison, FieldComparison, SCORING_VERSION, Signal, compare, compare_with_vectors,
+};
 pub use error::{Detail, Error, ErrorCode, ErrorKind, RecordLocation, Result};
 pub use exact::{ExactMatch, exact_fingerprint, exact_match};
 pub use lexical::{MAX_EDIT_CHARS, edit_similarity, jaccard, trigrams};
@@ -29,6 +32,7 @@ pub use schema::{
     Conflict, Exact, ExactNormalizer, Field, FieldKind, Limits, MAX_NESTING_DEPTH, Schema,
     SchemaBuilder, Text, TextMode,
 };
+pub use semantic::{dot, semantic_similarity};
 pub use value::{DuplicateKey, Finite, Lookup, Map, Value};
 
 /// Version of the Univo core, shared by every binding.
