@@ -4,12 +4,13 @@
 use crate::budget::Budget;
 use crate::error::{Error, Result};
 use crate::fingerprint::{self, Stages};
+use crate::lexical;
 use crate::normalize::{
     NormalizedValue, Transforms, normalize_hostname, normalize_text_observed, normalize_value,
     push_nfc,
 };
 use crate::path::FieldPath;
-use crate::schema::{ExactNormalizer, FieldKind, Schema};
+use crate::schema::{ExactNormalizer, FieldKind, Schema, Text, TextMode};
 use crate::value::{Lookup, Value};
 
 /// External identifier of a record; never normalized, typed.
@@ -38,6 +39,8 @@ pub struct PreparedField {
     /// Fingerprints before the steps in `transforms`, to explain exact
     /// matches.
     pub(crate) stages: Stages,
+    /// Sorted character trigrams of normalized text compared lexically.
+    pub(crate) trigrams: Option<Box<[u64]>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -86,15 +89,15 @@ pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
             return Err(Error::wrong_shape(&root, "a string", record.type_name()));
         };
         budget.charge_value(&root, record)?;
-        let case_fold = match &schema.fields()[0].kind {
-            FieldKind::Text(text) => text.case_fold,
-            FieldKind::Exact(_) => false,
+        let field = match &schema.fields()[0].kind {
+            FieldKind::Text(options) => prepare_text(text, *options),
+            FieldKind::Exact(_) => prepare_text(text, Text::default()),
         };
         return Ok(PreparedRecord {
             schema: schema.preparation_fingerprint(),
             id: None,
             partition: Box::new([]),
-            fields: Box::new([prepare_text(text, case_fold)]),
+            fields: Box::new([field]),
         });
     }
     if !matches!(record, Value::Map(_)) {
@@ -128,6 +131,7 @@ pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
                     state,
                     transforms: Transforms::NONE,
                     stages: Stages::default(),
+                    trigrams: None,
                 });
                 continue;
             }
@@ -141,7 +145,7 @@ pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
         }
         budget.charge_value(&field.path, value)?;
         fields.push(match (&field.kind, value) {
-            (FieldKind::Text(text), Value::Str(input)) => prepare_text(input, text.case_fold),
+            (FieldKind::Text(text), Value::Str(input)) => prepare_text(input, *text),
             (FieldKind::Exact(exact), _) => prepare_exact(&field.path, value, exact.normalizer)?,
             (FieldKind::Text(_), other) => {
                 return Err(Error::wrong_type(
@@ -202,10 +206,10 @@ fn prepare_partition(
         .0)
 }
 
-fn prepare_text(input: &str, case_fold: bool) -> PreparedField {
+fn prepare_text(input: &str, options: Text) -> PreparedField {
     let mut out = String::with_capacity(input.len());
     let mut composed = None;
-    let transforms = normalize_text_observed(input, case_fold, &mut out, |form| {
+    let transforms = normalize_text_observed(input, options.case_fold, &mut out, |form| {
         composed = Some(fingerprint::text(form));
     });
     let mut stages = Stages::default();
@@ -215,10 +219,12 @@ fn prepare_text(input: &str, case_fold: bool) -> PreparedField {
     if transforms.contains(Transforms::CASE) {
         stages.0[1] = composed.unwrap_or_else(|| fingerprint::text(input));
     }
+    let trigrams = (options.mode != TextMode::Semantic).then(|| lexical::trigrams(&out));
     PreparedField {
         state: FieldState::Text(out.into_boxed_str()),
         transforms,
         stages,
+        trigrams,
     }
 }
 
@@ -243,6 +249,7 @@ fn prepare_exact(
             state: FieldState::Exact(NormalizedValue::Str(out.into_boxed_str())),
             transforms,
             stages,
+            trigrams: None,
         });
     }
 
@@ -259,6 +266,7 @@ fn prepare_exact(
         state: FieldState::Exact(canonical),
         transforms,
         stages,
+        trigrams: None,
     })
 }
 

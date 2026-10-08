@@ -31,6 +31,9 @@ GitHub-hosted runners are noisy, and some are much slower than the reference mac
 | `prepare` on the standard workload, 100 000 records, single thread | 845 ns per record (85 ms) | 150 ms | 2026-10-07, U-006 |
 | `normalize_text`, 140-byte French description | 150 ns | — | 2026-10-07, U-006 |
 | `normalize_text`, ASCII name | 8.7 ns | — | 2026-10-07, U-006 |
+| `prepare` on the standard workload, with trigrams for names | 1 100 ns per record (110 ms) | 150 ms | 2026-10-08, U-008 |
+| `compare` of standard records of one partition, 1 000 000 pairs, single thread | 311 ns per pair (311 ms) | 550 ms | 2026-10-08, U-008 |
+| `compare` of configurations with nested parameters, 1 000 000 pairs, single thread | 143 ns per pair (143 ms) | 250 ms | 2026-10-08, U-008 |
 
 Rust performance budgets live in `crates/*/tests/perf_budget.rs`; they are ignored in debug builds and run by `cargo test --release`. Detailed numbers come from `cargo bench -p univo-core`.
 

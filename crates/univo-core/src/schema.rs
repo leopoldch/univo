@@ -173,6 +173,11 @@ impl Schema {
                 FieldKind::Text(text) => {
                     hasher.write_u8(1);
                     hasher.write_u8(u8::from(text.case_fold));
+                    hasher.write_u8(match text.mode {
+                        TextMode::Lexical => 0,
+                        TextMode::Semantic => 1,
+                        TextMode::Hybrid => 2,
+                    });
                 }
                 FieldKind::Exact(exact) => {
                     hasher.write_u8(2);
@@ -194,11 +199,11 @@ impl Schema {
 
     /// Identifies everything that determines whether [`crate::prepare`]
     /// accepts a record and what it produces: paths, field kinds,
-    /// requirements, case folding, normalizers, limits and
-    /// [`NORMALIZER_VERSION`]. Weights, modes and vetoes are excluded, since
-    /// they change neither. Records prepared under one fingerprint are only
-    /// compared under the same one, so that no rule of the comparing schema
-    /// is bypassed.
+    /// requirements, case folding, text modes (lexical text keeps trigrams),
+    /// normalizers, limits and [`NORMALIZER_VERSION`]. Weights and vetoes
+    /// are excluded, since they change neither. Records prepared under one
+    /// fingerprint are only compared under the same one, so that no rule of
+    /// the comparing schema is bypassed.
     pub fn preparation_fingerprint(&self) -> u64 {
         self.preparation_fingerprint
     }
@@ -465,6 +470,15 @@ mod tests {
                 path("name"),
                 Text {
                     weight: 3.0,
+                    ..Text::default()
+                },
+            )
+            .build()
+            .unwrap();
+        let lexical = base()
+            .text(
+                path("name"),
+                Text {
                     mode: TextMode::Lexical,
                     ..Text::default()
                 },
@@ -504,7 +518,7 @@ mod tests {
             schema.preparation_fingerprint(),
             reweighted.preparation_fingerprint()
         );
-        for other in [&unfolded, &renamed, &required, &stricter] {
+        for other in [&unfolded, &renamed, &required, &stricter, &lexical] {
             assert_ne!(
                 schema.preparation_fingerprint(),
                 other.preparation_fingerprint()

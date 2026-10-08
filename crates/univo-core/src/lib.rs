@@ -4,17 +4,21 @@
 //! inference runtime. Bindings and the engine build on top of it.
 
 mod budget;
+mod compare;
 mod error;
 mod exact;
 mod fingerprint;
+mod lexical;
 mod normalize;
 mod path;
 mod prepare;
 mod schema;
 mod value;
 
+pub use compare::{Comparison, FieldComparison, SCORING_VERSION, Signal, compare};
 pub use error::{Detail, Error, ErrorCode, ErrorKind, RecordLocation, Result};
 pub use exact::{ExactMatch, exact_fingerprint, exact_match};
+pub use lexical::{MAX_EDIT_CHARS, edit_similarity, jaccard, trigrams};
 pub use normalize::{
     InvalidHostname, KeyCollision, NORMALIZER_VERSION, NormalizedValue, Transforms,
     normalize_hostname, normalize_text, normalize_value,

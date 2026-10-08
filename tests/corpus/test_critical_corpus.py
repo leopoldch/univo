@@ -136,11 +136,24 @@ def discriminant_pairs(case: dict[str, Any]) -> list[tuple[Any, Any]]:
         for name in DISCRIMINANT_FIELDS.get(case["profile"], ())
     ]
     if case["profile"] == "configurations":
-        left_params, right_params = left.get("params") or {}, right.get("params") or {}
-        pairs += [
-            (left_params.get(name, MISSING), right_params.get(name, MISSING))
-            for name in left_params.keys() | right_params.keys()
-        ]
+        pairs += object_leaves(left.get("params") or {}, right.get("params") or {})
+    return pairs
+
+
+def object_leaves(left: dict[str, Any], right: dict[str, Any]) -> list[tuple[Any, Any]]:
+    """Leaf pairs of two objects compared key by key, at every depth.
+
+    Objects present on both sides are descended into; null and absent values
+    are both unknown, so a key whose value is null on one side pairs a
+    present value with a missing one.
+    """
+    pairs = []
+    for name in left.keys() | right.keys():
+        a, b = left.get(name, MISSING), right.get(name, MISSING)
+        if isinstance(a, dict) and isinstance(b, dict):
+            pairs += object_leaves(a, b)
+        else:
+            pairs.append((a, b))
     return pairs
 
 

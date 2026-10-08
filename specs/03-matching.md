@@ -63,7 +63,7 @@ S(a,b)=\frac{\sum_{j\in O(a,b)}w_j s_j(a,b)}{\sum_{j\in O(a,b)}w_j},
 C(a,b)=\frac{\sum_{j\in O(a,b)}w_j}{\sum_j w_j}.
 \]
 
-`O` contient les champs informatifs présents des deux côtés ; `C` mesure la couverture. Refuser la décision automatique lorsque la couverture est insuffisante. Si le dénominateur est nul, le score est absent, jamais égal à 1.
+`O` contient les champs informatifs présents des deux côtés ; `C` mesure la couverture. Un champ objet comparé clé par clé ne pèse que pour sa part d’information présente des deux côtés (voir [scoring](../docs/scoring.md)) : des clés présentes d’un seul côté réduisent la couverture. Refuser la décision automatique lorsque la couverture est insuffisante. Si le dénominateur est nul, le score est absent, jamais égal à 1.
 
 La transformation éventuelle du cosinus en score de champ est documentée et versionnée. Les signaux corrélés ne sont pas des preuves indépendantes. Les poids et seuils se règlent sur validation, jamais sur test.
 
