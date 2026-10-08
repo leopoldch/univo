@@ -44,6 +44,8 @@ class Hub:
     user_agents: set[str] = field(default_factory=set)
     statuses: dict[str, list[int]] = field(default_factory=dict)
     """Statuses answered, in order, before serving normally."""
+    truncated: dict[str, int] = field(default_factory=dict)
+    """Number of responses, per file name, that end after a few bytes."""
     corrupt: set[str] = field(default_factory=set)
     oversized: set[str] = field(default_factory=set)
 
@@ -83,12 +85,20 @@ def serve(hub: Hub) -> Iterator[Hub]:
         def do_GET(self) -> None:
             hub.requests.append(self.path)
             hub.user_agents.add(self.headers.get("User-Agent", ""))
-            status, body, headers = hub.answer(self.path.split("?")[0])
+            path = self.path.split("?")[0]
+            status, body, headers = hub.answer(path)
             self.send_response(status)
             for key, value in headers.items():
                 self.send_header(key, value)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
+            name = path.rsplit("/", 1)[-1]
+            if status == 200 and hub.truncated.get(name, 0) > 0:
+                # The connection closes early, as when a proxy drops it.
+                hub.truncated[name] -= 1
+                self.wfile.write(body[:3])
+                self.close_connection = True
+                return
             self.wfile.write(body)
 
         def log_message(self, format: str, *args: object) -> None:

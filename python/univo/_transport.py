@@ -79,7 +79,14 @@ class UrllibTransport:
         request = urllib.request.Request(url, headers={"User-Agent": f"univo/{__version__}"})
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                _copy(response, max_bytes, write)
+                received = _copy(response, max_bytes, write)
+                announced = response.headers.get("Content-Length")
+                if announced is not None and announced.isdigit() and received < int(announced):
+                    # The connection closed early without an error.
+                    raise TransportError(
+                        f"the response ended after {received} of {announced} bytes",
+                        retryable=True,
+                    )
         except urllib.error.HTTPError as error:
             raise TransportError(
                 f"HTTP {error.code} {error.reason}",
@@ -94,10 +101,12 @@ class UrllibTransport:
             raise TransportError(f"connection lost: {error!r}", retryable=True) from None
 
 
-def _copy(response: BinaryIO, max_bytes: int, write: Callable[[bytes], object]) -> None:
+def _copy(response: BinaryIO, max_bytes: int, write: Callable[[bytes], object]) -> int:
+    """Copies the body and returns its length in bytes."""
     received = 0
     while chunk := response.read(CHUNK_BYTES):
         received += len(chunk)
         if received > max_bytes:
             raise TransportError(f"the response exceeds {max_bytes} bytes", retryable=False)
         write(chunk)
+    return received

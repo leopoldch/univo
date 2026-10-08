@@ -163,7 +163,7 @@ pub fn resolve(
             options.max_download_bytes,
         )?
     };
-    download(cache, &plan, transport).map(Resolved::Cached)
+    download(cache, &plan, options.max_download_bytes, transport).map(Resolved::Cached)
 }
 
 fn fetch_metadata(
@@ -191,7 +191,20 @@ fn fetch_metadata(
         })
 }
 
-fn download(cache: &Cache, plan: &DownloadPlan, transport: &dyn Transport) -> Result<CachedModel> {
+fn download(
+    cache: &Cache,
+    plan: &DownloadPlan,
+    max_bytes: u64,
+    transport: &dyn Transport,
+) -> Result<CachedModel> {
+    // Checked for every plan, pinned ones included, before any request.
+    if plan.total_bytes() > max_bytes {
+        return Err(Error::model_too_large(
+            &plan.model(),
+            plan.total_bytes(),
+            max_bytes,
+        ));
+    }
     let staging = match cache.stage_with(plan, &|| transport.keep_waiting())? {
         Stage::Published(model) => return Ok(model),
         Stage::Download(staging) => staging,

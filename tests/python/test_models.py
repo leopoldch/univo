@@ -89,6 +89,19 @@ def test_transient_failures_are_retried_a_bounded_number_of_times(
     assert hub.statuses["tokenizer.json"] == [500]
 
 
+def test_a_response_cut_short_is_retried(hub: Hub, tmp_path: pathlib.Path) -> None:
+    hub.truncated = {"config.json": 1}
+    assert download(MODEL, hub_url=hub.url, cache_dir=tmp_path).revision == COMMIT
+    assert file_requests(hub).count(f"/{REPOSITORY}/resolve/{COMMIT}/config.json") == 2
+
+    hub.truncated = {"tokenizer.json": 5}
+    with pytest.raises(ModelUnavailableError) as raised:
+        download(f"{MODEL}@{COMMIT[:8]}", hub_url=hub.url, cache_dir=tmp_path / "other")
+    assert raised.value.code == "model.download_failed"
+    assert "ended after 3 of" in str(raised.value)
+    assert hub.truncated["tokenizer.json"] == 2
+
+
 def test_a_silent_server_times_out_after_a_bounded_number_of_attempts(
     tmp_path: pathlib.Path,
 ) -> None:

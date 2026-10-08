@@ -208,6 +208,10 @@ fn oversized_models_and_invalid_endpoints_are_refused_before_downloading() {
     assert_eq!(error.code(), ErrorCode::ModelTooLarge);
     assert_eq!(hub.requests().len(), 1);
 
+    let error = resolve(&ModelSpec::Default, &cache, &small, &hub).unwrap_err();
+    assert_eq!(error.code(), ErrorCode::ModelTooLarge);
+    assert_eq!(hub.requests().len(), 1);
+
     let hub = FakeHub::default();
     let invalid = ResolveOptions {
         endpoint: "ftp://hub".into(),

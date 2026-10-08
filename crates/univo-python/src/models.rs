@@ -183,12 +183,16 @@ impl Model {
                 self.embedder.encode_batch(&texts)
             })
             .map_err(|error| to_py_err(py, &error))?;
-        let bytes: Vec<u8> = embeddings
-            .as_slice()
-            .iter()
-            .flat_map(|value| value.to_ne_bytes())
-            .collect();
-        Ok((PyBytes::new(py, &bytes), embeddings.absent().to_vec()))
+        let values = embeddings.as_slice();
+        // Written straight into the Python object: one copy, no
+        // intermediate buffer.
+        let bytes = PyBytes::new_with(py, std::mem::size_of_val(values), |buffer| {
+            for (chunk, value) in buffer.as_chunks_mut::<4>().0.iter_mut().zip(values) {
+                *chunk = value.to_ne_bytes();
+            }
+            Ok(())
+        })?;
+        Ok((bytes, embeddings.absent().to_vec()))
     }
 
     fn __repr__(&self) -> String {
