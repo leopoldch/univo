@@ -267,3 +267,117 @@ fn queries_of_another_dimension_find_nothing() {
     assert_eq!(top_k(field, &[1.0, 0.0], 0..10, 5, |slot| slot), []);
     assert_eq!(within(field, &[1.0, 0.0], 0..10, 0.0, |slot| slot), []);
 }
+
+/// Another embedder: a different model, a wrong number of rows, or rows of
+/// another dimension than it declares.
+struct Faulty {
+    descriptor: ModelDescriptor,
+    rows: fn(usize) -> usize,
+    row_dimension: usize,
+}
+
+impl Faulty {
+    fn new(name: &str, dimension: usize, rows: fn(usize) -> usize, row_dimension: usize) -> Self {
+        Self {
+            descriptor: ModelDescriptor {
+                source: ModelSource::Local {
+                    path: name.into(),
+                    files: Vec::new(),
+                },
+                dimension,
+                backend: "faulty",
+            },
+            rows,
+            row_dimension,
+        }
+    }
+}
+
+impl Embedder for Faulty {
+    fn descriptor(&self) -> &ModelDescriptor {
+        &self.descriptor
+    }
+
+    fn encode_batch(&self, texts: &[&str]) -> univo_core::Result<Embeddings> {
+        let mut row = vec![0.0; self.row_dimension];
+        row[0] = 1.0;
+        let data = (0..(self.rows)(texts.len()))
+            .flat_map(|_| row.clone())
+            .collect();
+        Embeddings::new("faulty", data, self.row_dimension)
+    }
+}
+
+#[test]
+fn batches_of_another_model_or_schema_are_refused_unchanged() {
+    use univo_core::ErrorCode;
+    let records = records(&["acme", "globex"]);
+    let schema = semantic_schema();
+    let mut vectors = embed_records(&schema, &records, &GridEmbedder::new()).unwrap();
+    let before = vectors.clone();
+
+    for other in [
+        Faulty::new("grid", 2, |rows| rows, 2),
+        Faulty::new("other", DIMENSION, |rows| rows, DIMENSION),
+    ] {
+        let more = embed_records(&schema, &records, &other).unwrap();
+        let error = vectors.extend(more).unwrap_err();
+        assert_eq!(error.code(), ErrorCode::ModelMismatch, "{error}");
+        assert_eq!(vectors, before);
+    }
+
+    let strings = Schema::strings();
+    let plain = vec![prepare(&strings, &Value::Str("acme".into())).unwrap()];
+    let more = embed_records(&strings, &plain, &GridEmbedder::new()).unwrap();
+    let error = vectors.extend(more).unwrap_err();
+    assert_eq!(error.code(), ErrorCode::SchemaMismatch);
+    assert_eq!(vectors, before);
+}
+
+#[test]
+fn records_of_another_schema_and_faulty_embedders_are_reported() {
+    use univo_core::{ErrorCode, FieldPath, Text, TextMode};
+    let two_fields = Schema::builder()
+        .text(
+            FieldPath::parse("text").unwrap(),
+            Text {
+                mode: TextMode::Semantic,
+                ..Text::default()
+            },
+        )
+        .text(
+            FieldPath::parse("other").unwrap(),
+            Text {
+                mode: TextMode::Semantic,
+                ..Text::default()
+            },
+        )
+        .build()
+        .unwrap();
+    let records = records(&["acme", "globex"]);
+    let error = embed_records(&two_fields, &records, &GridEmbedder::new()).unwrap_err();
+    assert_eq!(error.code(), ErrorCode::SchemaMismatch);
+
+    let schema = semantic_schema();
+    for faulty in [
+        Faulty::new("short", DIMENSION, |rows| rows - 1, DIMENSION),
+        Faulty::new("narrow", DIMENSION, |rows| rows, 2),
+    ] {
+        let error = embed_records(&schema, &records, &faulty).unwrap_err();
+        assert_eq!(error.code(), ErrorCode::CorruptModel, "{error}");
+    }
+}
+
+#[test]
+fn equal_similarities_and_keys_are_ordered_by_slot() {
+    let vectors = embedded(&["same".to_owned(), "same".to_owned(), "same".to_owned()]);
+    let field = vectors.field(0).unwrap();
+    let query = field.get(0).unwrap();
+    for candidates in [vec![0, 1, 2], vec![2, 1, 0], vec![1, 2, 0]] {
+        let found = top_k(field, query, candidates.iter().copied(), 1, |_| ());
+        assert_eq!(found[0].slot, 0);
+        let all = within(field, query, candidates.iter().copied(), 0.0, |_| ());
+        let slots: Vec<usize> = all.iter().map(|neighbor| neighbor.slot).collect();
+        assert_eq!(slots, [0, 1, 2]);
+    }
+}

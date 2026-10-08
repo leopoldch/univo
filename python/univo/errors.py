@@ -9,6 +9,7 @@ from collections.abc import Mapping
 
 __all__ = [
     "DuplicateIdError",
+    "IndexCompatibilityError",
     "InvalidRecordError",
     "InvalidSchemaError",
     "ModelIntegrityError",
@@ -88,3 +89,8 @@ class ModelUnavailableError(UnivoError):
 
 class ModelIntegrityError(UnivoError):
     """Model files or outputs fail verification."""
+
+
+class IndexCompatibilityError(UnivoError):
+    """Stored state, such as embeddings, comes from another model or format
+    than the one in use."""

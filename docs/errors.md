@@ -31,6 +31,7 @@ The text of an error has three lines: the message, prefixed with the record posi
 | `SchemaMismatch` | Records prepared with different schemas were compared. |
 | `ModelUnavailable` | The embedding model cannot be resolved, downloaded or loaded. |
 | `ModelIntegrity` | Model files or outputs fail verification. |
+| `IndexCompatibility` | Stored state, such as embeddings, comes from another model or format than the one in use. |
 
 ## Catalog
 
@@ -500,6 +501,21 @@ Example:
 model /opt/models/m is corrupt: a vector is not finite
 hint: Download the model again; if a local copy is used, check that it is complete and unmodified.
 code: model.corrupt (https://github.com/leopoldch/univo/blob/main/docs/errors.md#modelcorrupt)
+```
+
+### state.model_mismatch
+
+Embeddings of different models were combined.
+
+- Kind: `IndexCompatibility` (Python: `univo.IndexCompatibilityError`)
+- Fix: Encode every record of an index with the same model and revision; to change model, rebuild the index.
+
+Example:
+
+```text
+embeddings of model minishlab/potion-base-2M@389b9f64be5aa4ae7a6bc6fe95ef20ce485ae5da cannot be combined with those of model minishlab/potion-base-8M@bf8b056651a2c21b8d2565580b8569da283cab23
+hint: Encode every record of an index with the same model and revision; to change model, rebuild the index.
+code: state.model_mismatch (https://github.com/leopoldch/univo/blob/main/docs/errors.md#statemodel_mismatch)
 ```
 
 <!-- catalog:end -->

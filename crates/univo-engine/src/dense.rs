@@ -34,6 +34,7 @@ impl<K: Ord> Ord for Entry<K> {
             .similarity
             .total_cmp(&self.similarity)
             .then_with(|| self.key.cmp(&other.key))
+            .then_with(|| self.slot.cmp(&other.slot))
     }
 }
 
@@ -53,8 +54,9 @@ impl<K: Ord> Eq for Entry<K> {}
 
 /// The `k` candidates whose embedding is closest to `query`, most similar
 /// first: the first `k` results of [`within`] at threshold 0. Ties are
-/// broken by `key`, smallest first, so the result does not depend on the
-/// order of `candidates`. Candidates without an embedding are skipped.
+/// broken by `key`, then by slot, smallest first, so the result never
+/// depends on the order of `candidates`. Candidates without an embedding
+/// are skipped.
 pub fn top_k<K: Ord>(
     vectors: &FieldVectors,
     query: &[f32],
@@ -106,8 +108,8 @@ pub fn top_k<K: Ord>(
 }
 
 /// Every candidate whose similarity to `query` is at least `threshold`,
-/// most similar first, ties broken by `key`: the complete answer, at the
-/// cost of a result as large as the matches.
+/// most similar first, ties broken by `key` then slot: the complete answer,
+/// at the cost of a result as large as the matches.
 pub fn within<K: Ord>(
     vectors: &FieldVectors,
     query: &[f32],
@@ -129,6 +131,7 @@ pub fn within<K: Ord>(
         b.similarity
             .total_cmp(&a.similarity)
             .then_with(|| a_key.cmp(b_key))
+            .then_with(|| a.slot.cmp(&b.slot))
     });
     found.into_iter().map(|(neighbor, _)| neighbor).collect()
 }

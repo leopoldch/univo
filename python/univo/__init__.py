@@ -3,6 +3,7 @@
 from univo._univo import __version__
 from univo.errors import (
     DuplicateIdError,
+    IndexCompatibilityError,
     InvalidRecordError,
     InvalidSchemaError,
     ModelIntegrityError,
@@ -14,6 +15,7 @@ from univo.errors import (
 
 __all__ = [
     "DuplicateIdError",
+    "IndexCompatibilityError",
     "InvalidRecordError",
     "InvalidSchemaError",
     "ModelIntegrityError",

@@ -33,6 +33,9 @@ pub enum ErrorKind {
     ModelUnavailable,
     /// Model files or outputs fail verification.
     ModelIntegrity,
+    /// Stored state, such as embeddings, comes from another model or format
+    /// than the one in use.
+    IndexCompatibility,
 }
 
 impl ErrorKind {
@@ -46,6 +49,7 @@ impl ErrorKind {
             Self::SchemaMismatch => "SchemaMismatch",
             Self::ModelUnavailable => "ModelUnavailable",
             Self::ModelIntegrity => "ModelIntegrity",
+            Self::IndexCompatibility => "IndexCompatibility",
         }
     }
 }
@@ -188,6 +192,9 @@ error_codes! {
     CorruptModel => "model.corrupt", ModelIntegrity,
         "The model files cannot be read, or the model produced invalid vectors",
         "Download the model again; if a local copy is used, check that it is complete and unmodified.";
+    ModelMismatch => "state.model_mismatch", IndexCompatibility,
+        "Embeddings of different models were combined",
+        "Encode every record of an index with the same model and revision; to change model, rebuild the index.";
 }
 
 /// Base URL of the error catalog; each code has an anchor there.
@@ -655,6 +662,19 @@ impl Error {
             format!("model {model} is corrupt: {reason}"),
         )
         .text("model", model)
+    }
+
+    /// `expected` and `found` name the models, as `ModelDescriptor::name`
+    /// gives them.
+    pub fn model_mismatch(expected: &str, found: &str) -> Self {
+        Self::new(
+            ErrorCode::ModelMismatch,
+            format!(
+                "embeddings of model {found} cannot be combined with those of model {expected}"
+            ),
+        )
+        .text("expected", expected)
+        .text("found", found)
     }
 
     pub fn index_capacity(requested: usize, limit: usize) -> Self {
