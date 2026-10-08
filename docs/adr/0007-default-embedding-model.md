@@ -26,24 +26,24 @@ The maintainer requires a default model that is powerful, fast and small, and th
 
 ## Alternatives
 
-- **potion-base-2M** (7.6 MB, 64 dimensions): equal on the critical corpus; four times smaller vectors; half the peak memory in Rust (58 MB against 125 MB); 18 % more descriptions per second (24 536 against 20 845). It is weaker only on published averages. **It is the alternative to choose if the maintainer favours size and memory over published benchmark scores.**
-- **potion-multilingual-128M** (512 MB; 64 MB after int8 and 128 dimensions): covers 101 languages, yet was not better than the English models on French pairs here. It loads in about 1 s and peaks above 2 GB in Rust from the original files, and its original download (1 GB) exceeds the budget. A reduced artifact would have to be produced, published and maintained. Reconsider when cross-lingual pairs are measured.
-- **Contextual encoders** (all-MiniLM-L6-v2, bge-small-en-v1.5, paraphrase-multilingual-MiniLM-L12-v2, multilingual-e5-small): better on word order (PAWS-X up to 0.62) and, for e5-small, on reworded duplicates (0.43 against 0.36). But they process 170 to 385 descriptions per second on one thread and 246 to 585 on four, below the budget of 2000 objects per second. They also weigh 91 to 471 MB, peak at 0.7 to 1.7 GB, and need an inference runtime that would dominate the wheel size. They could become an optional backend if a measured use case justifies it.
+- **potion-base-2M** (7.6 MB, 64 dimensions): equal on the critical corpus; four times smaller vectors; half the peak memory in Rust (43 MB against 88 MB); 17 % more descriptions per second (25 276 against 21 563). It is weaker only on published averages. **It is the alternative to choose if the maintainer favours size and memory over published benchmark scores.**
+- **potion-multilingual-128M** (512 MB; 64 MB after int8 and 128 dimensions): covers 101 languages, yet was not better than the English models on French pairs here. It loads in about 1 s and peaks at about 1.6 GB in Rust from the original files, and its original download (1 GB) exceeds the budget. A reduced artifact would have to be produced, published and maintained. Reconsider when cross-lingual pairs are measured.
+- **Contextual encoders** (all-MiniLM-L6-v2, bge-small-en-v1.5, paraphrase-multilingual-MiniLM-L12-v2, multilingual-e5-small): better on word order (PAWS-X up to 0.62) and, for e5-small, on reworded duplicates (0.43 against 0.36). But they process 170 to 348 descriptions per second on one thread and 259 to 539 on four, below the budget of 2000 objects per second. They also weigh 91 to 471 MB, peak at 0.7 to 1.4 GB, and need an inference runtime that would dominate the wheel size. They could become an optional backend if a measured use case justifies it.
 - **No model**: lexical comparison is the best single signal on the critical corpus (0.634) but recovers fewer reworded duplicates (0.31) and cannot handle other scripts; it remains a mandatory baseline in the hybrid score.
 
 ## Evidence
 
-From the [spike](../../benchmarks/spikes/u004/README.md) (Apple M2, isolated processes):
+From the [spike](../../benchmarks/spikes/u004/README.md) (Apple M2, isolated processes, one model per process for memory):
 
 | | potion-base-8M | potion-base-2M | multilingual-e5-small | lexical |
 | --- | --- | --- | --- | --- |
 | AUC critical corpus | 0.585 | 0.594 | 0.631 | 0.634 |
 | AUC reworded duplicates | 0.356 | 0.368 | 0.432 | 0.312 |
 | AUC French pairs | 0.557 | 0.561 | 0.606 | 0.591 |
-| Descriptions/s, Rust, 1 / 4 threads | 20 845 / 44 539 | 24 536 / 65 899 | — | — |
-| Descriptions/s, Python, 1 / 4 threads | 17 777 / 36 533 | 18 336 / 40 562 | 170 / 246 | — |
-| First load, Rust | 0.031 s | 0.034 s | — | — |
-| Peak memory, Rust | 125 MB | 58 MB | — | — |
+| Descriptions/s, Rust, 1 / 4 threads | 21 563 / 46 541 | 25 276 / 63 157 | — | — |
+| Descriptions/s, Python, 1 / 4 threads | 17 279 / 39 366 | 17 779 / 41 329 | 170 / 259 | — |
+| First load, Rust | 0.032 s | 0.024 s | — | — |
+| Peak memory, Rust | 88 MB | 43 MB | — | — |
 | Weights | 30.2 MB | 7.6 MB | 471 MB | 0 |
 | Published PairClass / Avg (MTEB) | 76.62 / 51.08 | 73.72 / 47.49 | — | — |
 

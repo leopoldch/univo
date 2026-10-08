@@ -9,10 +9,13 @@ PAWS-X test sets (English and French, 2000 pairs each, licensed for any use)
 complement it; PAWS-X pairs share most of their words and measure
 sensitivity to word order and roles.
 
-Every candidate runs in its own process, once per thread count, so that
-imports, loads and peak memory are not shared between candidates. The parent
-reads each child's peak resident memory from the operating system. Static
-models are also timed in Rust (rust/), on the same texts.
+Every candidate runs in its own processes, once per thread count, so that
+imports, loads and peak memory are not shared between candidates. One
+process loads the model once and measures speed, quality and the peak
+resident memory, read by the parent from the operating system; another
+process only times a second load after releasing the first, so that the
+peak never counts two models. Static models are also timed in Rust (rust/),
+on the same texts.
 
 Usage (dependencies in requirements.txt, outside the project):
     python evaluate.py --output results.json
@@ -332,7 +335,7 @@ def peak_rss_bytes() -> int:
 
 
 def worker(name: str, threads: int, with_quality: bool) -> dict[str, Any]:
-    """Measures one candidate in a fresh process; prints one JSON object."""
+    """Loads one candidate once in a fresh process and measures it."""
     candidate = next(c for c in CANDIDATES if c.name == name)
     if candidate.family == "lexical":
         return {"name": name, "threads": threads, **(quality(None) if with_quality else {})}
@@ -346,9 +349,6 @@ def worker(name: str, threads: int, with_quality: bool) -> dict[str, Any]:
     start = time.perf_counter()
     encode, dimension = load_model(candidate, path, threads)
     first_load_s = time.perf_counter() - start
-    start = time.perf_counter()
-    load_model(candidate, path, threads)
-    warm_load_s = time.perf_counter() - start
 
     encode = normalized(encode)
     names, descriptions = workload(WORKLOAD_SIZE)
@@ -359,7 +359,6 @@ def worker(name: str, threads: int, with_quality: bool) -> dict[str, Any]:
         "download_mb": directory_size(path) / 1e6,
         "import_s": import_s,
         "first_load_s": first_load_s,
-        "warm_load_s": warm_load_s,
         "names_per_s": throughput(encode, names),
         "descriptions_per_s": throughput(encode, descriptions),
         "rss_after_import_mb": rss_after_import / 1e6,
@@ -367,6 +366,21 @@ def worker(name: str, threads: int, with_quality: bool) -> dict[str, Any]:
     if with_quality:
         result.update(quality(encode))
     return result
+
+
+def warm_worker(name: str, threads: int) -> dict[str, Any]:
+    """Times a second load, after the first model is released."""
+    import gc
+
+    candidate = next(c for c in CANDIDATES if c.name == name)
+    path = snapshot(candidate)
+    import_backend(candidate)
+    model = load_model(candidate, path, threads)
+    del model
+    gc.collect()
+    start = time.perf_counter()
+    load_model(candidate, path, threads)
+    return {"warm_load_s": time.perf_counter() - start}
 
 
 def run_child(arguments: list[str], threads: int) -> tuple[str, int]:
@@ -388,13 +402,20 @@ def run_child(arguments: list[str], threads: int) -> tuple[str, int]:
     return stdout, peak
 
 
+def last_json(stdout: str) -> dict[str, Any]:
+    result: dict[str, Any] = json.loads(stdout.strip().splitlines()[-1])
+    return result
+
+
 def measure_python(candidate: Candidate, threads: int) -> dict[str, Any]:
     arguments = [sys.executable, __file__, "--worker", candidate.name, "--threads", str(threads)]
-    if threads == 1:
-        arguments.append("--quality")
-    stdout, peak = run_child(arguments, threads)
-    result: dict[str, Any] = json.loads(stdout.strip().splitlines()[-1])
+    measured = [*arguments, "--quality"] if threads == 1 else arguments
+    stdout, peak = run_child(measured, threads)
+    result = last_json(stdout)
     result["peak_rss_mb"] = peak / 1e6
+    if candidate.family != "lexical":
+        stdout, _ = run_child([*arguments, "--warm"], threads)
+        result.update(last_json(stdout))
     return result
 
 
@@ -411,7 +432,9 @@ def measure_rust(
     arguments = [str(binary), str(snapshot(candidate)), str(texts / "names.txt")]
     arguments.append(str(texts / "descriptions.txt"))
     stdout, peak = run_child(arguments, threads)
-    result: dict[str, Any] = json.loads(stdout.strip().splitlines()[-1])
+    result = last_json(stdout)
+    stdout, _ = run_child([*arguments, "--warm"], threads)
+    result.update(last_json(stdout))
     return {"name": candidate.name, "threads": threads, **result, "peak_rss_mb": peak / 1e6}
 
 
@@ -436,8 +459,12 @@ def main() -> None:
     parser.add_argument("--worker", help=argparse.SUPPRESS)
     parser.add_argument("--threads", type=int, default=1, help=argparse.SUPPRESS)
     parser.add_argument("--quality", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--warm", action="store_true", help=argparse.SUPPRESS)
     arguments = parser.parse_args()
 
+    if arguments.worker and arguments.warm:
+        print(json.dumps(warm_worker(arguments.worker, arguments.threads)))
+        return
     if arguments.worker:
         print(json.dumps(worker(arguments.worker, arguments.threads, arguments.quality)))
         return

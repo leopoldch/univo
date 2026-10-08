@@ -27,7 +27,7 @@ python -m venv /tmp/u004 && /tmp/u004/bin/pip install -r requirements.txt
 - **Speed.** Standard workload of [specs/07-performance.md](../../../specs/07-performance.md): 2000 names of about 20 characters and 2000 descriptions of about 30 words, the same texts for Python and Rust. The figure is the median of three runs after a warmup, with 1 and 4 threads.
   - Python: `model2vec` (numpy) and `sentence-transformers` (PyTorch).
   - Rust: `model2vec-rs` 0.3.0 without network or C dependency (`local-only`, `fancy-regex`), which is the path Univo would ship.
-- **Memory.** Peak of the four-thread process, which only loads the model and encodes; the one-thread process also evaluates quality and holds the PAWS-X data. In Python, the interpreter with the backend imported already takes 69 MB (static) or 414 MB (PyTorch).
+- **Memory.** Peak resident memory of the measuring process, which loads the model once; the warm load is timed in a separate process that releases the first model before loading it again, so no peak counts two models. Python peaks are taken from the four-thread process, which only encodes; the one-thread process also evaluates quality and holds the PAWS-X data. In Python, the interpreter with the backend imported already takes about 69 MB (static) or 414 MB (PyTorch).
 
 The critical corpus is a regression set: nothing here tunes a threshold, and with about two hundred pairs, differences below about 0.03 AUC are within noise.
 
@@ -64,38 +64,39 @@ Descriptions per second, the bottleneck of the workload; names are 4 to 10 times
 
 | Candidate | Python, 1 thread | Python, 4 threads | Import | First load | Warm load | Peak memory | Weights |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| potion-base-2M | 18 336 | 40 562 | 0.11 s | 0.06 s | 0.03 s | 123 MB | 7.6 MB |
-| potion-base-4M | 18 338 | 41 319 | 0.05 s | 0.06 s | 0.03 s | 140 MB | 15.1 MB |
-| potion-base-8M | 17 777 | 36 533 | 0.05 s | 0.09 s | 0.03 s | 185 MB | 30.2 MB |
-| potion-retrieval-32M | 17 069 | 37 311 | 0.06 s | 0.35 s | 0.10 s | 509 MB | 129 MB |
-| potion-multilingual-128M | 11 324 | 29 068 | 0.06 s | 2.21 s | 1.45 s | 3 023 MB | 512 MB |
-| … int8, 128 dimensions | 11 287 | 32 154 | 0.05 s | 2.55 s | 2.74 s | 2 967 MB | 64 MB |
-| all-MiniLM-L6-v2 | 385 | 585 | 4.09 s | 0.11 s | 0.03 s | 670 MB | 91 MB |
-| bge-small-en-v1.5 | 194 | 302 | 2.74 s | 0.11 s | 0.04 s | 713 MB | 133 MB |
-| paraphrase-multilingual-MiniLM-L12-v2 | 180 | 261 | 2.74 s | 0.74 s | 0.69 s | 1 704 MB | 471 MB |
-| multilingual-e5-small | 170 | 246 | 2.90 s | 1.08 s | 1.00 s | 1 593 MB | 471 MB |
+| potion-base-2M | 17 779 | 41 329 | 0.10 s | 0.07 s | 0.03 s | 110 MB | 7.6 MB |
+| potion-base-4M | 17 863 | 39 171 | 0.06 s | 0.06 s | 0.03 s | 118 MB | 15.1 MB |
+| potion-base-8M | 17 279 | 39 366 | 0.06 s | 0.06 s | 0.03 s | 144 MB | 30.2 MB |
+| potion-retrieval-32M | 16 797 | 35 098 | 0.06 s | 0.38 s | 0.09 s | 357 MB | 129 MB |
+| potion-multilingual-128M | 10 962 | 30 915 | 0.06 s | 2.29 s | 1.42 s | 1 860 MB | 512 MB |
+| … int8 | 10 937 | 29 596 | 0.05 s | 2.67 s | 2.84 s | 2 250 MB | 128 MB |
+| … int8, 128 dimensions | 11 386 | 32 082 | 0.05 s | 2.57 s | 2.74 s | 2 250 MB | 64 MB |
+| all-MiniLM-L6-v2 | 348 | 539 | 4.31 s | 0.12 s | 0.04 s | 660 MB | 91 MB |
+| bge-small-en-v1.5 | 188 | 315 | 2.71 s | 0.11 s | 0.04 s | 702 MB | 133 MB |
+| paraphrase-multilingual-MiniLM-L12-v2 | 185 | 272 | 2.69 s | 0.78 s | 0.65 s | 1 400 MB | 471 MB |
+| multilingual-e5-small | 170 | 259 | 2.72 s | 1.06 s | 0.98 s | 1 227 MB | 471 MB |
 
 The quantized variants quantize at load from the 512 MB original, hence their load time and peak; a pre-quantized artifact would not.
 
 Rust, `model2vec-rs`, same texts:
 
-| Model | Names/s, 1 / 4 threads | Descriptions/s, 1 / 4 threads | First load | Peak memory | Dimension |
-| --- | --- | --- | --- | --- | --- |
-| potion-base-2M | 160 696 / 385 933 | 24 536 / 65 899 | 0.034 s | 58 MB | 64 |
-| potion-base-8M | 155 291 / 300 253 | 20 845 / 44 539 | 0.031 s | 125 MB | 256 |
-| potion-multilingual-128M | 165 474 / 291 861 | 14 695 / 37 737 | 0.98 s | 2 262 MB | 256 |
+| Model | Names/s, 1 / 4 threads | Descriptions/s, 1 / 4 threads | First load | Warm load | Peak memory | Dimension |
+| --- | --- | --- | --- | --- | --- | --- |
+| potion-base-2M | 160 126 / 393 146 | 25 276 / 63 157 | 0.024 s | 0.011 s | 43 MB | 64 |
+| potion-base-8M | 160 135 / 318 630 | 21 563 / 46 541 | 0.032 s | 0.015 s | 88 MB | 256 |
+| potion-multilingual-128M | 168 944 / 276 124 | 14 747 / 38 365 | 1.008 s | 0.608 s | 1 587 MB | 256 |
 
 ## Findings
 
 1. **No embedding model alone beats lexical comparison on the critical corpus** (0.634). Its negatives are mostly "same topic, other entity" traps, which embeddings fall into; only multilingual-e5-small comes close (0.631). Quality has to come from hybrid scoring with structured evidence and vetoes (U-008, U-010), with embeddings as one source of evidence.
 2. **What models add is small.** On low-overlap duplicates, static models reach 0.35 to 0.37 against 0.31 for lexical; the best contextual model reaches 0.43. Every candidate stays below 0.5 there: these duplicates (other scripts, acronyms, rewordings) usually score below the traps.
-3. **Static models are 30 to 140 times faster than contextual encoders on descriptions** (single thread, from the slowest static model in Python against the fastest contextual encoder, up to the fastest static model in Rust against the slowest encoder).
-   - Descriptions per second, one thread: 14 700 to 24 500 in Rust and 11 300 to 18 300 in Python for static models, against 170 to 385 for contextual encoders.
-   - Four threads: 37 700 to 65 900 in Rust for static models, against 246 to 585 for contextual encoders.
+3. **Static models are 30 to 150 times faster than contextual encoders on descriptions** (single thread, from the slowest static model in Python against the fastest contextual encoder, up to the fastest static model in Rust against the slowest encoder).
+   - Descriptions per second, one thread: 14 747 to 25 276 in Rust and 10 937 to 17 863 in Python for static models, against 170 to 348 for contextual encoders.
+   - Four threads: 38 365 to 63 157 in Rust for static models, against 259 to 539 for contextual encoders.
    - With a description per record, contextual encoders stay below the budget of 2000 objects per second at one and at four threads.
 4. **Static models ignore word order** (PAWS-X at chance level), as an average of token vectors must. Contextual encoders reach 0.55 to 0.62.
 5. **French**: no static model is measurably better than another on French pairs (0.53 to 0.57); the multilingual static model does not beat the English ones on this corpus. Its value would be cross-lingual pairs, too few here (3) to measure.
-6. **potion-base-2M and potion-base-8M are indistinguishable on this corpus**, so it gives 8M no advantage. Published averages favour 8M (PairClass 76.62 against 73.72), but they are not deduplication measures. 2M has four times smaller vectors, half the peak memory in Rust (58 MB against 125 MB) and 18 % faster descriptions.
+6. **potion-base-2M and potion-base-8M are indistinguishable on this corpus**, so it gives 8M no advantage. Published averages favour 8M (PairClass 76.62 against 73.72), but they are not deduplication measures. 2M has four times smaller vectors, half the peak memory in Rust (43 MB against 88 MB) and 17 % faster descriptions.
 7. **Size levers work**: int8 and 128 dimensions cut the multilingual model from 512 MB to 64 MB for about 0.01 AUC. Vocabulary quantization was not measured: its k-means took more than 50 minutes on one core and was stopped; it belongs to building a model artifact, not to loading one.
 
 ## Limits

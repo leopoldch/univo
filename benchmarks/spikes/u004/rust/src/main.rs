@@ -1,8 +1,10 @@
-//! Usage: `u004-rust-bench <model-dir> <names.txt> <descriptions.txt>`.
+//! Usage: `u004-rust-bench <model-dir> <names.txt> <descriptions.txt> [--warm]`.
 //!
-//! Prints one JSON object: first and warm load times, dimension, and median
-//! throughput over three runs after a warmup. Threads follow
-//! `RAYON_NUM_THREADS`.
+//! Without `--warm`, loads the model once and prints its first load time,
+//! dimension and median throughput over three runs after a warmup, so that
+//! the process's peak memory counts one model. With `--warm`, loads, drops
+//! and reloads the model and prints only the second load time. Threads
+//! follow `RAYON_NUM_THREADS`.
 
 use std::time::Instant;
 
@@ -38,16 +40,22 @@ fn throughput(model: &StaticModel, texts: &[String]) -> f64 {
 
 fn main() {
     let arguments: Vec<String> = std::env::args().collect();
-    let [_, model_dir, names, descriptions] = arguments.as_slice() else {
-        panic!("usage: u004-rust-bench <model-dir> <names.txt> <descriptions.txt>");
-    };
-    let (model, first_load_s) = load(model_dir);
-    let (_, warm_load_s) = load(model_dir);
-    let dimension = model.encode(&["probe".to_owned()])[0].len();
-    let names_per_s = throughput(&model, &lines(names));
-    let descriptions_per_s = throughput(&model, &lines(descriptions));
-    println!(
-        "{{\"first_load_s\": {first_load_s}, \"warm_load_s\": {warm_load_s}, \"dimension\": {dimension}, \
-         \"names_per_s\": {names_per_s}, \"descriptions_per_s\": {descriptions_per_s}}}"
-    );
+    match arguments.as_slice() {
+        [_, model_dir, _, _, warm] if warm == "--warm" => {
+            drop(load(model_dir));
+            let (_, warm_load_s) = load(model_dir);
+            println!("{{\"warm_load_s\": {warm_load_s}}}");
+        }
+        [_, model_dir, names, descriptions] => {
+            let (model, first_load_s) = load(model_dir);
+            let dimension = model.encode(&["probe".to_owned()])[0].len();
+            let names_per_s = throughput(&model, &lines(names));
+            let descriptions_per_s = throughput(&model, &lines(descriptions));
+            println!(
+                "{{\"first_load_s\": {first_load_s}, \"dimension\": {dimension}, \
+                 \"names_per_s\": {names_per_s}, \"descriptions_per_s\": {descriptions_per_s}}}"
+            );
+        }
+        _ => panic!("usage: u004-rust-bench <model-dir> <names.txt> <descriptions.txt> [--warm]"),
+    }
 }
