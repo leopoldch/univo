@@ -15,6 +15,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 univo-core.workspace = true
+univo-embed.workspace = true
 pyo3 = { workspace = true, features = ["macros", "abi3-py311"] }
 
 [features]

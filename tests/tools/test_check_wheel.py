@@ -6,7 +6,11 @@ from check_wheel import check
 VALID_FILES = (
     "univo/__init__.py",
     "univo/py.typed",
+    "univo/_transport.py",
     "univo/_univo.pyi",
+    "univo/errors.py",
+    "univo/models/__init__.py",
+    "univo/models/__main__.py",
     "univo/_univo.abi3.so",
     "univo-0.0.0.dist-info/METADATA",
     "univo-0.0.0.dist-info/licenses/LICENSE",

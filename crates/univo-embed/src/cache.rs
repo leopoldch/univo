@@ -155,6 +155,21 @@ impl Cache {
     /// `model.unavailable` when the cache directory cannot be written, and
     /// `model.integrity` when the published commit has a malformed manifest.
     pub fn stage(&self, plan: &DownloadPlan) -> Result<Stage> {
+        self.stage_with(plan, &|| true)
+    }
+
+    /// [`Cache::stage`], calling `keep_waiting` while the lock is held
+    /// elsewhere; waiting stops with `model.cache_locked` when it returns
+    /// false, so that a binding can honour an interruption.
+    ///
+    /// # Errors
+    ///
+    /// See [`Cache::stage`].
+    pub fn stage_with(
+        &self,
+        plan: &DownloadPlan,
+        keep_waiting: &dyn Fn() -> bool,
+    ) -> Result<Stage> {
         let model = plan.model();
         let unwritable = |error: std::io::Error| {
             Error::model_not_available(&model, &format!("the cache cannot be written: {error}"))
@@ -172,7 +187,7 @@ impl Cache {
         loop {
             match lock.try_lock() {
                 Ok(()) => break,
-                Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
+                Err(TryLockError::WouldBlock) if Instant::now() < deadline && keep_waiting() => {
                     std::thread::sleep(Duration::from_millis(100));
                 }
                 Err(TryLockError::WouldBlock) => {

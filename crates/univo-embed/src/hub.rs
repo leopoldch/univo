@@ -18,6 +18,15 @@ pub const DEFAULT_ENDPOINT: &str = "https://huggingface.co";
 /// and its clients do.
 pub const DEFAULT_REVISION: &str = "main";
 
+/// The hub base URL: `HF_ENDPOINT` when set, as Hugging Face clients read
+/// it, otherwise [`DEFAULT_ENDPOINT`]. It is validated when used.
+pub fn endpoint_from_env() -> String {
+    std::env::var("HF_ENDPOINT")
+        .ok()
+        .filter(|endpoint| !endpoint.is_empty())
+        .unwrap_or_else(|| DEFAULT_ENDPOINT.to_owned())
+}
+
 /// Largest total download accepted by default: the multilingual static model
 /// of the U-004 spike, about 1 GB, fits with room to spare.
 pub const DEFAULT_MAX_DOWNLOAD_BYTES: u64 = 2 << 30;

@@ -7,7 +7,15 @@ import sys
 import tomllib
 import zipfile
 
-REQUIRED = {"univo/__init__.py", "univo/py.typed", "univo/_univo.pyi"}
+REQUIRED = {
+    "univo/__init__.py",
+    "univo/_transport.py",
+    "univo/_univo.pyi",
+    "univo/errors.py",
+    "univo/models/__init__.py",
+    "univo/models/__main__.py",
+    "univo/py.typed",
+}
 NATIVE_MODULE = re.compile(r"^univo/_univo(\.abi3)?\.(so|pyd)$")
 ALLOWED_METADATA = re.compile(r"^univo-[^/]+\.dist-info/")
 MIB = 1024 * 1024
