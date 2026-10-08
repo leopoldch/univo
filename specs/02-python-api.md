@@ -67,18 +67,35 @@ result = finder.search(new_record, limit=10)
 
 Ces poids illustrent la syntaxe ; ils ne constituent pas des valeurs validées. `domain` n’est ni un identifiant unique ni un veto par défaut. Le champ environnement ne bloque que si les deux valeurs sont présentes et contradictoires. Un champ requis absent provoque une erreur d’entrée, pas une égalité fictive.
 
-### 5.5 Mode entreprise et hors ligne
+### 5.5 Choix du modèle, mode entreprise et hors ligne
+
+L’utilisateur choisit le modèle par une simple chaîne, sans changer d’API :
+
+```python
+Finder(model="default")                                   # défaut de la release, révision et checksums fixés
+Finder(model="minishlab/potion-base-8M")                  # dépôt Hugging Face ; révision résolue au téléchargement
+Finder(model="minishlab/potion-base-8M@bf8b0566")          # dépôt Hugging Face à une révision fixée (recommandé)
+Finder(model="/opt/models/univo/fr-v1")                   # répertoire local (chemin absolu, ./, ../, ~ ou file://)
+Finder(model="org/model", hub_url="https://hub.internal")  # miroir compatible avec l’API Hugging Face
+```
 
 ```python
 finder = Finder(
     schema=schema,
-    model_path="/opt/models/univo/default-v1",
+    model="/opt/models/univo/default-v1",
     offline=True,
     threads=4,
 )
 ```
 
-`model` et `model_path` sont mutuellement exclusifs lorsqu’un modèle explicite est fourni. En mode offline, aucun appel réseau n’est tenté, même pour vérifier des métadonnées. Si un fichier manque, lever `ModelUnavailableError` avec l’action nécessaire.
+Règles :
+
+- Une chaîne est un chemin local si elle est absolue, commence par `./`, `../`, `~` ou `file://` ; sinon `org/nom[@révision]` désigne un dépôt Hugging Face. Aucune autre devinette : `org/nom` n’est jamais interprété comme un chemin relatif.
+- `model_path` reste accepté comme forme explicite d’un chemin local ; `model` et `model_path` sont mutuellement exclusifs.
+- `hub_url` (ou la variable d’environnement `HF_ENDPOINT`) désigne un miroir compatible ; aucune donnée utilisateur n’est envoyée, seulement les noms de fichiers du dépôt.
+- Une révision non fixée est résolue en hash de commit au premier téléchargement, puis enregistrée dans le cache et dans les index ; les index refusent ensuite un autre modèle ou une autre révision.
+- En mode offline, aucun appel réseau n’est tenté, même pour vérifier des métadonnées. Si un fichier manque, lever `ModelUnavailableError` avec l’action nécessaire (chemin attendu, commande de préchargement).
+- Formats acceptés : ceux du backend livré (voir [modèles](04-models-and-cache.md)). Un dépôt dans un autre format est refusé avec une erreur expliquant comment le convertir ; aucun code téléchargé n’est exécuté.
 
 ### 5.6 Persistance et mises à jour, à partir de 0.2
 
