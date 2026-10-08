@@ -1,12 +1,13 @@
 //! Text embedding with static `Model2Vec` models (ADR 0007).
 
+use std::borrow::Cow;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 
 use univo_core::{Error, Result};
 
 use crate::cache::CachedModel;
-use crate::files::{FileExpectation, MODEL_FILES};
+use crate::files::{FileExpectation, MODEL_FILES, sha256, verify_content};
 use crate::spec::Repository;
 
 /// Identifies the backend in descriptors; part of vector compatibility.
@@ -21,8 +22,12 @@ pub enum ModelSource {
         revision: String,
         files: Vec<FileExpectation>,
     },
-    /// A local directory supplied by the user, read as it is.
-    Local { path: PathBuf },
+    /// A local directory supplied by the user, read as it is and identified
+    /// by the SHA-256 of the files that were loaded.
+    Local {
+        path: PathBuf,
+        files: Vec<FileExpectation>,
+    },
 }
 
 /// What an embedder produces and where it comes from: everything that
@@ -43,7 +48,7 @@ impl ModelDescriptor {
                 revision,
                 ..
             } => format!("{repository}@{revision}"),
-            ModelSource::Local { path } => path.display().to_string(),
+            ModelSource::Local { path, .. } => path.display().to_string(),
         }
     }
 }
@@ -114,20 +119,16 @@ impl std::fmt::Debug for StaticEmbedder {
 }
 
 impl StaticEmbedder {
-    /// Loads a verified model from the cache.
+    /// Loads a model from the cache. Files are verified against the
+    /// digests recorded at download time, in memory, so the bytes checked
+    /// are the bytes used.
     ///
     /// # Errors
     ///
-    /// See [`StaticEmbedder::load_directory`].
+    /// Returns `model.integrity` when a file changed since it was
+    /// downloaded; otherwise as [`StaticEmbedder::load_directory`].
     pub fn load_cached(model: &CachedModel) -> Result<Self> {
-        Self::load(
-            &model.path,
-            ModelSource::Hub {
-                repository: model.repository.clone(),
-                revision: model.revision.clone(),
-                files: model.files.clone(),
-            },
-        )
+        Self::load(&model.path, Some(model))
     }
 
     /// Loads a model from a local directory supplied by the user.
@@ -138,16 +139,14 @@ impl StaticEmbedder {
     /// `model.unsupported_format` when a `Model2Vec` file is missing, and
     /// `model.corrupt` when the files cannot be read as a model.
     pub fn load_directory(directory: &Path) -> Result<Self> {
-        Self::load(
-            directory,
-            ModelSource::Local {
-                path: directory.to_path_buf(),
-            },
-        )
+        Self::load(directory, None)
     }
 
-    fn load(directory: &Path, source: ModelSource) -> Result<Self> {
-        let name = directory.display().to_string();
+    fn load(directory: &Path, cached: Option<&CachedModel>) -> Result<Self> {
+        let name = cached.map_or_else(
+            || directory.display().to_string(),
+            |model| format!("{}@{}", model.repository, model.revision),
+        );
         if !directory.is_dir() {
             return Err(Error::model_not_available(
                 &name,
@@ -169,20 +168,42 @@ impl StaticEmbedder {
                 ),
             ));
         }
+
         let read = |file: &str| {
             std::fs::read(directory.join(file)).map_err(|error| {
                 Error::corrupt_model(&name, &format!("cannot read {file}: {error}"))
             })
         };
-        let (config, weights, tokenizer) = (
-            read("config.json")?,
-            read("model.safetensors")?,
-            read("tokenizer.json")?,
-        );
-        let model = guarded(&name, || {
-            model2vec_rs::model::StaticModel::from_bytes(tokenizer, weights, config, Some(true))
-        })?
-        .map_err(|error| Error::corrupt_model(&name, &format!("{error:#}")))?;
+        let contents = [
+            read(MODEL_FILES[0])?,
+            read(MODEL_FILES[1])?,
+            read(MODEL_FILES[2])?,
+        ];
+        let [config, weights, tokenizer] = &contents;
+
+        // Hashing the files takes about as long as building the model:
+        // both run at once, the model is discarded unless the files verify,
+        // and an integrity error takes precedence over a parsing error.
+        let (source, model) = std::thread::scope(|scope| {
+            let identify = scope.spawn(|| identify(&name, directory, cached, &contents));
+            let model = without_length_settings(&name, tokenizer).and_then(|tokenizer| {
+                guarded(&name, || {
+                    model2vec_rs::model::StaticModel::from_bytes(
+                        &*tokenizer,
+                        weights,
+                        config,
+                        Some(true),
+                    )
+                })?
+                .map_err(|error| Error::corrupt_model(&name, &format!("{error:#}")))
+            });
+            let source = identify
+                .join()
+                .unwrap_or_else(|_| Err(Error::corrupt_model(&name, "verification failed")));
+            (source, model)
+        });
+        let source = source?;
+        let model = model?;
 
         let probe = guarded(&name, || {
             model.encode_with_args(&["probe".to_owned()], None, 1)
@@ -200,6 +221,73 @@ impl StaticEmbedder {
             },
         })
     }
+}
+
+/// Verifies cached files against their recorded digests, or identifies a
+/// local model by the SHA-256 of its files.
+fn identify(
+    name: &str,
+    directory: &Path,
+    cached: Option<&CachedModel>,
+    contents: &[Vec<u8>],
+) -> Result<ModelSource> {
+    let Some(model) = cached else {
+        return Ok(ModelSource::Local {
+            path: directory.to_path_buf(),
+            files: MODEL_FILES
+                .iter()
+                .zip(contents)
+                .map(|(file, content)| FileExpectation {
+                    name: (*file).to_owned(),
+                    size: content.len() as u64,
+                    digest: sha256(content),
+                })
+                .collect(),
+        });
+    };
+    for (file, content) in MODEL_FILES.iter().zip(contents) {
+        let expected = model
+            .files
+            .iter()
+            .find(|expected| expected.name == *file)
+            .ok_or_else(|| {
+                Error::model_integrity(name, file, "the manifest does not list this file")
+            })?;
+        verify_content(name, content, expected)?;
+    }
+    Ok(ModelSource::Hub {
+        repository: model.repository.clone(),
+        revision: model.revision.clone(),
+        files: model.files.clone(),
+    })
+}
+
+/// The length settings of a `tokenizer.json`; everything else is skipped
+/// without being built.
+#[derive(serde::Deserialize)]
+struct LengthSettings {
+    #[serde(default)]
+    truncation: Option<serde::de::IgnoredAny>,
+    #[serde(default)]
+    padding: Option<serde::de::IgnoredAny>,
+}
+
+/// Removes the truncation and padding a tokenizer may configure. A static
+/// model averages token vectors: truncation would drop tokens silently, and
+/// padding would add pad tokens whose number depends on the other texts of
+/// the batch.
+fn without_length_settings<'a>(model: &str, tokenizer: &'a [u8]) -> Result<Cow<'a, [u8]>> {
+    let corrupt =
+        |error: serde_json::Error| Error::corrupt_model(model, &format!("tokenizer.json: {error}"));
+    let settings: LengthSettings = serde_json::from_slice(tokenizer).map_err(corrupt)?;
+    if settings.truncation.is_none() && settings.padding.is_none() {
+        return Ok(Cow::Borrowed(tokenizer));
+    }
+    let mut json: serde_json::Value = serde_json::from_slice(tokenizer).map_err(corrupt)?;
+    for key in ["truncation", "padding"] {
+        json[key] = serde_json::Value::Null;
+    }
+    serde_json::to_vec(&json).map(Cow::Owned).map_err(corrupt)
 }
 
 /// Runs backend code and turns a panic into `model.corrupt`, so that a

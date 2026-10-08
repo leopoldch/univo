@@ -10,8 +10,8 @@ use support::{TempDir, tiny_model};
 use univo_core::ErrorCode;
 use univo_embed::hub::plan_from_metadata;
 use univo_embed::{
-    Cache, DEFAULT_ENDPOINT, DownloadPlan, Embedder, MODEL_FILES, ModelSource, Repository,
-    StaticEmbedder,
+    Cache, DEFAULT_ENDPOINT, DownloadPlan, Embedder, MODEL_FILES, ModelSource, Repository, Stage,
+    Staging, StaticEmbedder,
 };
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -60,18 +60,29 @@ fn metadata() -> String {
 }
 
 fn plan() -> DownloadPlan {
+    plan_at(Some("main"))
+}
+
+fn plan_at(revision: Option<&str>) -> DownloadPlan {
     plan_from_metadata(
         DEFAULT_ENDPOINT,
         &repository(),
-        Some("main"),
+        revision,
         &metadata(),
         u64::MAX,
     )
     .unwrap()
 }
 
+fn staging(cache: &Cache, plan: &DownloadPlan) -> Staging {
+    match cache.stage(plan).unwrap() {
+        Stage::Download(staging) => staging,
+        Stage::Published(_) => panic!("the model is already published"),
+    }
+}
+
 fn download(cache: &Cache, plan: &DownloadPlan) -> univo_core::Result<univo_embed::CachedModel> {
-    let staging = cache.stage(plan)?.expect("the model is not yet published");
+    let staging = staging(cache, plan);
     for file in &plan.files {
         std::fs::copy(
             tiny_model().join(&file.expectation.name),
@@ -82,8 +93,18 @@ fn download(cache: &Cache, plan: &DownloadPlan) -> univo_core::Result<univo_embe
     cache.publish(staging)
 }
 
-fn staging_is_empty(cache: &Cache) -> bool {
-    std::fs::read_dir(cache.root().join("tmp")).map_or(true, |mut entries| entries.next().is_none())
+/// Whether no download of the test repository is in progress or left over.
+fn no_partial_download(cache: &Cache) -> bool {
+    let directory = cache.root().join("models/univo-test/tiny");
+    std::fs::read_dir(directory).map_or(true, |entries| {
+        entries.into_iter().all(|entry| {
+            !entry
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".partial")
+        })
+    })
 }
 
 #[test]
@@ -95,7 +116,7 @@ fn a_published_model_is_found_by_reference_and_loaded() {
 
     let published = download(&cache, &plan).unwrap();
     assert_eq!(published.revision, COMMIT);
-    assert!(staging_is_empty(&cache));
+    assert!(no_partial_download(&cache));
 
     let by_branch = cache.find(&repository(), Some("main")).unwrap().unwrap();
     let by_default = cache.find(&repository(), None).unwrap().unwrap();
@@ -124,7 +145,7 @@ fn a_published_model_is_found_by_reference_and_loaded() {
     assert_eq!(embedder.encode_batch(&["amazon"]).unwrap().dimension(), 8);
 
     // A second download of the same commit finds it published.
-    assert!(cache.stage(&plan).unwrap().is_none());
+    assert!(matches!(cache.stage(&plan).unwrap(), Stage::Published(model) if model == published));
 }
 
 #[test]
@@ -132,7 +153,7 @@ fn a_corrupted_download_is_rejected_and_nothing_is_published() {
     let root = TempDir::new("corrupt");
     let cache = Cache::new(root.path());
     let plan = plan();
-    let staging = cache.stage(&plan).unwrap().unwrap();
+    let staging = staging(&cache, &plan);
     for file in MODEL_FILES {
         let mut content = std::fs::read(tiny_model().join(file)).unwrap();
         if file == "model.safetensors" {
@@ -146,7 +167,7 @@ fn a_corrupted_download_is_rejected_and_nothing_is_published() {
     assert!(error.message().contains("model.safetensors"), "{error}");
 
     assert!(cache.find(&repository(), None).unwrap().is_none());
-    assert!(staging_is_empty(&cache));
+    assert!(no_partial_download(&cache));
     // The lock was released: a retry succeeds.
     download(&cache, &plan).unwrap();
 }
@@ -155,7 +176,7 @@ fn a_corrupted_download_is_rejected_and_nothing_is_published() {
 fn a_missing_file_is_rejected() {
     let root = TempDir::new("missing");
     let cache = Cache::new(root.path());
-    let staging = cache.stage(&plan()).unwrap().unwrap();
+    let staging = staging(&cache, &plan());
     std::fs::copy(
         tiny_model().join("config.json"),
         staging.file_path("config.json"),
@@ -171,14 +192,14 @@ fn a_held_lock_times_out_with_a_clear_error() {
     let root = TempDir::new("locked");
     let cache = Cache::new(root.path()).with_lock_timeout(Duration::from_millis(250));
     let plan = plan();
-    let held = cache.stage(&plan).unwrap().unwrap();
+    let held = staging(&cache, &plan);
 
     let error = cache.stage(&plan).unwrap_err();
     assert_eq!(error.code(), ErrorCode::ModelCacheLocked);
     assert!(error.message().contains(".lock"), "{error}");
 
     drop(held);
-    assert!(cache.stage(&plan).unwrap().is_some());
+    assert!(matches!(cache.stage(&plan).unwrap(), Stage::Download(_)));
 }
 
 #[test]
@@ -261,4 +282,78 @@ fn a_read_only_cache_serves_published_models() {
     set_directory_modes(root.path(), 0o755);
 
     assert!(matches!(loaded, Ok(Some(Ok(_)))), "{loaded:?}");
+}
+
+#[test]
+fn a_cached_file_changed_in_place_is_rejected_at_load() {
+    let root = TempDir::new("in-place");
+    let cache = Cache::new(root.path());
+    let published = download(&cache, &plan()).unwrap();
+    let path = published.path.join("tokenizer.json");
+    let original = std::fs::read(&path).unwrap();
+    let edited =
+        String::from_utf8(original.clone())
+            .unwrap()
+            .replacen("\"amazon\"", "\"amazom\"", 1);
+    assert_eq!(edited.len(), original.len());
+    std::fs::write(&path, edited).unwrap();
+
+    let found = cache.find(&repository(), None).unwrap().unwrap();
+    let error = StaticEmbedder::load_cached(&found).unwrap_err();
+    assert_eq!(error.code(), ErrorCode::ModelIntegrity);
+    assert!(error.message().contains("tokenizer.json"), "{error}");
+
+    // A file that no longer parses is reported as changed, not as corrupt.
+    let mut unreadable = original;
+    unreadable[0] = b'x';
+    std::fs::write(&path, unreadable).unwrap();
+    let error = StaticEmbedder::load_cached(&found).unwrap_err();
+    assert_eq!(error.code(), ErrorCode::ModelIntegrity);
+}
+
+#[test]
+fn a_model_downloaded_without_a_revision_is_found_offline() {
+    let root = TempDir::new("no-revision");
+    let cache = Cache::new(root.path());
+    download(&cache, &plan_at(None)).unwrap();
+    assert!(cache.find(&repository(), None).unwrap().is_some());
+}
+
+#[test]
+fn a_new_reference_to_a_published_commit_is_recorded() {
+    let root = TempDir::new("new-reference");
+    let cache = Cache::new(root.path());
+    download(&cache, &plan()).unwrap();
+    let stage = cache.stage(&plan_at(Some("v1"))).unwrap();
+    assert!(matches!(stage, Stage::Published(_)));
+    let found = cache.find(&repository(), Some("v1")).unwrap();
+    assert_eq!(found.map(|model| model.revision), Some(COMMIT.to_owned()));
+}
+
+#[test]
+fn an_abandoned_download_leaves_no_files() {
+    let root = TempDir::new("abandoned");
+    let cache = Cache::new(root.path());
+    let staging = staging(&cache, &plan());
+    let partial = staging.file_path("model.safetensors");
+    std::fs::write(&partial, vec![0u8; 4096]).unwrap();
+    drop(staging);
+    assert!(!partial.exists());
+    assert!(no_partial_download(&cache));
+}
+
+#[test]
+fn the_leftovers_of_a_dead_download_are_removed_by_the_next_one() {
+    let root = TempDir::new("leftover");
+    let cache = Cache::new(root.path());
+    let leftover = root
+        .path()
+        .join(format!("models/univo-test/tiny/{COMMIT}.partial"));
+    std::fs::create_dir_all(&leftover).unwrap();
+    std::fs::write(leftover.join("model.safetensors"), vec![0u8; 4096]).unwrap();
+
+    let staging = staging(&cache, &plan());
+    assert!(!staging.file_path("model.safetensors").exists());
+    drop(staging);
+    assert!(no_partial_download(&cache));
 }

@@ -13,7 +13,8 @@ Every dependency is recorded here with its purpose, enabled features, license, f
 | `model2vec-rs` | =0.3.0 | `univo-embed` | Static Model2Vec inference from verified bytes | default features off; `local-only`, `fancy-regex` | MIT | `tokenizers` 0.21.4 (Apache-2.0), `safetensors`, `ndarray`, `half`, `rayon`, `serde`, `anyhow`, about 100 crates in all; pure Rust, no C or C++ build, no network crate | +2.68 MB stripped, +1.15 MB compressed on macOS arm64 (U-009) |
 | `sha2` | 0.11.0 | `univo-embed` | SHA-256 of pinned and LFS model files | default features off | MIT OR Apache-2.0 | `digest`, `block-buffer`, `cpufeatures` (runtime detection with portable fallback) | included above |
 | `sha1` | 0.11.0 | `univo-embed` | Git blob ids of small hub files | default features off | MIT OR Apache-2.0 | shared with `sha2` | included above |
-| `serde_json` | 1.0.151 | `univo-embed` | Hub metadata and cache manifests | default | MIT OR Apache-2.0 | `itoa`, `memchr`, `ryu`, `serde` | included above |
+| `serde` | 1.0.229 | `univo-embed` | Reads only the length settings of `tokenizer.json`, skipping the rest | `derive`, `std` | MIT OR Apache-2.0 | already linked through `tokenizers` and `serde_json` | included above |
+| `serde_json` | 1.0.151 | `univo-embed` | Hub metadata, cache manifests and the length settings of `tokenizer.json` | default | MIT OR Apache-2.0 | `itoa`, `memchr`, `ryu`, `serde` | included above |
 
 `caseless` was checked against CPython's `str.casefold` on every Unicode code point (0 differences); the check runs in `crates/univo-core/tests/unicode_oracle.rs`. See [ADR 0003](adr/0003-unicode-normalization.md).
 

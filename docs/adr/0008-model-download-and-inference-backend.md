@@ -17,11 +17,16 @@ A download needs an HTTP client and a TLS stack. The core is shared by every bin
 - **Policy in Rust, shared by every binding**:
   - `ModelSpec::parse` reads `default`, `org/name[@revision]` and local paths (absolute, `./`, `../`, `~`, `file://`); names and revisions are restricted to characters that are safe in a URL and a path.
   - The default model's commit, file sizes and SHA-256 are compiled into the release (`registry::default_model`); its plan needs no metadata request.
-  - Another hub model is planned from the hub's metadata at the requested revision. Files are pinned to the commit the metadata reports, so a branch that moves during a download cannot mix versions. Only `config.json`, `model.safetensors` and `tokenizer.json` are fetched. Each needs a published digest: the LFS SHA-256 for large files, or the Git blob SHA-1 (`sha1("blob <size>\0" + content)`) for small files the hub keeps in Git. The total size is capped, 2 GiB by default (`model.too_large`).
-  - The cache lives under `UNIVO_CACHE_DIR` or the platform cache directory: `models/<org>/<name>/<commit>/` with a `univo-model.json` manifest written last, `refs/<revision>` for branches and tags, and `<commit>.lock`. Files are staged in `tmp/`, verified, and published with one directory rename. A per-commit OS file lock, released by the OS if the holder dies, serializes downloads; waiting times out with `model.cache_locked`. Reading the cache never writes, so a read-only cache works.
-  - A local directory is read as it is: its files are the user's responsibility and its descriptor records the path, not a digest.
-- **Inference with `model2vec-rs` 0.3.0**, pinned exactly, without default features (`local-only`, `fancy-regex`). Rust reads the verified files and hands their bytes to `StaticModel::from_bytes`, so the backend never resolves paths or downloads. Backend panics are caught and reported as `model.corrupt`. Every vector must be finite and of unit length. A text without any known token is marked absent instead of producing an arbitrary vector. Texts are never truncated, since a static model averages token vectors.
-- **Compatibility**: a `ModelDescriptor` records the source (repository, commit and file digests, or local path), the dimension and the backend version. U-010 puts it into the embedding cache key and the index compatibility check.
+  - Another hub model is planned from the hub's metadata at the requested revision, `main` when none is given. Files are pinned to the commit the metadata reports, so a branch that moves during a download cannot mix versions. Only `config.json`, `model.safetensors` and `tokenizer.json` are fetched. Each needs a published digest: the LFS SHA-256 for large files, or the Git blob SHA-1 (`sha1("blob <size>\0" + content)`) for small files the hub keeps in Git. The total size is capped, 2 GiB by default (`model.too_large`).
+  - The cache lives under `UNIVO_CACHE_DIR` or the platform cache directory: `models/<org>/<name>/<commit>/` with a `univo-model.json` manifest written last, `refs/<revision>` for branches and tags (`main` included), and `<commit>.lock`.
+  - Files are staged in `<commit>.partial/`, verified, and published with one directory rename.
+  - A per-commit OS file lock, released by the OS if the holder dies, serializes downloads; waiting times out with `model.cache_locked`. When the commit is already published, staging records the requested reference instead of downloading.
+  - A dropped staging removes its files; the leftovers of a process that died are removed by the next download of the same commit.
+  - Reading the cache never writes, so a read-only cache works.
+  - Loading a cached model reads each file once and verifies the bytes in memory against the manifest's digests, so a file changed in place, even at the same size, is reported as `model.integrity`, and the bytes checked are the bytes used. Hashing runs on a second thread while the model is built.
+  - A local directory is read as it is, and identified by the SHA-256 of the files loaded, so that a changed file changes the descriptor.
+- **Inference with `model2vec-rs` 0.3.0**, pinned exactly, without default features (`local-only`, `fancy-regex`). Rust reads the verified files and hands their bytes to `StaticModel::from_bytes`, so the backend never resolves paths or downloads. Backend panics are caught and reported as `model.corrupt`. Every vector must be finite and of unit length. A text without any known token is marked absent instead of producing an arbitrary vector. Texts are never truncated, since a static model averages token vectors. Truncation and padding configured in `tokenizer.json` are removed before loading: truncation would drop tokens silently, and padding would make a text's vector depend on the other texts of its batch.
+- **Compatibility**: a `ModelDescriptor` records the source (repository, commit and file digests, or local path and file SHA-256), the dimension and the backend version. U-010 puts it into the embedding cache key and the index compatibility check.
 
 ## Alternatives
 
@@ -37,7 +42,7 @@ Apple M2, macOS, release builds, default model `minishlab/potion-base-8M@bf8b056
 
 | Measure | Result |
 | --- | --- |
-| Load from local files and encode one text, median of 5 | 15 ms (specification: p95 ≤ 2 s) |
+| Load from local files, verify every file and encode one text, median of 5 | 18 ms (specification: p95 ≤ 2 s); SHA-256 of the 30 MB of weights takes 13 ms and building the model 12 ms, run in parallel |
 | 20 000 descriptions of 30 words (39 tokens), one thread, median of 5 | 0.95 s, 47 µs per text, about 21 000 per second (specification: ≥ 2000 objects per second; U-004 spike: 21 563) |
 | Same, 8 threads | 0.37 s |
 | `tokenizers` alone on the same texts, one thread | the same time within 1 %: tokenization is almost the whole cost |

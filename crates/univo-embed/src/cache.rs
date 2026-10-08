@@ -3,22 +3,26 @@
 //! Layout, under the cache root:
 //!
 //! ```text
-//! models/<organization>/<name>/<commit>/        verified model files and univo-model.json
-//! models/<organization>/<name>/refs/<revision>  commit a branch or tag resolved to
-//! models/<organization>/<name>/<commit>.lock    held while that commit is downloaded
-//! tmp/                                          staging directories
+//! models/<organization>/<name>/<commit>/         verified model files and univo-model.json
+//! models/<organization>/<name>/<commit>.partial/ download in progress
+//! models/<organization>/<name>/<commit>.lock     held while that commit is downloaded
+//! models/<organization>/<name>/refs/<revision>   commit a branch or tag resolved to
 //! ```
 //!
-//! Downloads land in a staging directory, are verified there, and are then
-//! published with one directory rename, so a reader sees either no model or
-//! a complete, verified one. A lock per commit keeps two processes from
-//! downloading the same model at once; the operating system releases it if
-//! the holder dies.
+//! Downloads land in the `.partial` directory, are verified there, and are
+//! then published with one directory rename, so a reader sees either no
+//! model or a complete, verified one. A lock per commit keeps two processes
+//! from downloading the same model at once; the operating system releases it
+//! if the holder dies. An abandoned download is removed when its [`Staging`]
+//! is dropped, and the leftovers of a process that died are removed by the
+//! next download of the same commit.
 
 use std::fs::{self, File, TryLockError};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use crate::hub::DEFAULT_REVISION;
 
 use univo_core::{Error, Result};
 
@@ -46,8 +50,18 @@ pub struct Cache {
     lock_timeout: Duration,
 }
 
+/// The outcome of [`Cache::stage`].
+#[derive(Debug)]
+pub enum Stage {
+    /// The commit was already published, possibly by another process while
+    /// this one waited for the lock; the requested reference now points to it.
+    Published(CachedModel),
+    /// The files must be downloaded into the staging directory.
+    Download(Staging),
+}
+
 /// A download in progress: the lock on the model and the directory its
-/// files are written to.
+/// files are written to. Dropping it without publishing removes the files.
 #[derive(Debug)]
 pub struct Staging {
     plan: DownloadPlan,
@@ -115,7 +129,7 @@ impl Cache {
         repository: &Repository,
         revision: Option<&str>,
     ) -> Result<Option<CachedModel>> {
-        let requested = revision.unwrap_or("main");
+        let requested = revision.unwrap_or(DEFAULT_REVISION);
         let commit = if is_commit(requested) {
             requested.to_ascii_lowercase()
         } else {
@@ -132,16 +146,15 @@ impl Cache {
         read_manifest(&path, repository, &commit).map(Some)
     }
 
-    /// Locks the model of `plan` and creates its staging directory.
-    ///
-    /// Returns `Ok(None)` when another process published the model while
-    /// this one waited for the lock.
+    /// Locks the model of `plan` and, unless the commit is already
+    /// published, creates its staging directory.
     ///
     /// # Errors
     ///
-    /// Returns `model.cache_locked` after the lock timeout and
-    /// `model.unavailable` when the cache directory cannot be written.
-    pub fn stage(&self, plan: &DownloadPlan) -> Result<Option<Staging>> {
+    /// Returns `model.cache_locked` after the lock timeout,
+    /// `model.unavailable` when the cache directory cannot be written, and
+    /// `model.integrity` when the published commit has a malformed manifest.
+    pub fn stage(&self, plan: &DownloadPlan) -> Result<Stage> {
         let model = plan.model();
         let unwritable = |error: std::io::Error| {
             Error::model_not_available(&model, &format!("the cache cannot be written: {error}"))
@@ -174,11 +187,19 @@ impl Cache {
 
         let destination = repository_dir.join(&plan.revision);
         if destination.join(MANIFEST).is_file() {
-            return Ok(None);
+            let published = read_manifest(&destination, &plan.repository, &plan.revision)?;
+            self.record_reference(plan)?;
+            return Ok(Stage::Published(published));
         }
-        let directory = self.root.join("tmp").join(unique_name());
+        let directory = repository_dir.join(format!("{}.partial", plan.revision));
+        // Under the lock, an existing staging directory is a leftover.
+        match fs::remove_dir_all(&directory) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => return Err(unwritable(error)),
+        }
         fs::create_dir_all(&directory).map_err(unwritable)?;
-        Ok(Some(Staging {
+        Ok(Stage::Download(Staging {
             plan: plan.clone(),
             directory,
             destination,
@@ -195,8 +216,8 @@ impl Cache {
     /// staging directory is removed in every case.
     pub fn publish(&self, staging: Staging) -> Result<CachedModel> {
         let result = self.publish_staged(&staging);
-        let _ = fs::remove_dir_all(&staging.directory);
-        // Dropping the staging releases the lock, after publication.
+        // Removes what is left of the staging directory, then releases the
+        // lock.
         drop(staging);
         result
     }
@@ -225,22 +246,45 @@ impl Cache {
         )
         .map_err(unwritable)?;
         fs::rename(&staging.directory, &staging.destination).map_err(unwritable)?;
-
-        if let Some(reference) = &plan.requested_revision
-            && !is_commit(reference)
-        {
-            let refs = self.repository_dir(&plan.repository).join("refs");
-            fs::create_dir_all(&refs).map_err(unwritable)?;
-            let temporary = refs.join(format!(".{}", unique_name()));
-            fs::write(&temporary, &plan.revision).map_err(unwritable)?;
-            fs::rename(&temporary, refs.join(reference)).map_err(unwritable)?;
-        }
+        self.record_reference(plan)?;
         Ok(CachedModel {
             path: staging.destination.clone(),
             repository: plan.repository.clone(),
             revision: plan.revision.clone(),
             files,
         })
+    }
+
+    /// Points the requested branch or tag of `plan` to its commit.
+    fn record_reference(&self, plan: &DownloadPlan) -> Result<()> {
+        let Some(reference) = &plan.requested_revision else {
+            return Ok(());
+        };
+        if is_commit(reference) {
+            return Ok(());
+        }
+        let unwritable = |error: std::io::Error| {
+            Error::model_not_available(
+                &plan.model(),
+                &format!("the cache cannot be written: {error}"),
+            )
+        };
+        let refs = self.repository_dir(&plan.repository).join("refs");
+        fs::create_dir_all(&refs).map_err(unwritable)?;
+        let temporary = refs.join(format!(".{}", unique_name()));
+        fs::write(&temporary, &plan.revision).map_err(unwritable)?;
+        fs::rename(&temporary, refs.join(reference)).map_err(|error| {
+            let _ = fs::remove_file(&temporary);
+            unwritable(error)
+        })
+    }
+}
+
+impl Drop for Staging {
+    fn drop(&mut self) {
+        // Runs before the lock field is dropped. After publication the
+        // directory no longer exists and this does nothing.
+        let _ = fs::remove_dir_all(&self.directory);
     }
 }
 

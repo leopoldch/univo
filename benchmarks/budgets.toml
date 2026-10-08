@@ -54,9 +54,10 @@ candidates = 50
 max_ms = 250.0
 
 [embed.first_encoding]
-# Loading the default model from local files already in the OS cache and
-# encoding one text, median of five. specs/07-performance.md allows 2 s;
-# measured at 15 ms on the reference machine (U-009).
+# Loading the default model from local files already in the OS cache,
+# verifying every file and encoding one text, median of five.
+# specs/07-performance.md allows 2 s; measured at 18 ms on the reference
+# machine (U-009).
 max_ms = 200.0
 
 [embed.encode]

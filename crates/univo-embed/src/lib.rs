@@ -16,8 +16,10 @@ pub mod model;
 pub mod registry;
 pub mod spec;
 
-pub use cache::{Cache, CachedModel, Staging};
+pub use cache::{Cache, CachedModel, Stage, Staging};
 pub use files::{Digest, FileExpectation, MODEL_FILES};
-pub use hub::{DEFAULT_ENDPOINT, DEFAULT_MAX_DOWNLOAD_BYTES, DownloadPlan, PlannedFile};
+pub use hub::{
+    DEFAULT_ENDPOINT, DEFAULT_MAX_DOWNLOAD_BYTES, DEFAULT_REVISION, DownloadPlan, PlannedFile,
+};
 pub use model::{Embedder, Embeddings, ModelDescriptor, ModelSource, StaticEmbedder};
 pub use spec::{ModelSpec, Repository};

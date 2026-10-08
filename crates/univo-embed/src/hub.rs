@@ -14,6 +14,10 @@ use crate::spec::Repository;
 
 pub const DEFAULT_ENDPOINT: &str = "https://huggingface.co";
 
+/// The revision used when a reference names none, as the Hugging Face hub
+/// and its clients do.
+pub const DEFAULT_REVISION: &str = "main";
+
 /// Largest total download accepted by default: the multilingual static model
 /// of the U-004 spike, about 1 GB, fits with room to spare.
 pub const DEFAULT_MAX_DOWNLOAD_BYTES: u64 = 2 << 30;
@@ -32,7 +36,7 @@ pub struct DownloadPlan {
     /// Full commit hash.
     pub revision: String,
     /// The revision as requested, such as a branch, recorded to resolve it
-    /// offline later.
+    /// offline later; `None` for a pinned model.
     pub requested_revision: Option<String>,
     pub files: Vec<PlannedFile>,
 }
@@ -105,7 +109,8 @@ pub fn plan_pinned(endpoint: &str, model: &PinnedModel) -> DownloadPlan {
     }
 }
 
-/// Builds a plan from the hub's metadata response for `repository`.
+/// Builds a plan from the hub's metadata response for `repository` at
+/// `requested_revision`, or [`DEFAULT_REVISION`] when it is `None`.
 ///
 /// Files are pinned to the commit the metadata reports, so a branch that
 /// moves during the download cannot mix two versions. Each file must have a
@@ -124,10 +129,8 @@ pub fn plan_from_metadata(
     metadata: &str,
     max_bytes: u64,
 ) -> Result<DownloadPlan> {
-    let model = match requested_revision {
-        Some(revision) => format!("{repository}@{revision}"),
-        None => repository.to_string(),
-    };
+    let requested_revision = requested_revision.unwrap_or(DEFAULT_REVISION);
+    let model = format!("{repository}@{requested_revision}");
     let malformed = |reason: &str| Error::model_integrity(&model, "metadata", reason);
     let json: serde_json::Value =
         serde_json::from_str(metadata).map_err(|_| malformed("the metadata is not JSON"))?;
@@ -136,10 +139,7 @@ pub fn plan_from_metadata(
         .filter(|sha| sha.len() == 40 && decode_hex::<20>(sha).is_some())
         .ok_or_else(|| malformed("the metadata has no commit hash"))?
         .to_ascii_lowercase();
-    if let Some(revision) = requested_revision
-        && revision.len() == 40
-        && !revision.eq_ignore_ascii_case(&commit)
-    {
+    if requested_revision.len() == 40 && !requested_revision.eq_ignore_ascii_case(&commit) {
         return Err(malformed("the metadata describes another commit"));
     }
     let siblings = json["siblings"]
@@ -194,7 +194,7 @@ pub fn plan_from_metadata(
     let plan = DownloadPlan {
         repository: repository.clone(),
         revision: commit,
-        requested_revision: requested_revision.map(str::to_owned),
+        requested_revision: Some(requested_revision.to_owned()),
         files,
     };
     if plan.total_bytes() > max_bytes {

@@ -19,7 +19,7 @@ pub enum ModelSpec {
     /// The default model of this release, pinned in [`crate::registry`].
     Default,
     /// A Hugging Face repository, optionally at a revision (branch, tag or
-    /// commit); an absent revision means the default branch.
+    /// commit); an absent revision means [`crate::DEFAULT_REVISION`].
     Hub {
         repository: Repository,
         revision: Option<String>,

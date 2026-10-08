@@ -59,6 +59,52 @@ impl Digest {
     }
 }
 
+impl Digest {
+    /// Digest of `content` computed the same way as `self`.
+    fn of_content_like(&self, content: &[u8]) -> Self {
+        match self {
+            Self::Sha256(_) => Self::Sha256(sha2::Sha256::digest(content).into()),
+            Self::GitBlobSha1(_) => {
+                let mut hasher = sha1::Sha1::new();
+                hasher.update(format!("blob {}\0", content.len()).as_bytes());
+                hasher.update(content);
+                Self::GitBlobSha1(hasher.finalize().into())
+            }
+        }
+    }
+}
+
+/// SHA-256 of `content`, the identity of a file read from a local model.
+pub(crate) fn sha256(content: &[u8]) -> Digest {
+    Digest::Sha256(sha2::Sha256::digest(content).into())
+}
+
+/// Checks the size and digest of content already in memory, so that the
+/// bytes verified are exactly the bytes used.
+///
+/// # Errors
+///
+/// Returns `model.integrity` when the content differs in size or digest.
+pub fn verify_content(model: &str, content: &[u8], expected: &FileExpectation) -> Result<()> {
+    let integrity = |reason: String| Error::model_integrity(model, &expected.name, &reason);
+    let size = content.len() as u64;
+    if size != expected.size {
+        return Err(integrity(format!(
+            "size is {size} bytes, expected {}",
+            expected.size
+        )));
+    }
+    let actual = expected.digest.of_content_like(content);
+    if actual != expected.digest {
+        return Err(integrity(format!(
+            "digest is {}, expected {}",
+            actual.to_hex(),
+            expected.digest.to_hex()
+        )));
+    }
+    Ok(())
+}
+
 /// Checks a file's size and digest, reading it once in fixed-size chunks.
 ///
 /// # Errors
@@ -123,6 +169,28 @@ fn hash_reader(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn content_and_file_digests_agree() {
+        let content = b"{\"model_type\": \"model2vec\"}\n";
+        let path = std::env::temp_dir().join(format!("univo-digest-{}", std::process::id()));
+        std::fs::write(&path, content).unwrap();
+        for digest in [Digest::Sha256([0; 32]), Digest::GitBlobSha1([0; 20])] {
+            let expected = FileExpectation {
+                name: "config.json".into(),
+                size: content.len() as u64,
+                digest: digest.of_content_like(content),
+            };
+            verify_content("m", content, &expected).unwrap();
+            verify_file("m", &path, &expected).unwrap();
+        }
+        let _ = std::fs::remove_file(path);
+        // `git hash-object` of an empty file.
+        assert_eq!(
+            Digest::GitBlobSha1([0; 20]).of_content_like(b"").to_hex(),
+            "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391"
+        );
+    }
 
     #[test]
     fn hex_round_trips() {
