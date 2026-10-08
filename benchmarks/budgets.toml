@@ -68,3 +68,13 @@ max_ms = 200.0
 # specs/07-performance.md. Tokenization takes nearly all of it.
 texts = 20000
 max_ms = 1400.0
+
+[engine.vector_search]
+# Exhaustive top-k over unit vectors of the default model's dimension, one
+# query against every record, one thread, median of 25 queries after one
+# warmup. Measured at 2.5 ms on the reference machine (U-010), about 10
+# billion multiply-adds per second; the budget fails if the dot product
+# stops being vectorized.
+records = 100000
+k = 10
+max_ms = 5.0

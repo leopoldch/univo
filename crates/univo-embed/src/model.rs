@@ -64,6 +64,42 @@ pub struct Embeddings {
 }
 
 impl Embeddings {
+    /// Rows of `dimension` values, in one row-major buffer, as any
+    /// [`Embedder`] produces them. Zero rows are absent.
+    ///
+    /// # Errors
+    ///
+    /// Returns `model.corrupt`, naming `model`, when the buffer is not a
+    /// whole number of rows, or a row is not finite or not of unit length.
+    pub fn new(model: &str, data: Vec<f32>, dimension: usize) -> Result<Self> {
+        if dimension == 0 || !data.len().is_multiple_of(dimension) {
+            return Err(Error::corrupt_model(
+                model,
+                "a vector has the wrong dimension",
+            ));
+        }
+        let mut absent = Vec::new();
+        for (index, row) in data.chunks_exact(dimension).enumerate() {
+            let norm_squared: f32 = row.iter().map(|value| value * value).sum();
+            if !norm_squared.is_finite() {
+                return Err(Error::corrupt_model(model, "a vector is not finite"));
+            }
+            if norm_squared == 0.0 {
+                absent.push(index);
+            } else if (norm_squared.sqrt() - 1.0).abs() > UNIT_TOLERANCE {
+                return Err(Error::corrupt_model(
+                    model,
+                    "a vector is not of unit length",
+                ));
+            }
+        }
+        Ok(Self {
+            data,
+            dimension,
+            absent,
+        })
+    }
+
     pub fn len(&self) -> usize {
         self.data.len().checked_div(self.dimension).unwrap_or(0)
     }
@@ -313,10 +349,9 @@ impl Embedder for StaticEmbedder {
         let name = self.descriptor.name();
         let dimension = self.descriptor.dimension;
         let mut data = Vec::with_capacity(texts.len() * dimension);
-        let mut absent = Vec::new();
         // The backend returns one allocation per text: encoding by chunks
         // keeps only one chunk of them alive next to the result.
-        for (chunk_index, chunk) in texts.chunks(ENCODE_CHUNK).enumerate() {
+        for chunk in texts.chunks(ENCODE_CHUNK) {
             let owned: Vec<String> = chunk.iter().map(|text| (*text).to_owned()).collect();
             // Static models average token vectors, so no length limit
             // applies: nothing is truncated.
@@ -324,32 +359,16 @@ impl Embedder for StaticEmbedder {
             if vectors.len() != chunk.len() {
                 return Err(Error::corrupt_model(&name, "a text has no vector"));
             }
-            for (offset, vector) in vectors.iter().enumerate() {
+            for vector in &vectors {
                 if vector.len() != dimension {
                     return Err(Error::corrupt_model(
                         &name,
                         "a vector has the wrong dimension",
                     ));
                 }
-                let norm_squared: f32 = vector.iter().map(|value| value * value).sum();
-                if !norm_squared.is_finite() {
-                    return Err(Error::corrupt_model(&name, "a vector is not finite"));
-                }
-                if norm_squared == 0.0 {
-                    absent.push(chunk_index * ENCODE_CHUNK + offset);
-                } else if (norm_squared.sqrt() - 1.0).abs() > UNIT_TOLERANCE {
-                    return Err(Error::corrupt_model(
-                        &name,
-                        "a vector is not of unit length",
-                    ));
-                }
                 data.extend_from_slice(vector);
             }
         }
-        Ok(Embeddings {
-            data,
-            dimension,
-            absent,
-        })
+        Embeddings::new(&name, data, dimension)
     }
 }

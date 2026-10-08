@@ -25,6 +25,7 @@ The library is under construction and not published yet. Rust provides types, sc
 - [Error catalog](docs/errors.md)
 - [Models, cache and offline use](docs/models.md)
 - [Pairwise scoring](docs/scoring.md)
+- [Vector search](docs/vector-search.md)
 
 ## Design priorities
 

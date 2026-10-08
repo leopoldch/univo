@@ -13,7 +13,8 @@ use corpus::{cases, prepare_pair, schema};
 
 /// The score's AUC on the corpus was 0.763 when this guard was set (U-008);
 /// the floor leaves 0.02 for deliberate changes, and a lower value is a
-/// regression to explain. Semantic fields do not contribute yet (U-009).
+/// regression to explain. Without embeddings, semantic fields give no
+/// evidence here; `univo-engine/tests/semantic_corpus.rs` measures them.
 const SCORE_AUC_FLOOR: f64 = 0.74;
 
 fn comparison(case: &Json, schema: &Schema) -> Option<Comparison> {

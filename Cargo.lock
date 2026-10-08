@@ -1338,6 +1338,7 @@ dependencies = [
  "serde_json",
  "toml",
  "univo-core",
+ "univo-embed",
 ]
 
 [[package]]

@@ -63,6 +63,11 @@ impl PreparedRecord {
     pub fn fields(&self) -> &[PreparedField] {
         &self.fields
     }
+
+    /// Whether the record was prepared with a schema equivalent to `schema`.
+    pub fn is_prepared_with(&self, schema: &Schema) -> bool {
+        self.schema == schema.preparation_fingerprint()
+    }
 }
 
 /// Validates `record` against `schema` and normalizes its selected fields.

@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 univo-core.workspace = true
+univo-embed.workspace = true
 
 [dev-dependencies]
 serde_json = { version = "1.0.151", features = ["preserve_order"] }
