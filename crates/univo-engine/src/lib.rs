@@ -95,10 +95,10 @@ impl ExactIndex {
         for (index, record) in records.iter().enumerate() {
             let locate = |error: Error| error.with_record(index, record.id().cloned());
             fingerprints.push(exact_fingerprint(&self.schema, record).map_err(locate)?);
-            if let Some(id) = record.id() {
-                if self.ids.contains(id) || !ids.insert(id) {
-                    return Err(locate(Error::duplicate_id()));
-                }
+            if let Some(id) = record.id()
+                && (self.ids.contains(id) || !ids.insert(id))
+            {
+                return Err(locate(Error::duplicate_id()));
             }
         }
         for (record, fingerprint) in records.into_iter().zip(fingerprints) {

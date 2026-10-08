@@ -82,7 +82,7 @@ fn workload(records: usize, tenants: u64) -> Vec<Value> {
             let mut name = rng.sentence(2);
             name.truncate(name.char_indices().nth(20).map_or(name.len(), |(at, _)| at));
             let mut description = rng.sentence(30);
-            if index % 20 == 0 {
+            if index.is_multiple_of(20) {
                 description = description.replace('é', "e\u{301}");
             }
             let entries = vec![
@@ -242,7 +242,7 @@ fn configurations(records: usize) -> Vec<Value> {
                     Value::Int(i64::try_from(rng.next() % 4).unwrap()),
                 ),
                 ("timeout_ms".to_owned(), Value::Int(1000)),
-                ("tls".to_owned(), Value::Bool(rng.next() % 2 == 0)),
+                ("tls".to_owned(), Value::Bool(rng.next().is_multiple_of(2))),
                 ("region".to_owned(), Value::Str("eu-west-1".to_owned())),
                 (
                     "db".to_owned(),
@@ -255,7 +255,7 @@ fn configurations(records: usize) -> Vec<Value> {
                     ),
                 ),
             ];
-            if index % 3 == 0 {
+            if index.is_multiple_of(3) {
                 params.push(("batch_size".to_owned(), Value::Int(100)));
             }
             let entries = vec![

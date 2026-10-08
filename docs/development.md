@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- Rust stable (minimum supported version: 1.86).
+- Rust stable (minimum supported version: 1.89).
 - Python 3.11 or later and [uv](https://docs.astral.sh/uv/).
 
 ## Setup
@@ -40,6 +40,22 @@ Budgets live in [benchmarks/budgets.toml](../benchmarks/budgets.toml). Python te
 
 Dense exact-index insertion: `cargo test -p univo-engine --release --locked --test perf_budget -- --nocapture` reports one-batch and single-record insertion at 10k/20k/40k, with and without IDs, and enforces the insertion budget in CI.
 
+Embedding: tests that need the default model run only when `UNIVO_TEST_MODEL_DIR` names a directory holding its `config.json`, `model.safetensors` and `tokenizer.json`; they verify the pinned checksums first. CI downloads the pinned revision. Locally:
+
+```sh
+export UNIVO_TEST_MODEL_DIR=.models/potion-base-8M
+mkdir -p "$UNIVO_TEST_MODEL_DIR"
+for file in config.json model.safetensors tokenizer.json; do
+  curl -fsSL -o "$UNIVO_TEST_MODEL_DIR/$file" \
+    "https://huggingface.co/minishlab/potion-base-8M/resolve/bf8b056651a2c21b8d2565580b8569da283cab23/$file"
+done
+cargo test -p univo-embed --release --locked --test perf_budget -- --nocapture
+```
+
+## Test models
+
+`tests/fixtures/models/tiny` is an 8-dimension Model2Vec model with a 13-word vocabulary, built by `python -I tools/build_tiny_model.py`. It exercises loading, encoding and the cache without a download.
+
 ## Unicode fixtures
 
 `tests/fixtures/unicode` holds CPython's NFC and case folding results, the oracle of the Rust normalizers. Regenerate them with `python -I tools/build_unicode_fixtures.py` when the Unicode version changes, and increment `NORMALIZER_VERSION` if any output changes. See [performance.md](performance.md) for the measurement policy.
@@ -53,6 +69,7 @@ On macOS, Python 3.13 and later skip `.pth` files that carry the `hidden` file f
 | Path | Role |
 | --- | --- |
 | `crates/univo-core` | Values, schema, normalization, record preparation and exact matching; no Python, network or inference dependency |
+| `crates/univo-embed` | Model references, pinned registry, download plans, verified cache and static inference; no network access, see [ADR 0008](adr/0008-model-download-and-inference-backend.md) |
 | `crates/univo-engine` | Schema-bound exact index, typed IDs, atomic batch insertion and bounded exact-search output; see [exact index](exact-index.md) |
 | `crates/univo-python` | PyO3 extension `univo._univo`; conversions only |
 | `python/univo` | Public Python package |

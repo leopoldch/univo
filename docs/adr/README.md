@@ -11,6 +11,7 @@ Each record captures one decision, the alternatives considered, the evidence, th
 | [0005](0005-exact-index.md) | Verified exact-index keys and record identity | Accepted |
 | [0006](0006-incremental-exact-postings.md) | Incremental ordering of exact postings | Accepted |
 | [0007](0007-default-embedding-model.md) | Default embedding model and model selection | Proposed |
+| [0008](0008-model-download-and-inference-backend.md) | Model download, cache and inference backend | Accepted |
 
 ## Template
 

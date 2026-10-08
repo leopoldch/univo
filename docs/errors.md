@@ -29,6 +29,8 @@ The text of an error has three lines: the message, prefixed with the record posi
 | `InvalidRecord` | A record does not satisfy the schema. |
 | `ResourceLimit` | A record exceeds a configured resource limit. |
 | `SchemaMismatch` | Records prepared with different schemas were compared. |
+| `ModelUnavailable` | The embedding model cannot be resolved, downloaded or loaded. |
+| `ModelIntegrity` | Model files or outputs fail verification. |
 
 ## Catalog
 
@@ -378,6 +380,126 @@ Example:
 the batch would bring the index to 3 records, above its limit of 2
 hint: Use a smaller index or raise its explicit record limit before adding this batch.
 code: limit.index_capacity (https://github.com/leopoldch/univo/blob/main/docs/errors.md#limitindex_capacity)
+```
+
+### model.invalid_spec
+
+The model string is not a valid model reference.
+
+- Kind: `ModelUnavailable` (Python: `univo.ModelUnavailableError`)
+- Fix: Pass "default", a Hugging Face repository such as "org/name" or "org/name@revision", or a local path starting with /, ./, ../, ~ or file://.
+
+Example:
+
+```text
+model "potion" is not a valid model reference: expected "default", "org/name[@revision]" or a local path
+hint: Pass "default", a Hugging Face repository such as "org/name" or "org/name@revision", or a local path starting with /, ./, ../, ~ or file://.
+code: model.invalid_spec (https://github.com/leopoldch/univo/blob/main/docs/errors.md#modelinvalid_spec)
+```
+
+### model.unavailable
+
+The model is not available locally and cannot be downloaded.
+
+- Kind: `ModelUnavailable` (Python: `univo.ModelUnavailableError`)
+- Fix: Download the model beforehand with `python -m univo.models download <model>`, point to a local copy, or allow network access.
+
+Example:
+
+```text
+model minishlab/potion-base-8M is not available: offline mode is on and the model is not in the cache
+hint: Download the model beforehand with `python -m univo.models download <model>`, point to a local copy, or allow network access.
+code: model.unavailable (https://github.com/leopoldch/univo/blob/main/docs/errors.md#modelunavailable)
+```
+
+### model.unsupported_format
+
+The model files are not in a format Univo can run.
+
+- Kind: `ModelUnavailable` (Python: `univo.ModelUnavailableError`)
+- Fix: Use a Model2Vec model (config.json, model.safetensors, tokenizer.json), or distill a sentence-transformers model into one with model2vec.
+
+Example:
+
+```text
+model sentence-transformers/all-MiniLM-L6-v2 cannot be loaded: the repository has no model.safetensors
+hint: Use a Model2Vec model (config.json, model.safetensors, tokenizer.json), or distill a sentence-transformers model into one with model2vec.
+code: model.unsupported_format (https://github.com/leopoldch/univo/blob/main/docs/errors.md#modelunsupported_format)
+```
+
+### model.download_failed
+
+A model file could not be downloaded.
+
+- Kind: `ModelUnavailable` (Python: `univo.ModelUnavailableError`)
+- Fix: Check network access, the hub URL and the repository name, then retry; set a mirror with hub_url or HF_ENDPOINT if the hub is not reachable.
+
+Example:
+
+```text
+downloading model.safetensors of model minishlab/potion-base-8M failed: connection timed out
+hint: Check network access, the hub URL and the repository name, then retry; set a mirror with hub_url or HF_ENDPOINT if the hub is not reachable.
+code: model.download_failed (https://github.com/leopoldch/univo/blob/main/docs/errors.md#modeldownload_failed)
+```
+
+### model.cache_locked
+
+Another process holds the lock on this model in the cache.
+
+- Kind: `ModelUnavailable` (Python: `univo.ModelUnavailableError`)
+- Fix: Wait for the other download to finish: the operating system releases the lock when that process exits, even if it is killed.
+
+Example:
+
+```text
+model minishlab/potion-base-8M is locked by another process (/cache/models/minishlab/potion-base-8M/bf8b0566.lock)
+hint: Wait for the other download to finish: the operating system releases the lock when that process exits, even if it is killed.
+code: model.cache_locked (https://github.com/leopoldch/univo/blob/main/docs/errors.md#modelcache_locked)
+```
+
+### model.too_large
+
+The model files exceed the allowed download size.
+
+- Kind: `ResourceLimit` (Python: `univo.ResourceLimitError`)
+- Fix: Choose a smaller model, or raise the model size limit if this size is expected.
+
+Example:
+
+```text
+model minishlab/potion-multilingual-128M needs 3000000000 bytes, above the limit of 2147483648 bytes
+hint: Choose a smaller model, or raise the model size limit if this size is expected.
+code: model.too_large (https://github.com/leopoldch/univo/blob/main/docs/errors.md#modeltoo_large)
+```
+
+### model.integrity
+
+A model file does not match its expected size or checksum.
+
+- Kind: `ModelIntegrity` (Python: `univo.ModelIntegrityError`)
+- Fix: Delete the cached copy and download it again; if it keeps failing, the source or a proxy alters the file.
+
+Example:
+
+```text
+file model.safetensors of model minishlab/potion-base-8M fails verification: size is 1024 bytes, expected 30236760
+hint: Delete the cached copy and download it again; if it keeps failing, the source or a proxy alters the file.
+code: model.integrity (https://github.com/leopoldch/univo/blob/main/docs/errors.md#modelintegrity)
+```
+
+### model.corrupt
+
+The model files cannot be read, or the model produced invalid vectors.
+
+- Kind: `ModelIntegrity` (Python: `univo.ModelIntegrityError`)
+- Fix: Download the model again; if a local copy is used, check that it is complete and unmodified.
+
+Example:
+
+```text
+model /opt/models/m is corrupt: a vector is not finite
+hint: Download the model again; if a local copy is used, check that it is complete and unmodified.
+code: model.corrupt (https://github.com/leopoldch/univo/blob/main/docs/errors.md#modelcorrupt)
 ```
 
 <!-- catalog:end -->

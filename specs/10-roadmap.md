@@ -36,6 +36,8 @@ Chemin critique : corpus → choix modèle → moteur exact → API → qualité
 
 U-004 status: the [spike](../benchmarks/spikes/u004/README.md) compared twelve candidates; [ADR 0007](../docs/adr/0007-default-embedding-model.md) proposes the static `potion-base-8M` model and records the model-selection contract. The choice awaits the maintainer's acceptance and the U-012 quality benchmark.
 
+U-009 status, first part: the Rust [`univo-embed`](../crates/univo-embed) crate parses model references, pins the default model's checksums, plans and verifies downloads, keeps a locked, atomically published cache and encodes with static Model2Vec models ([ADR 0008](../docs/adr/0008-model-download-and-inference-backend.md)). It performs no network access. The Python transport, the `univo.models` CLI and the tests with the network forbidden complete U-009.
+
 U-008 status: [pairwise scoring](../docs/scoring.md) compares prepared records field by field with lexical signals (bit-parallel edit distance for short text, trigram Jaccard), exact and key-by-key comparison, vetoes, coverage and explanations. On the critical corpus it respects every hard rule and ranks duplicates with an AUC of 0.763; semantic similarity waits for U-009 and thresholds for U-012.
 
 U-007 status: the [Rust normalized-equality index](../docs/exact-index.md) is implemented, with batches validated before insertion, typed IDs, verified partitions and observable output limits. Tests compare it with the exhaustive `exact_match` oracle and inject collisions. This does not complete U-010 (candidate union and scoring oracle) or U-011 (Python `Finder`).
