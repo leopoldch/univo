@@ -19,6 +19,19 @@ pub struct ExactMatch {
     pub normalized_fields: Vec<(usize, Transforms)>,
 }
 
+/// In-memory key of a record's partition values: records of one partition
+/// have equal keys, but a collision is never evidence, so candidates must
+/// still be checked with [`PreparedRecord::partition`] equality. Not a
+/// persistent format.
+pub fn partition_fingerprint(record: &PreparedRecord) -> u64 {
+    let mut hasher = FxHasher::default();
+    hasher.write_usize(record.partition.len());
+    for value in &record.partition {
+        fingerprint::write_normalized(&mut hasher, value);
+    }
+    hasher.finish()
+}
+
 /// In-memory candidate key for a record's partition and selected fields.
 ///
 /// IDs and normalization explanations do not participate. Types, missing

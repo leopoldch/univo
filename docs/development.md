@@ -70,7 +70,7 @@ On macOS, Python 3.13 and later skip `.pth` files that carry the `hidden` file f
 | --- | --- |
 | `crates/univo-core` | Values, schema, normalization, record preparation and exact matching; no Python, network or inference dependency |
 | `crates/univo-embed` | Model references, pinned registry, download plans, verified cache and static inference; no network access, see [ADR 0008](adr/0008-model-download-and-inference-backend.md) |
-| `crates/univo-engine` | Schema-bound exact index, typed IDs, atomic batch insertion and bounded exact-search output ([exact index](exact-index.md)); record embeddings and exhaustive vector search ([vector search](vector-search.md)) |
+| `crates/univo-engine` | Schema-bound exact index, typed IDs, atomic batch insertion and bounded exact-search output ([exact index](exact-index.md)); record embeddings and exhaustive vector search ([vector search](vector-search.md)); lexical candidates ([lexical candidates](lexical-search.md)) |
 | `crates/univo-python` | PyO3 extension `univo._univo`; conversions only |
 | `python/univo` | Public Python package |
 | `tests/python` | Tests of the installed package, run on every platform, including `perf` budget checks |

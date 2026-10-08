@@ -43,6 +43,14 @@ pub struct PreparedField {
     pub(crate) trigrams: Option<Box<[u64]>>,
 }
 
+impl PreparedField {
+    /// Sorted, deduplicated character trigrams of the normalized text, kept
+    /// for text fields compared lexically.
+    pub fn trigrams(&self) -> Option<&[u64]> {
+        self.trigrams.as_deref()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum FieldState {
     Absent,

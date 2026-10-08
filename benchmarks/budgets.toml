@@ -78,3 +78,15 @@ max_ms = 1400.0
 records = 100000
 k = 10
 max_ms = 5.0
+
+[engine.lexical_search]
+# Lexical candidates for synthetic company names (two or three words of two
+# or three syllables and a number, about 20 characters), one partition, one
+# thread: index build (median of 3) and complete search at the threshold
+# below (p95 of 200 queries, no work limit). Measured at 24 ms and 6.5 ms on
+# the reference machine (U-010). Lower thresholds cost more, because edit
+# similarity then allows many edits: about 20 ms at 0.7.
+records = 100000
+threshold = 0.8
+max_build_ms = 50.0
+max_query_ms = 15.0
