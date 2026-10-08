@@ -297,6 +297,10 @@ fn guarded<T>(model: &str, work: impl FnOnce() -> T) -> Result<T> {
         .map_err(|_| Error::corrupt_model(model, "the model failed while processing input"))
 }
 
+/// Texts encoded per backend call: large enough to keep the tokenizer's
+/// threads busy, small enough to bound the backend's per-text allocations.
+const ENCODE_CHUNK: usize = 4096;
+
 /// Tolerance on the norm of a unit vector computed in `f32`.
 const UNIT_TOLERANCE: f32 = 1e-3;
 
@@ -307,33 +311,40 @@ impl Embedder for StaticEmbedder {
 
     fn encode_batch(&self, texts: &[&str]) -> Result<Embeddings> {
         let name = self.descriptor.name();
-        let owned: Vec<String> = texts.iter().map(|text| (*text).to_owned()).collect();
-        // Static models average token vectors, so no length limit applies:
-        // nothing is truncated.
-        let vectors = guarded(&name, || self.model.encode_with_args(&owned, None, 1024))?;
         let dimension = self.descriptor.dimension;
-        let mut data = Vec::with_capacity(vectors.len() * dimension);
+        let mut data = Vec::with_capacity(texts.len() * dimension);
         let mut absent = Vec::new();
-        for (index, vector) in vectors.iter().enumerate() {
-            if vector.len() != dimension {
-                return Err(Error::corrupt_model(
-                    &name,
-                    "a vector has the wrong dimension",
-                ));
+        // The backend returns one allocation per text: encoding by chunks
+        // keeps only one chunk of them alive next to the result.
+        for (chunk_index, chunk) in texts.chunks(ENCODE_CHUNK).enumerate() {
+            let owned: Vec<String> = chunk.iter().map(|text| (*text).to_owned()).collect();
+            // Static models average token vectors, so no length limit
+            // applies: nothing is truncated.
+            let vectors = guarded(&name, || self.model.encode_with_args(&owned, None, 1024))?;
+            if vectors.len() != chunk.len() {
+                return Err(Error::corrupt_model(&name, "a text has no vector"));
             }
-            let norm_squared: f32 = vector.iter().map(|value| value * value).sum();
-            if !norm_squared.is_finite() {
-                return Err(Error::corrupt_model(&name, "a vector is not finite"));
+            for (offset, vector) in vectors.iter().enumerate() {
+                if vector.len() != dimension {
+                    return Err(Error::corrupt_model(
+                        &name,
+                        "a vector has the wrong dimension",
+                    ));
+                }
+                let norm_squared: f32 = vector.iter().map(|value| value * value).sum();
+                if !norm_squared.is_finite() {
+                    return Err(Error::corrupt_model(&name, "a vector is not finite"));
+                }
+                if norm_squared == 0.0 {
+                    absent.push(chunk_index * ENCODE_CHUNK + offset);
+                } else if (norm_squared.sqrt() - 1.0).abs() > UNIT_TOLERANCE {
+                    return Err(Error::corrupt_model(
+                        &name,
+                        "a vector is not of unit length",
+                    ));
+                }
+                data.extend_from_slice(vector);
             }
-            if norm_squared == 0.0 {
-                absent.push(index);
-            } else if (norm_squared.sqrt() - 1.0).abs() > UNIT_TOLERANCE {
-                return Err(Error::corrupt_model(
-                    &name,
-                    "a vector is not of unit length",
-                ));
-            }
-            data.extend_from_slice(vector);
         }
         Ok(Embeddings {
             data,

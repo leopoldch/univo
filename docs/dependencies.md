@@ -18,7 +18,7 @@ Every dependency is recorded here with its purpose, enabled features, license, f
 
 `caseless` was checked against CPython's `str.casefold` on every Unicode code point (0 differences); the check runs in `crates/univo-core/tests/unicode_oracle.rs`. See [ADR 0003](adr/0003-unicode-normalization.md).
 
-`univo-embed` ([ADR 0008](adr/0008-model-download-and-inference-backend.md)) is not yet linked into the Python wheel; U-009's Python part links it. Its 108 linked packages are listed by `cargo tree -p univo-embed -e normal`; their licenses are permissive (MIT, Apache-2.0, BSD-2-Clause, Unlicense, Zlib, BSL-1.0 and Unicode-3.0 options), and their notices ship with the wheels in U-019. `tokenizers` runs batches on Rayon's global thread pool.
+`univo-embed` ([ADR 0008](adr/0008-model-download-and-inference-backend.md)) is linked into the Python extension since U-009: the macOS arm64 wheel grows from 0.15 MiB to 1.43 MiB (extension of 3.2 MB stripped). Downloads use Python's standard library (`urllib`), imported only when a download starts, so the package still has no runtime Python dependency. Its 108 linked packages are listed by `cargo tree -p univo-embed -e normal`; their licenses are permissive (MIT, Apache-2.0, BSD-2-Clause, Unlicense, Zlib, BSL-1.0 and Unicode-3.0 options), and their notices ship with the wheels in U-019. `tokenizers` runs batches on Rayon's global thread pool.
 
 `univo-engine` depends only on the local `univo-core` crate (MIT, no additional features). Its index uses standard-library collections and the core's existing fingerprint code. It adds no third-party or native dependency and is not yet linked into the Python wheel.
 

@@ -137,8 +137,23 @@ jobs:
       UNIVO_EXPECT_INSTALLED: "1"
       UNIVO_EXPECT_MACHINE: ${{ matrix.machine }}
       UNIVO_PERF_SLACK: "2.0"
+      UNIVO_TEST_MODEL_DIR: ${{ github.workspace }}/.models/potion-base-8M
+      MODEL_URL: https://huggingface.co/minishlab/potion-base-8M/resolve/bf8b056651a2c21b8d2565580b8569da283cab23
     steps:
       - uses: actions/checkout@v7
+      - id: model-cache
+        uses: actions/cache@v6
+        with:
+          path: .models/potion-base-8M
+          key: model-potion-base-8M-bf8b056651a2c21b8d2565580b8569da283cab23
+      - if: steps.model-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p "$UNIVO_TEST_MODEL_DIR"
+          for file in config.json model.safetensors tokenizer.json; do
+            curl --fail --silent --show-error --location --retry 3 \
+              --output "$UNIVO_TEST_MODEL_DIR/$file" "$MODEL_URL/$file"
+          done
       - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}

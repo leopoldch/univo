@@ -151,3 +151,20 @@ fn local_models_are_identified_by_their_content() {
     );
     assert_ne!(before.descriptor(), after.descriptor());
 }
+
+#[test]
+fn large_batches_keep_their_order_and_absent_positions() {
+    let embedder = StaticEmbedder::load_directory(&tiny_model()).unwrap();
+    let texts: Vec<&str> = (0..10_000)
+        .map(|index| match index % 3 {
+            0 => "amazon",
+            1 => "zzz",
+            _ => "online retail",
+        })
+        .collect();
+    let embeddings = embedder.encode_batch(&texts).unwrap();
+    let expected_absent: Vec<usize> = (0..10_000).filter(|index| index % 3 == 1).collect();
+    assert_eq!(embeddings.absent(), expected_absent);
+    let single = embedder.encode_batch(&["online retail"]).unwrap();
+    assert_eq!(embeddings.row(9_998), single.row(0));
+}

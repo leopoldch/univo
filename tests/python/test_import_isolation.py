@@ -30,6 +30,7 @@ import json, sys
 forbidden = {forbidden!r}
 preloaded = sorted(name for name in forbidden if name in sys.modules)
 import univo
+import univo.models
 loaded = sorted(name for name in forbidden if name in sys.modules)
 print(json.dumps({{"preloaded": preloaded, "loaded": loaded}}))
 """
@@ -41,11 +42,12 @@ sys.addaudithook(
     lambda event, args: events.append(event) if event.startswith("socket.") else None
 )
 import univo
+import univo.models
 print(json.dumps(events))
 """
 
 
-def test_import_loads_no_heavy_or_network_module() -> None:
+def test_importing_univo_and_its_models_loads_no_heavy_or_network_module() -> None:
     result = run_isolated(LOADED_MODULES.format(forbidden=FORBIDDEN_AT_IMPORT))
 
     assert result["preloaded"] == [], "the check is void: modules were already loaded"

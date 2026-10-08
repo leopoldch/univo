@@ -1346,6 +1346,7 @@ version = "0.0.0"
 dependencies = [
  "pyo3",
  "univo-core",
+ "univo-embed",
 ]
 
 [[package]]

@@ -5,58 +5,16 @@ mod support;
 
 use std::time::Duration;
 
-use sha1::Digest as _;
-use support::{TempDir, tiny_model};
+use support::{COMMIT, TempDir, repository, tiny_metadata, tiny_model};
 use univo_core::ErrorCode;
 use univo_embed::hub::plan_from_metadata;
 use univo_embed::{
-    Cache, DEFAULT_ENDPOINT, DownloadPlan, Embedder, MODEL_FILES, ModelSource, Repository, Stage,
-    Staging, StaticEmbedder,
+    Cache, DEFAULT_ENDPOINT, DownloadPlan, Embedder, MODEL_FILES, ModelSource, Stage, Staging,
+    StaticEmbedder,
 };
 
-const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
-
-fn repository() -> Repository {
-    Repository {
-        organization: "univo-test".into(),
-        name: "tiny".into(),
-    }
-}
-
-fn hex(bytes: &[u8]) -> String {
-    use std::fmt::Write as _;
-    bytes.iter().fold(String::new(), |mut out, byte| {
-        let _ = write!(out, "{byte:02x}");
-        out
-    })
-}
-
-/// Hub metadata for the tiny model: the weights as an LFS file with a
-/// SHA-256, the JSON files as Git blobs with a SHA-1, as the hub publishes.
 fn metadata() -> String {
-    let siblings: Vec<String> = MODEL_FILES
-        .iter()
-        .map(|name| {
-            let content = std::fs::read(tiny_model().join(name)).unwrap();
-            let size = content.len();
-            if name.ends_with(".safetensors") {
-                let sha256 = hex(&sha2::Sha256::digest(&content));
-                format!(
-                    r#"{{"rfilename": "{name}", "size": {size}, "lfs": {{"sha256": "{sha256}", "size": {size}}}}}"#
-                )
-            } else {
-                let mut hasher = sha1::Sha1::new();
-                hasher.update(format!("blob {size}\0").as_bytes());
-                hasher.update(&content);
-                let blob = hex(&hasher.finalize());
-                format!(r#"{{"rfilename": "{name}", "size": {size}, "blobId": "{blob}"}}"#)
-            }
-        })
-        .collect();
-    format!(
-        r#"{{"sha": "{COMMIT}", "siblings": [{}]}}"#,
-        siblings.join(",")
-    )
+    tiny_metadata()
 }
 
 fn plan() -> DownloadPlan {
