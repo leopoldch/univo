@@ -18,7 +18,8 @@ max_compressed_mib = 30.0
 # Validation and normalization of the standard workload of
 # specs/07-performance.md (identifier, tenant, 20-character name, hostname,
 # 30-token description), single thread, median of five runs. Measured at
-# 86 ms on the reference machine (U-006); the budget leaves room for noise
+# 86 ms on the reference machine (U-006) and 110 ms once names keep their
+# trigrams for lexical comparison (U-008); the budget leaves room for noise
 # and fails on regressions such as the first, unoptimized version (300 ms).
 records = 100000
 max_ms = 150.0
@@ -31,3 +32,13 @@ max_ms = 150.0
 # The previous full-bucket sort took ~718 ms without IDs.
 records = 40000
 max_ms = 25.0
+
+[core.compare]
+# Pairwise comparison of prepared standard records of one partition, each
+# against its next `candidates` records, as when reranking candidates:
+# identifier, tenant, hybrid name, hostname and semantic description, single
+# thread, median of five runs. Measured at 311 ms on the reference machine
+# (U-008), down from 645 ms with a quadratic edit distance.
+pairs = 1000000
+candidates = 50
+max_ms = 550.0

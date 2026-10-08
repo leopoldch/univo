@@ -7,7 +7,9 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use univo_core::{Exact, ExactNormalizer, FieldPath, Map, Schema, Text, TextMode, Value, prepare};
+use univo_core::{
+    Exact, ExactNormalizer, FieldPath, Map, Schema, Text, TextMode, Value, compare, prepare,
+};
 
 const WORDS: &[&str] = &[
     "online",
@@ -73,7 +75,7 @@ impl Rng {
 /// The standard workload of specs/07-performance.md: identifier, tenant, a
 /// name of about 20 characters and a description of about 30 tokens. One
 /// record in 20 is in decomposed Unicode form.
-fn workload(records: usize) -> Vec<Value> {
+fn workload(records: usize, tenants: u64) -> Vec<Value> {
     let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
     (0..records)
         .map(|index| {
@@ -87,7 +89,7 @@ fn workload(records: usize) -> Vec<Value> {
                 ("id".to_owned(), Value::Str(format!("record-{index}"))),
                 (
                     "tenant_id".to_owned(),
-                    Value::Str(format!("tenant-{}", rng.next() % 50)),
+                    Value::Str(format!("tenant-{}", rng.next() as u64 % tenants)),
                 ),
                 ("name".to_owned(), Value::Str(name)),
                 (
@@ -153,7 +155,7 @@ fn median(mut samples: Vec<Duration>) -> Duration {
 fn preparing_the_standard_workload_stays_within_budget() {
     let records = budget("core.prepare", "records").as_integer().unwrap();
     let records = usize::try_from(records).unwrap();
-    let values = workload(records);
+    let values = workload(records, 50);
     let schema = schema();
 
     let mut samples = Vec::new();
@@ -178,5 +180,51 @@ fn preparing_the_standard_workload_stays_within_budget() {
     assert!(
         elapsed <= limit,
         "preparation took {elapsed:?}, above {limit:?}"
+    );
+}
+
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "performance budgets apply to release builds"
+)]
+fn comparing_candidate_pairs_stays_within_budget() {
+    let pairs = budget("core.compare", "pairs").as_integer().unwrap();
+    let pairs = usize::try_from(pairs).unwrap();
+    let candidates =
+        usize::try_from(budget("core.compare", "candidates").as_integer().unwrap()).unwrap();
+    let schema = schema();
+    // Candidates share a partition: records of different partitions are never
+    // compared, and would make the measurement trivially fast.
+    let records: Vec<_> = workload(pairs / candidates + candidates, 1)
+        .iter()
+        .map(|value| prepare(&schema, value).unwrap())
+        .collect();
+
+    let mut samples = Vec::new();
+    for _ in 0..5 {
+        let start = Instant::now();
+        let mut compared = 0usize;
+        for (index, record) in records.iter().take(pairs / candidates).enumerate() {
+            for other in &records[index + 1..=index + candidates] {
+                std::hint::black_box(compare(&schema, record, other).unwrap());
+                compared += 1;
+            }
+        }
+        samples.push(start.elapsed());
+        assert_eq!(compared, pairs);
+    }
+
+    let elapsed = median(samples);
+    let limit = Duration::from_secs_f64(
+        budget("core.compare", "max_ms").as_float().unwrap() / 1000.0 * time_slack(),
+    );
+    report(&format!(
+        "compared {pairs} pairs in {elapsed:?} (median of 5), {:.0} ns per pair, limit {limit:?}",
+        elapsed.as_secs_f64() * 1e9 / f64::from(u32::try_from(pairs).unwrap())
+    ));
+    assert!(
+        elapsed <= limit,
+        "comparison took {elapsed:?}, above {limit:?}"
     );
 }

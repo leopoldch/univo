@@ -23,6 +23,7 @@ The library is under construction and not published yet. Rust provides types, sc
 - [Duplicate definitions per profile](docs/duplicate-definitions.md)
 - [Dependency register](docs/dependencies.md)
 - [Error catalog](docs/errors.md)
+- [Pairwise scoring](docs/scoring.md)
 
 ## Design priorities
 
