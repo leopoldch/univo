@@ -67,13 +67,15 @@ fn hard_invariants_hold_on_every_case() {
         if case["expected_kind"] == "exact" && result.score != Some(1.0) {
             failures.push(format!("{id}: exact pair scored {:?}", result.score));
         }
-        if !(0.0..=1.0).contains(&result.coverage)
-            || result
-                .score
-                .is_some_and(|score| !(0.0..=1.0).contains(&score))
-        {
+        // `contains` is false for NaN, so this also rejects non-finite values.
+        let unit = |value: f32| (0.0..=1.0).contains(&value);
+        let fields_in_unit = result
+            .fields
+            .iter()
+            .all(|field| unit(field.evidence) && field.similarity.is_none_or(unit));
+        if !unit(result.coverage) || !result.score.is_none_or(unit) || !fields_in_unit {
             failures.push(format!(
-                "{id}: score or coverage outside [0, 1]: {result:?}"
+                "{id}: a value is outside [0, 1] or not finite: {result:?}"
             ));
         }
     }

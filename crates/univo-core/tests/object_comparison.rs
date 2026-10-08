@@ -99,6 +99,7 @@ fn objects_of_unknown_values_give_no_evidence() {
         let result = compare_params(left, right);
         assert_eq!(result.score, None, "{result:?}");
         assert_eq!(result.coverage, 0.0, "{result:?}");
+        assert_eq!(result.fields[0].evidence, 0.0, "{result:?}");
         assert!(!result.vetoed, "{result:?}");
     }
 }

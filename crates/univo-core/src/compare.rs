@@ -214,7 +214,12 @@ fn compare_exact(
                 (Some(1.0), Signal::Keys, false, false, 1.0)
             } else {
                 let similarity = (keys.shared > 0).then(|| ratio(keys.equal, keys.shared));
-                let evidence = ratio(keys.shared, keys.shared + keys.one_sided);
+                let known = keys.shared + keys.one_sided;
+                let evidence = if known == 0 {
+                    0.0
+                } else {
+                    ratio(keys.shared, known)
+                };
                 let contradiction = keys.equal < keys.shared;
                 (
                     similarity,
