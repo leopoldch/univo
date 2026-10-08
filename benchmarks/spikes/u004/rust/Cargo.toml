@@ -1,0 +1,17 @@
+# Throughput and load time of static models through model2vec-rs, as Univo
+# would use it: no C library (fancy-regex instead of onig) and no network.
+# A standalone workspace, so that the spike adds nothing to Univo's crates.
+[package]
+name = "u004-rust-bench"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+model2vec-rs = { version = "=0.3.0", default-features = false, features = ["local-only", "fancy-regex"] }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1

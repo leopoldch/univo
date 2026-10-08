@@ -3,6 +3,5 @@ model2vec==0.9.0
 sentence-transformers==6.1.0
 torch==2.14.1
 numpy==2.5.3
-psutil
 pyarrow==25.0.1
 huggingface_hub

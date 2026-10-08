@@ -1,17 +1,18 @@
-"""U-004 spike: compare embedding candidates on quality, speed and size.
+"""U-004 spike: compare embedding candidates on quality, speed, load and memory.
 
 Quality is measured without any threshold: for each view of the critical
 corpus, the AUC is the probability that a duplicate pair scores above a
-distinct pair. Speed is the single-thread encoding throughput on the
-standard workload of specs/07-performance.md. Size is the memory taken by
-the weights and the files downloaded. Every model is pinned to a revision.
+distinct pair. The critical corpus is a regression set, not a tuning set, and
+with about two hundred pairs AUC differences below a few points are noise.
+Its negatives are mostly "same topic, other entity" traps, so the public
+PAWS-X test sets (English and French, 2000 pairs each, licensed for any use)
+complement it; PAWS-X pairs share most of their words and measure
+sensitivity to word order and roles.
 
-The critical corpus is a regression set, not a tuning set: nothing here
-chooses a threshold. With about two hundred pairs, AUC differences below a
-few points are within noise. Its negatives are mostly "same topic, other
-entity" traps, so the public PAWS-X test sets (English and French, 2000
-pairs each, licensed for any use) complement it; PAWS-X pairs share most of
-their words, so it measures sensitivity to word order and roles.
+Every candidate runs in its own process, once per thread count, so that
+imports, loads and peak memory are not shared between candidates. The parent
+reads each child's peak resident memory from the operating system. Static
+models are also timed in Rust (rust/), on the same texts.
 
 Usage (dependencies in requirements.txt, outside the project):
     python evaluate.py --output results.json
@@ -23,7 +24,11 @@ import os
 import pathlib
 import platform
 import random
+import resource
 import statistics
+import subprocess
+import sys
+import tempfile
 import time
 import unicodedata
 from collections import defaultdict
@@ -31,16 +36,10 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
-os.environ.setdefault("RAYON_NUM_THREADS", "1")
-os.environ.setdefault("OMP_NUM_THREADS", "1")
-
-import numpy as np
-import psutil
-from huggingface_hub import snapshot_download
-
-ROOT = pathlib.Path(__file__).resolve().parents[3]
+HERE = pathlib.Path(__file__).resolve().parent
+ROOT = HERE.parents[2]
 CORPUS = ROOT / "tests" / "fixtures" / "critical" / "cases.jsonl"
+RUST_BENCH = HERE / "rust"
 PAWS_X = ("google-research-datasets/paws-x", "4cd8187c40")
 # Trigram Jaccard below which a duplicate is a rewording rather than a variant.
 LOW_OVERLAP = 0.35
@@ -51,6 +50,10 @@ HARD_FAMILIES = (
     "version_environment",
     "dense_series",
 )
+THREAD_COUNTS = (1, 4)
+WORKLOAD_SIZE = 2000
+
+Encoder = Callable[[list[str]], Any]
 
 
 @dataclass(frozen=True)
@@ -104,6 +107,8 @@ CANDIDATES = [
         prefix="query: ",
     ),
 ]
+# Static models measured in Rust: the backend Univo would ship.
+RUST_CANDIDATES = ("potion-base-2M", "potion-base-8M", "potion-multilingual-128M")
 
 
 @dataclass(frozen=True)
@@ -118,7 +123,7 @@ class Pair:
 
 
 def load_pairs() -> list[Pair]:
-    """Text pairs whose label depends on wording, not on structure."""
+    """Text pairs of the critical corpus whose label depends on wording."""
     pairs = []
     for line in CORPUS.read_text(encoding="utf-8").splitlines():
         case = json.loads(line)
@@ -146,7 +151,6 @@ def load_paws(language: str) -> list[Pair]:
     path = hf_hub_download(
         repo, f"{language}/test-00000-of-00001.parquet", repo_type="dataset", revision=revision
     )
-    table = pq.read_table(path).to_pylist()
     return [
         Pair(
             f"paws-{language}-{row['id']}",
@@ -157,7 +161,7 @@ def load_paws(language: str) -> list[Pair]:
             row["sentence2"],
             int(row["label"]),
         )
-        for row in table
+        for row in pq.read_table(path).to_pylist()
         if row["sentence1"].strip() and row["sentence2"].strip()
     ]
 
@@ -175,6 +179,13 @@ def auc(scores: Sequence[float], labels: Sequence[int]) -> float | None:
     return wins / (len(positives) * len(negatives))
 
 
+def subset_auc(
+    pairs: Sequence[Pair], scores: Sequence[float], selected: Sequence[bool]
+) -> float | None:
+    chosen = [(s, p.label) for s, p, keep in zip(scores, pairs, selected, strict=True) if keep]
+    return auc([s for s, _ in chosen], [y for _, y in chosen])
+
+
 def trigrams(text: str) -> set[str]:
     folded = f"  {unicodedata.normalize('NFC', text).casefold()}  "
     return {folded[i : i + 3] for i in range(len(folded) - 2)}
@@ -186,31 +197,12 @@ def lexical_similarity(left: str, right: str) -> float:
 
 
 def workload(count: int) -> tuple[list[str], list[str]]:
-    """Names of about 20 characters and descriptions of about 30 tokens."""
+    """Names of about 20 characters and descriptions of about 30 words."""
     words = [
-        "online",
-        "retail",
-        "cloud",
-        "services",
-        "platform",
-        "payments",
-        "logistics",
-        "software",
-        "consulting",
-        "energy",
-        "Société",
-        "française",
-        "spécialisée",
-        "distribution",
-        "hypermarchés",
-        "électronique",
-        "européenne",
-        "Zürich",
-        "Straße",
-        "café",
-        "data",
-        "analytics",
-        "security",
+        *["online", "retail", "cloud", "services", "platform", "payments", "logistics", "software"],
+        *["consulting", "energy", "Société", "française", "spécialisée", "distribution"],
+        *["hypermarchés", "électronique", "européenne", "Zürich", "Straße", "café", "data"],
+        *["analytics", "security"],
     ]
     rng = random.Random(7)
     names = [" ".join(rng.choices(words, k=2))[:20] for _ in range(count)]
@@ -218,7 +210,7 @@ def workload(count: int) -> tuple[list[str], list[str]]:
     return names, descriptions
 
 
-def measure_speed(encode: Callable[[list[str]], Any], texts: list[str]) -> float:
+def throughput(encode: Encoder, texts: list[str]) -> float:
     """Median texts per second over three runs after a warmup."""
     encode(texts[:64])
     runs = []
@@ -233,168 +225,255 @@ def directory_size(path: pathlib.Path) -> int:
     return sum(file.stat().st_size for file in path.rglob("*") if file.is_file())
 
 
-def build(candidate: Candidate) -> tuple[Callable[[list[str]], Any] | None, dict[str, Any]]:
-    """Returns an encoder producing L2-normalized rows, and size facts."""
-    if candidate.family == "lexical":
-        return None, {"weights_mb": 0.0, "download_mb": 0.0, "load_s": 0.0}
-    path = pathlib.Path(snapshot_download(candidate.repo, revision=candidate.revision))
-    download = directory_size(path)
-    process = psutil.Process()
-    rss_before = process.memory_info().rss
-    start = time.perf_counter()
+def snapshot(candidate: Candidate) -> pathlib.Path:
+    from huggingface_hub import snapshot_download
+
+    assert candidate.repo is not None
+    return pathlib.Path(snapshot_download(candidate.repo, revision=candidate.revision))
+
+
+def normalized(encode: Encoder) -> Encoder:
+    import numpy as np
+
+    def encode_normalized(texts: list[str]) -> Any:
+        vectors = np.asarray(encode(texts), dtype=np.float32)
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+        return vectors / np.where(norms == 0, 1, norms)
+
+    return encode_normalized
+
+
+def load_model(candidate: Candidate, path: pathlib.Path, threads: int) -> tuple[Encoder, int]:
+    """Loads a model and returns its encoder and dimension."""
     if candidate.family == "static":
         from model2vec import StaticModel
 
         model = StaticModel.from_pretrained(str(path), force_download=False, **candidate.options)
 
-        def encode(texts: list[str]) -> Any:
+        def encode_static(texts: list[str]) -> Any:
             return model.encode(texts, use_multiprocessing=False)
 
-        mapping = getattr(model, "token_mapping", None)
-        weights = model.embedding.nbytes + (mapping.nbytes if mapping is not None else 0)
-        dimension = model.embedding.shape[1]
-    else:
-        import torch
-        from sentence_transformers import SentenceTransformer
+        return encode_static, int(model.embedding.shape[1])
 
-        torch.set_num_threads(1)
-        model = SentenceTransformer(str(path), device="cpu")
+    import torch
+    from sentence_transformers import SentenceTransformer
 
-        def encode(texts: list[str]) -> Any:
-            prefixed = [candidate.prefix + text for text in texts]
-            return model.encode(prefixed, batch_size=64, normalize_embeddings=True)
+    torch.set_num_threads(threads)
+    encoder = SentenceTransformer(str(path), device="cpu")
 
-        weights = sum(p.numel() * p.element_size() for p in model.parameters())
-        dimension = model.get_sentence_embedding_dimension()
-    load = time.perf_counter() - start
-    encode(["warmup"])
-    facts = {
-        "weights_mb": weights / 1e6,
-        "download_mb": download / 1e6,
-        "load_s": load,
-        "rss_mb": (process.memory_info().rss - rss_before) / 1e6,
-        "dimension": int(dimension),
-    }
+    def encode_contextual(texts: list[str]) -> Any:
+        prefixed = [candidate.prefix + text for text in texts]
+        return encoder.encode(prefixed, batch_size=64, normalize_embeddings=True)
 
-    def normalized(texts: list[str]) -> Any:
-        vectors = np.asarray(encode(texts), dtype=np.float32)
-        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-        return vectors / np.where(norms == 0, 1, norms)
-
-    return normalized, facts
+    return encode_contextual, int(encoder.get_sentence_embedding_dimension() or 0)
 
 
-def similarities(encode: Callable[[list[str]], Any] | None, pairs: list[Pair]) -> list[float]:
+def import_backend(candidate: Candidate) -> None:
+    if candidate.family == "static":
+        import model2vec  # noqa: F401
+    elif candidate.family == "contextual":
+        import sentence_transformers  # noqa: F401
+        import torch  # noqa: F401
+
+
+def similarities(encode: Encoder | None, pairs: Sequence[Pair]) -> list[float]:
     if encode is None:
         return [lexical_similarity(p.left, p.right) for p in pairs]
+    import numpy as np
+
     left = encode([p.left for p in pairs])
     right = encode([p.right for p in pairs])
     return [float(x) for x in np.sum(left * right, axis=1)]
 
 
-def evaluate(
-    candidate: Candidate, pairs: list[Pair], paws: dict[str, list[Pair]]
-) -> dict[str, Any]:
-    encode, facts = build(candidate)
+def quality(encode: Encoder | None) -> dict[str, Any]:
+    pairs = load_pairs()
     scores = similarities(encode, pairs)
     lexical = [lexical_similarity(p.left, p.right) for p in pairs]
-
-    def subset_auc(select: Callable[[Pair], bool], values: Sequence[float]) -> float | None:
-        chosen = [(v, p.label) for v, p in zip(values, pairs, strict=True) if select(p)]
-        return auc([v for v, _ in chosen], [y for _, y in chosen])
-
     hybrid = [(s + x) / 2 for s, x in zip(scores, lexical, strict=True)]
-    result: dict[str, Any] = {"name": candidate.name, "family": candidate.family, **facts}
+    low_overlap = [p.label == 1 and x < LOW_OVERLAP for p, x in zip(pairs, lexical, strict=True)]
+
+    result: dict[str, Any] = {
+        "auc_all": auc(scores, [p.label for p in pairs]),
+        "auc_all_hybrid": auc(hybrid, [p.label for p in pairs]),
+        "low_overlap_positives": sum(low_overlap),
+        "auc_low_overlap": subset_auc(
+            pairs, scores, [low or not p.label for p, low in zip(pairs, low_overlap, strict=True)]
+        ),
+    }
     for view in ("short", "description"):
-        result[f"auc_{view}"] = subset_auc(lambda p, v=view: p.view == v, scores)
-        result[f"auc_{view}_hybrid"] = subset_auc(lambda p, v=view: p.view == v, hybrid)
+        in_view = [p.view == view for p in pairs]
+        result[f"auc_{view}"] = subset_auc(pairs, scores, in_view)
+        result[f"auc_{view}_hybrid"] = subset_auc(pairs, hybrid, in_view)
     for lang in ("en", "fr"):
-        result[f"auc_{lang}"] = subset_auc(lambda p, lang=lang: p.lang == lang, scores)
-    result["auc_all"] = subset_auc(lambda p: True, scores)
-    # What the model adds: duplicates whose wording differs (low lexical
-    # overlap) against every distinct pair.
-    low_overlap = {
-        id(p) for p, x in zip(pairs, lexical, strict=True) if p.label and x < LOW_OVERLAP
-    }
-    result["low_overlap_positives"] = len(low_overlap)
-    result["auc_low_overlap"] = subset_auc(lambda p: not p.label or id(p) in low_overlap, scores)
-    result["auc_all_hybrid"] = subset_auc(lambda p: True, hybrid)
+        result[f"auc_{lang}"] = subset_auc(pairs, scores, [p.lang == lang for p in pairs])
 
-    by_family: dict[str, list[float]] = defaultdict(list)
-    for value, pair in zip(scores, pairs, strict=True):
-        if pair.family in HARD_FAMILIES and not pair.label:
-            by_family[pair.family].append(value)
-    positives = [v for v, p in zip(scores, pairs, strict=True) if p.label]
+    positives = [s for s, p in zip(scores, pairs, strict=True) if p.label]
     median_positive = statistics.median(positives)
+    hard: dict[str, list[float]] = defaultdict(list)
+    for score, pair in zip(scores, pairs, strict=True):
+        if pair.family in HARD_FAMILIES and not pair.label:
+            hard[pair.family].append(score)
     result["hard_negatives_above_median_positive"] = {
-        family: sum(v >= median_positive for v in values) / len(values)
-        for family, values in sorted(by_family.items())
+        family: sum(s >= median_positive for s in values) / len(values)
+        for family, values in sorted(hard.items())
     }
 
-    for language, paws_pairs in paws.items():
-        paws_scores = similarities(encode, paws_pairs)
-        result[f"auc_paws_{language}"] = auc(paws_scores, [p.label for p in paws_pairs])
-
-    if encode is not None:
-        names, descriptions = workload(2000)
-        result["names_per_s"] = measure_speed(encode, names)
-        result["descriptions_per_s"] = measure_speed(encode, descriptions)
+    for language in ("en", "fr"):
+        paws = load_paws(language)
+        result[f"auc_paws_{language}"] = auc(similarities(encode, paws), [p.label for p in paws])
     return result
+
+
+def peak_rss_bytes() -> int:
+    """Peak resident memory of this process; ru_maxrss is in KiB on Linux."""
+    peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return peak if sys.platform == "darwin" else peak * 1024
+
+
+def worker(name: str, threads: int, with_quality: bool) -> dict[str, Any]:
+    """Measures one candidate in a fresh process; prints one JSON object."""
+    candidate = next(c for c in CANDIDATES if c.name == name)
+    if candidate.family == "lexical":
+        return {"name": name, "threads": threads, **(quality(None) if with_quality else {})}
+
+    path = snapshot(candidate)
+    start = time.perf_counter()
+    import_backend(candidate)
+    import_s = time.perf_counter() - start
+    rss_after_import = peak_rss_bytes()
+
+    start = time.perf_counter()
+    encode, dimension = load_model(candidate, path, threads)
+    first_load_s = time.perf_counter() - start
+    start = time.perf_counter()
+    load_model(candidate, path, threads)
+    warm_load_s = time.perf_counter() - start
+
+    encode = normalized(encode)
+    names, descriptions = workload(WORKLOAD_SIZE)
+    result: dict[str, Any] = {
+        "name": name,
+        "threads": threads,
+        "dimension": dimension,
+        "download_mb": directory_size(path) / 1e6,
+        "import_s": import_s,
+        "first_load_s": first_load_s,
+        "warm_load_s": warm_load_s,
+        "names_per_s": throughput(encode, names),
+        "descriptions_per_s": throughput(encode, descriptions),
+        "rss_after_import_mb": rss_after_import / 1e6,
+    }
+    if with_quality:
+        result.update(quality(encode))
+    return result
+
+
+def run_child(arguments: list[str], threads: int) -> tuple[str, int]:
+    """Runs a child process with `threads` threads; returns stdout and peak RSS."""
+    environment = {
+        **os.environ,
+        "TOKENIZERS_PARALLELISM": "true" if threads > 1 else "false",
+        "RAYON_NUM_THREADS": str(threads),
+        "OMP_NUM_THREADS": str(threads),
+    }
+    with tempfile.TemporaryFile() as output:
+        child = subprocess.Popen(arguments, stdout=output, env=environment)
+        _, status, usage = os.wait4(child.pid, 0)
+        if status != 0:
+            raise RuntimeError(f"{arguments} failed with status {status}")
+        output.seek(0)
+        stdout = output.read().decode()
+    peak = usage.ru_maxrss if sys.platform == "darwin" else usage.ru_maxrss * 1024
+    return stdout, peak
+
+
+def measure_python(candidate: Candidate, threads: int) -> dict[str, Any]:
+    arguments = [sys.executable, __file__, "--worker", candidate.name, "--threads", str(threads)]
+    if threads == 1:
+        arguments.append("--quality")
+    stdout, peak = run_child(arguments, threads)
+    result: dict[str, Any] = json.loads(stdout.strip().splitlines()[-1])
+    result["peak_rss_mb"] = peak / 1e6
+    return result
+
+
+def build_rust() -> pathlib.Path:
+    subprocess.run(
+        ["cargo", "build", "--release", "--locked", "--quiet"], cwd=RUST_BENCH, check=True
+    )
+    return RUST_BENCH / "target" / "release" / "u004-rust-bench"
+
+
+def measure_rust(
+    binary: pathlib.Path, candidate: Candidate, threads: int, texts: pathlib.Path
+) -> dict[str, Any]:
+    arguments = [str(binary), str(snapshot(candidate)), str(texts / "names.txt")]
+    arguments.append(str(texts / "descriptions.txt"))
+    stdout, peak = run_child(arguments, threads)
+    result: dict[str, Any] = json.loads(stdout.strip().splitlines()[-1])
+    return {"name": candidate.name, "threads": threads, **result, "peak_rss_mb": peak / 1e6}
+
+
+def summary(result: dict[str, Any]) -> str:
+    def value(key: str, pattern: str) -> str:
+        return format(result[key], pattern) if result.get(key) is not None else "-"
+
+    return (
+        f"{result['name']:40} t={result['threads']} auc {value('auc_all', '.3f')} "
+        f"low {value('auc_low_overlap', '.3f')} fr {value('auc_fr', '.3f')} "
+        f"paws {value('auc_paws_en', '.3f')}/{value('auc_paws_fr', '.3f')} | "
+        f"{value('names_per_s', ',.0f')} names/s {value('descriptions_per_s', ',.0f')} desc/s | "
+        f"load {value('first_load_s', '.2f')}s warm {value('warm_load_s', '.2f')}s "
+        f"peak {value('peak_rss_mb', '.0f')} MB"
+    )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=pathlib.Path, default=pathlib.Path("results.json"))
+    parser.add_argument("--output", type=pathlib.Path, default=HERE / "results.json")
     parser.add_argument("--only", nargs="*", help="evaluate only these candidate names")
+    parser.add_argument("--worker", help=argparse.SUPPRESS)
+    parser.add_argument("--threads", type=int, default=1, help=argparse.SUPPRESS)
+    parser.add_argument("--quality", action="store_true", help=argparse.SUPPRESS)
     arguments = parser.parse_args()
 
-    pairs = load_pairs()
-    counts = {
-        view: (
-            sum(p.view == view and p.label for p in pairs),
-            sum(p.view == view and not p.label for p in pairs),
-        )
-        for view in ("short", "description")
-    }
-    print(f"pairs: {len(pairs)} (positives, negatives) per view: {counts}")
-    paws = {language: load_paws(language) for language in ("en", "fr")}
-    print({language: len(rows) for language, rows in paws.items()}, "PAWS-X pairs")
-    results = []
-    for candidate in CANDIDATES:
-        if arguments.only and candidate.name not in arguments.only:
-            continue
-        result = evaluate(candidate, pairs, paws)
-        results.append(result)
-        print(
-            f"{result['name']:42} auc short {result['auc_short']:.3f} "
-            f"desc {result['auc_description']:.3f} en {result['auc_en']:.3f} "
-            f"fr {result['auc_fr']:.3f} hybrid {result['auc_all_hybrid']:.3f} "
-            f"low-overlap {result['auc_low_overlap']:.3f} ({result['low_overlap_positives']}) "
-            f"paws en {result['auc_paws_en']:.3f} fr {result['auc_paws_fr']:.3f} | "
-            f"{result.get('names_per_s', 0):,.0f} names/s "
-            f"{result.get('descriptions_per_s', 0):,.0f} desc/s | "
-            f"weights {result['weights_mb']:.1f} MB download {result['download_mb']:.1f} MB",
-            flush=True,
-        )
+    if arguments.worker:
+        print(json.dumps(worker(arguments.worker, arguments.threads, arguments.quality)))
+        return
+
+    selected = [c for c in CANDIDATES if not arguments.only or c.name in arguments.only]
+    python_results = []
+    for candidate in selected:
+        for threads in THREAD_COUNTS if candidate.family != "lexical" else (1,):
+            result = measure_python(candidate, threads)
+            python_results.append(result)
+            print(summary(result), flush=True)
+
+    rust_results = []
+    binary = build_rust()
+    with tempfile.TemporaryDirectory() as directory:
+        texts = pathlib.Path(directory)
+        names, descriptions = workload(WORKLOAD_SIZE)
+        (texts / "names.txt").write_text("\n".join(names) + "\n", encoding="utf-8")
+        (texts / "descriptions.txt").write_text("\n".join(descriptions) + "\n", encoding="utf-8")
+        for candidate in selected:
+            if candidate.name not in RUST_CANDIDATES:
+                continue
+            for threads in THREAD_COUNTS:
+                result = measure_rust(binary, candidate, threads, texts)
+                rust_results.append(result)
+                print("rust " + summary(result), flush=True)
+
     machine = {
         "platform": platform.platform(),
-        "processor": platform.processor(),
+        "processor": platform.processor() or platform.machine(),
+        "cpu_count": os.cpu_count(),
         "python": platform.python_version(),
-        "threads": 1,
+        "workload": {"names": WORKLOAD_SIZE, "descriptions": WORKLOAD_SIZE},
     }
-    arguments.output.write_text(
-        json.dumps(
-            {
-                "machine": machine,
-                "pairs": counts,
-                "paws_pairs": {language: len(rows) for language, rows in paws.items()},
-                "results": results,
-            },
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    report = {"machine": machine, "python": python_results, "rust": rust_results}
+    arguments.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -54,4 +54,16 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PT"]
 strict = true
 python_version = "3.11"
 mypy_path = ["python", "tools"]
-files = ["python/univo", "tests/python", "tests/tools", "tests/corpus", "tools"]
+files = ["python/univo", "tests/python", "tests/tools", "tests/corpus", "tools", "benchmarks"]
+
+[[tool.mypy.overrides]]
+# Spike dependencies live in the spike environment, not in the project's.
+module = [
+    "huggingface_hub.*",
+    "model2vec.*",
+    "numpy.*",
+    "pyarrow.*",
+    "sentence_transformers.*",
+    "torch.*",
+]
+ignore_missing_imports = true
