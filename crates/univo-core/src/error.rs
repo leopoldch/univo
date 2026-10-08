@@ -29,6 +29,10 @@ pub enum ErrorKind {
     ResourceLimit,
     /// Records prepared with different schemas were compared.
     SchemaMismatch,
+    /// The embedding model cannot be resolved, downloaded or loaded.
+    ModelUnavailable,
+    /// Model files or outputs fail verification.
+    ModelIntegrity,
 }
 
 impl ErrorKind {
@@ -40,6 +44,8 @@ impl ErrorKind {
             Self::DuplicateId => "DuplicateId",
             Self::ResourceLimit => "ResourceLimit",
             Self::SchemaMismatch => "SchemaMismatch",
+            Self::ModelUnavailable => "ModelUnavailable",
+            Self::ModelIntegrity => "ModelIntegrity",
         }
     }
 }
@@ -158,6 +164,30 @@ error_codes! {
     IndexCapacity => "limit.index_capacity", ResourceLimit,
         "The index record limit would be exceeded",
         "Use a smaller index or raise its explicit record limit before adding this batch.";
+    InvalidModelSpec => "model.invalid_spec", ModelUnavailable,
+        "The model string is not a valid model reference",
+        "Pass \"default\", a Hugging Face repository such as \"org/name\" or \"org/name@revision\", or a local path starting with /, ./, ../, ~ or file://.";
+    ModelNotAvailable => "model.unavailable", ModelUnavailable,
+        "The model is not available locally and cannot be downloaded",
+        "Download the model beforehand with `python -m univo.models download <model>`, point to a local copy, or allow network access.";
+    UnsupportedModelFormat => "model.unsupported_format", ModelUnavailable,
+        "The model files are not in a format Univo can run",
+        "Use a Model2Vec model (config.json, model.safetensors, tokenizer.json), or distill a sentence-transformers model into one with model2vec.";
+    ModelDownloadFailed => "model.download_failed", ModelUnavailable,
+        "A model file could not be downloaded",
+        "Check network access, the hub URL and the repository name, then retry; set a mirror with hub_url or HF_ENDPOINT if the hub is not reachable.";
+    ModelCacheLocked => "model.cache_locked", ModelUnavailable,
+        "Another process holds the lock on this model in the cache",
+        "Wait for the other download to finish: the operating system releases the lock when that process exits, even if it is killed.";
+    ModelTooLarge => "model.too_large", ResourceLimit,
+        "The model files exceed the allowed download size",
+        "Choose a smaller model, or raise the model size limit if this size is expected.";
+    ModelIntegrity => "model.integrity", ModelIntegrity,
+        "A model file does not match its expected size or checksum",
+        "Delete the cached copy and download it again; if it keeps failing, the source or a proxy alters the file.";
+    CorruptModel => "model.corrupt", ModelIntegrity,
+        "The model files cannot be read, or the model produced invalid vectors",
+        "Download the model again; if a local copy is used, check that it is complete and unmodified.";
 }
 
 /// Base URL of the error catalog; each code has an anchor there.
@@ -555,6 +585,78 @@ impl Error {
         )
     }
 
+    /// `spec` is the model string as the caller wrote it.
+    pub fn invalid_model_spec(spec: &str, reason: &str) -> Self {
+        Self::new(
+            ErrorCode::InvalidModelSpec,
+            format!("model {spec:?} is not a valid model reference: {reason}"),
+        )
+        .text("model", spec)
+    }
+
+    pub fn model_not_available(model: &str, reason: &str) -> Self {
+        Self::new(
+            ErrorCode::ModelNotAvailable,
+            format!("model {model} is not available: {reason}"),
+        )
+        .text("model", model)
+    }
+
+    pub fn unsupported_model_format(model: &str, reason: &str) -> Self {
+        Self::new(
+            ErrorCode::UnsupportedModelFormat,
+            format!("model {model} cannot be loaded: {reason}"),
+        )
+        .text("model", model)
+    }
+
+    /// Raised by bindings, which perform downloads with their language's
+    /// standard library; `reason` must not contain credentials.
+    pub fn model_download_failed(model: &str, file: &str, reason: &str) -> Self {
+        Self::new(
+            ErrorCode::ModelDownloadFailed,
+            format!("downloading {file} of model {model} failed: {reason}"),
+        )
+        .text("model", model)
+        .text("file", file)
+    }
+
+    pub fn model_cache_locked(model: &str, lock: &str) -> Self {
+        Self::new(
+            ErrorCode::ModelCacheLocked,
+            format!("model {model} is locked by another process ({lock})"),
+        )
+        .text("model", model)
+        .text("lock", lock)
+    }
+
+    pub fn model_too_large(model: &str, size: u64, limit: u64) -> Self {
+        Self::new(
+            ErrorCode::ModelTooLarge,
+            format!("model {model} needs {size} bytes, above the limit of {limit} bytes"),
+        )
+        .text("model", model)
+        .detail("size", Detail::Count(size))
+        .detail("limit", Detail::Count(limit))
+    }
+
+    pub fn model_integrity(model: &str, file: &str, reason: &str) -> Self {
+        Self::new(
+            ErrorCode::ModelIntegrity,
+            format!("file {file} of model {model} fails verification: {reason}"),
+        )
+        .text("model", model)
+        .text("file", file)
+    }
+
+    pub fn corrupt_model(model: &str, reason: &str) -> Self {
+        Self::new(
+            ErrorCode::CorruptModel,
+            format!("model {model} is corrupt: {reason}"),
+        )
+        .text("model", model)
+    }
+
     pub fn index_capacity(requested: usize, limit: usize) -> Self {
         Self::new(
             ErrorCode::IndexCapacity,
@@ -614,7 +716,7 @@ mod tests {
                 code.as_str()
             );
             let (namespace, name) = code.as_str().split_once('.').unwrap();
-            assert!(["schema", "record", "limit", "state"].contains(&namespace));
+            assert!(["schema", "record", "limit", "state", "model"].contains(&namespace));
             assert!(
                 !name.is_empty()
                     && name

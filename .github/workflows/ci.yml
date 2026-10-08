@@ -35,8 +35,9 @@ jobs:
       - run: uv run --only-group dev ruff format --check .
       - run: uv run --only-group dev mypy
       - run: python tools/check_links.py .
-      - run: python tools/check_native_dependencies.py univo-python univo-engine
+      - run: python tools/check_native_dependencies.py univo-python univo-engine univo-embed
       - run: python tools/build_critical_corpus.py --check
+      - run: python tools/build_tiny_model.py --check
       - run: uv run --only-group dev pytest tests/tools tests/corpus
 
   rust:
@@ -53,16 +54,32 @@ jobs:
           - { platform: macos-arm64, runner: macos-15, perf_slack: "2.0" }
           - { platform: windows-x86_64, runner: windows-2025, perf_slack: "2.0" }
           - { platform: windows-arm64, runner: windows-11-arm, perf_slack: "2.0" }
-          - { platform: linux-x86_64, runner: ubuntu-24.04, toolchain: "1.86", perf_slack: "2.0" }
+          - { platform: linux-x86_64, runner: ubuntu-24.04, toolchain: "1.89", perf_slack: "2.0" }
     runs-on: ${{ matrix.runner }}
     env:
       UNIVO_PERF_SLACK: ${{ matrix.perf_slack }}
+      # The pinned default model; tests verify its checksums before use.
+      UNIVO_TEST_MODEL_DIR: ${{ github.workspace }}/.models/potion-base-8M
+      MODEL_URL: https://huggingface.co/minishlab/potion-base-8M/resolve/bf8b056651a2c21b8d2565580b8569da283cab23
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain }}
       - uses: Swatinem/rust-cache@v2
+      - id: model-cache
+        uses: actions/cache@v6
+        with:
+          path: .models/potion-base-8M
+          key: model-potion-base-8M-bf8b056651a2c21b8d2565580b8569da283cab23
+      - if: steps.model-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          mkdir -p "$UNIVO_TEST_MODEL_DIR"
+          for file in config.json model.safetensors tokenizer.json; do
+            curl --fail --silent --show-error --location --retry 3 \
+              --output "$UNIVO_TEST_MODEL_DIR/$file" "$MODEL_URL/$file"
+          done
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"

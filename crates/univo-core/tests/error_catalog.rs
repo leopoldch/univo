@@ -203,6 +203,48 @@ fn examples() -> Vec<Error> {
         ),
         Error::index_capacity(3, 2),
     ]
+    .into_iter()
+    .chain(model_examples())
+    .collect()
+}
+
+/// Model errors are raised by univo-embed and the bindings, which depend on
+/// this crate; their tests trigger them for real.
+fn model_examples() -> Vec<Error> {
+    vec![
+        Error::invalid_model_spec(
+            "potion",
+            "expected \"default\", \"org/name[@revision]\" or a local path",
+        ),
+        Error::model_not_available(
+            "minishlab/potion-base-8M",
+            "offline mode is on and the model is not in the cache",
+        ),
+        Error::unsupported_model_format(
+            "sentence-transformers/all-MiniLM-L6-v2",
+            "the repository has no model.safetensors",
+        ),
+        Error::model_download_failed(
+            "minishlab/potion-base-8M",
+            "model.safetensors",
+            "connection timed out",
+        ),
+        Error::model_cache_locked(
+            "minishlab/potion-base-8M",
+            "/cache/models/minishlab/potion-base-8M/bf8b0566.lock",
+        ),
+        Error::model_too_large(
+            "minishlab/potion-multilingual-128M",
+            3_000_000_000,
+            2_147_483_648,
+        ),
+        Error::model_integrity(
+            "minishlab/potion-base-8M",
+            "model.safetensors",
+            "size is 1024 bytes, expected 30236760",
+        ),
+        Error::corrupt_model("/opt/models/m", "a vector is not finite"),
+    ]
 }
 
 #[test]

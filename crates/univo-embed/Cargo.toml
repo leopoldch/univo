@@ -1,0 +1,23 @@
+[package]
+name = "univo-embed"
+description = "Local embedding models for Univo: resolution, verified cache and static inference."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+univo-core.workspace = true
+model2vec-rs = { version = "=0.3.0", default-features = false, features = ["local-only", "fancy-regex"] }
+serde_json = "1.0.151"
+sha1 = { version = "0.11.0", default-features = false }
+sha2 = { version = "0.11.0", default-features = false }
+
+[dev-dependencies]
+rayon = "1.12.0"
+toml = { version = "1.1.6", default-features = false, features = ["parse", "serde"] }
+
+[lints]
+workspace = true

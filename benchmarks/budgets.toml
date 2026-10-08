@@ -52,3 +52,18 @@ max_ms = 550.0
 pairs = 1000000
 candidates = 50
 max_ms = 250.0
+
+[embed.first_encoding]
+# Loading the default model from local files already in the OS cache and
+# encoding one text, median of five. specs/07-performance.md allows 2 s;
+# measured at 15 ms on the reference machine (U-009).
+max_ms = 200.0
+
+[embed.encode]
+# Encoding descriptions of the standard workload (30 words, about 39
+# tokens) with the default model, one thread, median of five after one
+# warmup. Measured at 0.95 s on the reference machine (U-009), about 21 000
+# texts per second, against the 2000 objects per second of
+# specs/07-performance.md. Tokenization takes nearly all of it.
+texts = 20000
+max_ms = 1400.0
