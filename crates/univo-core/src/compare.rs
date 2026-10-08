@@ -209,7 +209,8 @@ fn compare_exact(
         (NormalizedValue::Map(a), NormalizedValue::Map(b)) => {
             let mut keys = KeyComparison::default();
             keys.merge(a, b);
-            if keys.shared == 0 && keys.one_sided == 0 {
+            if keys.shared == 0 && keys.one_sided == 0 && keys.unknown == 0 {
+                // Two empty objects: equal values.
                 (Some(1.0), Signal::Keys, false, false, 1.0)
             } else {
                 let similarity = (keys.shared > 0).then(|| ratio(keys.equal, keys.shared));
@@ -246,6 +247,8 @@ struct KeyComparison {
     equal: usize,
     /// Keys present on one side only, each counted once whatever its value.
     one_sided: usize,
+    /// Null values skipped, on either side: unknown, never evidence.
+    unknown: usize,
 }
 
 impl KeyComparison {
@@ -259,6 +262,8 @@ impl KeyComparison {
         left: &[(Box<str>, NormalizedValue)],
         right: &[(Box<str>, NormalizedValue)],
     ) {
+        let is_null = |entry: &&(Box<str>, NormalizedValue)| entry.1 == NormalizedValue::Null;
+        self.unknown += left.iter().filter(is_null).count() + right.iter().filter(is_null).count();
         let not_null = |entry: &&(Box<str>, NormalizedValue)| entry.1 != NormalizedValue::Null;
         let mut left = left.iter().filter(not_null).peekable();
         let mut right = right.iter().filter(not_null).peekable();
@@ -283,11 +288,17 @@ impl KeyComparison {
                         right.next();
                     }
                     Ordering::Equal => {
-                        if let (NormalizedValue::Map(a), NormalizedValue::Map(b)) = (a, b) {
-                            self.merge(a, b);
-                        } else {
-                            self.shared += 1;
-                            self.equal += usize::from(a == b);
+                        match (a, b) {
+                            // Two empty objects are an equal leaf, not an absence.
+                            (NormalizedValue::Map(a), NormalizedValue::Map(b))
+                                if !(a.is_empty() && b.is_empty()) =>
+                            {
+                                self.merge(a, b);
+                            }
+                            _ => {
+                                self.shared += 1;
+                                self.equal += usize::from(a == b);
+                            }
                         }
                         left.next();
                         right.next();

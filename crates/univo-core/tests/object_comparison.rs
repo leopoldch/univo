@@ -82,3 +82,34 @@ fn one_sided_keys_lower_the_coverage() {
     // One shared key, one key on one side only.
     assert_eq!(result.coverage, 0.5, "coverage hides a one-sided key");
 }
+
+#[test]
+fn objects_of_unknown_values_give_no_evidence() {
+    for (left, right) in [
+        (
+            object(vec![("port", Value::Null)]),
+            object(vec![("tls", Value::Null)]),
+        ),
+        (object(vec![("port", Value::Null)]), object(vec![])),
+        (
+            object(vec![("db", object(vec![("port", Value::Null)]))]),
+            object(vec![("db", object(vec![]))]),
+        ),
+    ] {
+        let result = compare_params(left, right);
+        assert_eq!(result.score, None, "{result:?}");
+        assert_eq!(result.coverage, 0.0, "{result:?}");
+        assert!(!result.vetoed, "{result:?}");
+    }
+}
+
+#[test]
+fn empty_objects_are_equal_values() {
+    let result = compare_params(object(vec![]), object(vec![]));
+    assert_eq!(result.score, Some(1.0));
+    let nested = compare_params(
+        object(vec![("db", object(vec![]))]),
+        object(vec![("db", object(vec![]))]),
+    );
+    assert_eq!(nested.score, Some(1.0));
+}

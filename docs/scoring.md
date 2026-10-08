@@ -23,7 +23,7 @@ Otherwise each field yields a similarity in `[0, 1]`, or no similarity when it g
 
 A contradiction on a field declared discriminant (`conflict = "reject"`) is a **veto**: the pair must not match, whatever its score.
 
-Objects are compared key by key, recursively: nested objects present on both sides are descended into, and any other value is a leaf compared by typed equality (a list is a leaf). A null value is unknown at every depth, like an absent key: it never contradicts, it only makes the field incomplete. A key present on one side only counts once, whatever its value.
+Objects are compared key by key, recursively: nested objects present on both sides are descended into, and any other value is a leaf compared by typed equality (a list is a leaf). A null value is unknown at every depth, like an absent key: it never contradicts, it only makes the field incomplete. A key present on one side only counts once, whatever its value. Two empty objects are equal values, but objects whose values are all null give no evidence: `{"port": null}` against `{"tls": null}` has no score and a coverage of 0.
 
 ## Lexical signals
 
@@ -62,6 +62,6 @@ The comparison lists, for each field in schema order, its similarity, its signal
   - every pair of the critical corpus respects the hard rules: no comparison across partitions; a veto exactly when a discriminant field contradicts; `compatible` pairs incomplete and not vetoed; `exact` pairs scored 1;
   - the score is symmetric and deterministic;
   - its AUC on the corpus (0.763 at U-008) is guarded against regressions.
-- `crates/univo-core/tests/object_comparison.rs`: nested nulls are unknown, nested differences veto, one-sided keys lower the coverage.
+- `crates/univo-core/tests/object_comparison.rs`: nested nulls are unknown, nested differences veto, one-sided keys lower the coverage, objects of unknown values give no evidence, empty objects are equal.
 - `crates/univo-core/tests/lexical_properties.rs`: edit similarity and trigram Jaccard against naive reference implementations.
 - Release budgets: one million comparisons of standard records in 550 ms (311 ms measured) and of configurations with nested parameters in 250 ms (143 ms measured).
