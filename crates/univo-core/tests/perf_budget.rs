@@ -228,3 +228,111 @@ fn comparing_candidate_pairs_stays_within_budget() {
         "comparison took {elapsed:?}, above {limit:?}"
     );
 }
+
+/// Configurations with typed parameters, one nested object, and values that
+/// differ, are equal or are missing on one side, so that every branch of the
+/// key-by-key comparison runs.
+fn configurations(records: usize) -> Vec<Value> {
+    let mut rng = Rng(0x2545_F491_4F6C_DD1D);
+    (0..records)
+        .map(|index| {
+            let mut params = vec![
+                (
+                    "retries".to_owned(),
+                    Value::Int(i64::try_from(rng.next() % 4).unwrap()),
+                ),
+                ("timeout_ms".to_owned(), Value::Int(1000)),
+                ("tls".to_owned(), Value::Bool(rng.next() % 2 == 0)),
+                ("region".to_owned(), Value::Str("eu-west-1".to_owned())),
+                (
+                    "db".to_owned(),
+                    Value::Map(
+                        Map::new(vec![
+                            ("host".to_owned(), Value::Str("db1".to_owned())),
+                            ("port".to_owned(), Value::Int(5432)),
+                        ])
+                        .unwrap(),
+                    ),
+                ),
+            ];
+            if index % 3 == 0 {
+                params.push(("batch_size".to_owned(), Value::Int(100)));
+            }
+            let entries = vec![
+                ("id".to_owned(), Value::Str(format!("config-{index}"))),
+                ("service".to_owned(), Value::Str("worker".to_owned())),
+                ("environment".to_owned(), Value::Str("prod".to_owned())),
+                ("params".to_owned(), Value::Map(Map::new(params).unwrap())),
+                ("description".to_owned(), Value::Str(rng.sentence(12))),
+            ];
+            Value::Map(Map::new(entries).unwrap())
+        })
+        .collect()
+}
+
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "performance budgets apply to release builds"
+)]
+fn comparing_configuration_objects_stays_within_budget() {
+    let pairs = usize::try_from(
+        budget("core.compare_objects", "pairs")
+            .as_integer()
+            .unwrap(),
+    )
+    .unwrap();
+    let candidates = usize::try_from(
+        budget("core.compare_objects", "candidates")
+            .as_integer()
+            .unwrap(),
+    )
+    .unwrap();
+    let path = |dotted| FieldPath::parse(dotted).unwrap();
+    let reject = Exact {
+        conflict: univo_core::Conflict::Reject,
+        ..Exact::default()
+    };
+    let schema = Schema::builder()
+        .id_field(path("id"))
+        .exact(path("service"), reject)
+        .exact(path("environment"), reject)
+        .exact(path("params"), reject)
+        .text(
+            path("description"),
+            Text {
+                mode: TextMode::Semantic,
+                ..Text::default()
+            },
+        )
+        .build()
+        .unwrap();
+    let records: Vec<_> = configurations(pairs / candidates + candidates)
+        .iter()
+        .map(|value| prepare(&schema, value).unwrap())
+        .collect();
+
+    let mut samples = Vec::new();
+    for _ in 0..5 {
+        let start = Instant::now();
+        for (index, record) in records.iter().take(pairs / candidates).enumerate() {
+            for other in &records[index + 1..=index + candidates] {
+                std::hint::black_box(compare(&schema, record, other).unwrap());
+            }
+        }
+        samples.push(start.elapsed());
+    }
+
+    let elapsed = median(samples);
+    let limit = Duration::from_secs_f64(
+        budget("core.compare_objects", "max_ms").as_float().unwrap() / 1000.0 * time_slack(),
+    );
+    report(&format!(
+        "compared {pairs} configuration pairs in {elapsed:?} (median of 5), {:.0} ns per pair, limit {limit:?}",
+        elapsed.as_secs_f64() * 1e9 / f64::from(u32::try_from(pairs).unwrap())
+    ));
+    assert!(
+        elapsed <= limit,
+        "comparison took {elapsed:?}, above {limit:?}"
+    );
+}

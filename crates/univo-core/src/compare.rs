@@ -45,15 +45,20 @@ pub struct FieldComparison {
     /// Evidence present on one side only: a missing value, or object keys on
     /// one side.
     pub incomplete: bool,
+    /// Share of the field's information present on both sides: 1 for a
+    /// compared scalar or text, shared keys over shared and one-sided keys
+    /// for objects, 0 without evidence. It weights the field in the score and
+    /// the coverage.
+    pub evidence: f32,
 }
 
 /// Result of comparing two records of the same partition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Comparison {
-    /// Weighted mean of the field similarities, over the fields that give
-    /// evidence; `None` when no field does, never 1 by default.
+    /// Mean of the field similarities weighted by weight times evidence;
+    /// `None` when no field gives evidence, never 1 by default.
     pub score: Option<f32>,
-    /// Share of the total weight carried by the fields that give evidence.
+    /// Share of the total weight backed by evidence: `Σ w·e / Σ w`.
     pub coverage: f32,
     /// A discriminant field contradicts: the pair must not match, whatever
     /// its score.
@@ -97,8 +102,9 @@ pub fn compare(
         let weight = f64::from(field.kind.weight());
         total += weight;
         if let Some(similarity) = comparison.similarity {
-            evidence += weight;
-            weighted += weight * f64::from(similarity);
+            let backed = weight * f64::from(comparison.evidence);
+            evidence += backed;
+            weighted += backed * f64::from(similarity);
         }
     }
     #[allow(clippy::cast_possible_truncation)]
@@ -124,6 +130,7 @@ fn missing(incomplete: bool) -> FieldComparison {
         contradiction: false,
         veto: false,
         incomplete,
+        evidence: 0.0,
     }
 }
 
@@ -175,6 +182,7 @@ fn compare_text(
             contradiction: false,
             veto: false,
             incomplete: false,
+            evidence: 0.0,
         };
     };
     let trigrams = lexical::jaccard(left_trigrams, right_trigrams);
@@ -188,6 +196,7 @@ fn compare_text(
         contradiction: false,
         veto: false,
         incomplete: false,
+        evidence: 1.0,
     }
 }
 
@@ -196,19 +205,27 @@ fn compare_exact(
     left: &NormalizedValue,
     right: &NormalizedValue,
 ) -> FieldComparison {
-    let (similarity, signal, contradiction, incomplete) = match (left, right) {
+    let (similarity, signal, contradiction, incomplete, evidence) = match (left, right) {
         (NormalizedValue::Map(a), NormalizedValue::Map(b)) => {
-            let keys = compare_keys(a, b);
-            let similarity = (keys.shared > 0).then(|| ratio(keys.equal, keys.shared));
-            (
-                similarity,
-                Signal::Keys,
-                keys.equal < keys.shared,
-                keys.one_sided,
-            )
+            let mut keys = KeyComparison::default();
+            keys.merge(a, b);
+            if keys.shared == 0 && keys.one_sided == 0 {
+                (Some(1.0), Signal::Keys, false, false, 1.0)
+            } else {
+                let similarity = (keys.shared > 0).then(|| ratio(keys.equal, keys.shared));
+                let evidence = ratio(keys.shared, keys.shared + keys.one_sided);
+                let contradiction = keys.equal < keys.shared;
+                (
+                    similarity,
+                    Signal::Keys,
+                    contradiction,
+                    keys.one_sided > 0,
+                    evidence,
+                )
+            }
         }
-        _ if left == right => (Some(1.0), Signal::Exact, false, false),
-        _ => (Some(0.0), Signal::Exact, true, false),
+        _ if left == right => (Some(1.0), Signal::Exact, false, false, 1.0),
+        _ => (Some(0.0), Signal::Exact, true, false, 1.0),
     };
     FieldComparison {
         similarity,
@@ -216,58 +233,69 @@ fn compare_exact(
         contradiction,
         veto: contradiction && conflict == Conflict::Reject,
         incomplete,
+        evidence,
     }
 }
 
+/// Leaf counts of a key-by-key comparison of two objects.
+#[derive(Default)]
 struct KeyComparison {
-    /// Keys whose values are present, not null, on both sides.
+    /// Leaves present, not null, on both sides.
     shared: usize,
-    /// Shared keys with equal values.
+    /// Shared leaves with equal values.
     equal: usize,
-    /// Some key is present on one side only.
-    one_sided: bool,
+    /// Keys present on one side only, each counted once whatever its value.
+    one_sided: usize,
 }
 
-/// Merges two key-sorted objects. A null value is unknown, like an absent
-/// key: it never contradicts, it only makes the comparison incomplete.
-fn compare_keys(
-    left: &[(Box<str>, NormalizedValue)],
-    right: &[(Box<str>, NormalizedValue)],
-) -> KeyComparison {
-    let (left, right) = (present_entries(left), present_entries(right));
-    let mut keys = KeyComparison {
-        shared: 0,
-        equal: 0,
-        one_sided: false,
-    };
-    let (mut i, mut j) = (0, 0);
-    while i < left.len() && j < right.len() {
-        match left[i].0.cmp(&right[j].0) {
-            Ordering::Less => {
-                keys.one_sided = true;
-                i += 1;
-            }
-            Ordering::Greater => {
-                keys.one_sided = true;
-                j += 1;
-            }
-            Ordering::Equal => {
-                keys.shared += 1;
-                keys.equal += usize::from(left[i].1 == right[j].1);
-                i += 1;
-                j += 1;
+impl KeyComparison {
+    /// Merges two key-sorted objects. Null is unknown at every depth, like
+    /// an absent key: it never contradicts, it only makes the comparison
+    /// incomplete. Nested objects present on both sides are compared key by
+    /// key; any other value is a leaf compared by typed equality. Recursion
+    /// follows nesting, which preparation bounds by `max_depth`.
+    fn merge(
+        &mut self,
+        left: &[(Box<str>, NormalizedValue)],
+        right: &[(Box<str>, NormalizedValue)],
+    ) {
+        let not_null = |entry: &&(Box<str>, NormalizedValue)| entry.1 != NormalizedValue::Null;
+        let mut left = left.iter().filter(not_null).peekable();
+        let mut right = right.iter().filter(not_null).peekable();
+        loop {
+            match (left.peek(), right.peek()) {
+                (None, None) => return,
+                (Some(_), None) => {
+                    self.one_sided += left.count();
+                    return;
+                }
+                (None, Some(_)) => {
+                    self.one_sided += right.count();
+                    return;
+                }
+                (Some((a_key, a)), Some((b_key, b))) => match a_key.cmp(b_key) {
+                    Ordering::Less => {
+                        self.one_sided += 1;
+                        left.next();
+                    }
+                    Ordering::Greater => {
+                        self.one_sided += 1;
+                        right.next();
+                    }
+                    Ordering::Equal => {
+                        if let (NormalizedValue::Map(a), NormalizedValue::Map(b)) = (a, b) {
+                            self.merge(a, b);
+                        } else {
+                            self.shared += 1;
+                            self.equal += usize::from(a == b);
+                        }
+                        left.next();
+                        right.next();
+                    }
+                },
             }
         }
     }
-    keys.one_sided |= i < left.len() || j < right.len();
-    keys
-}
-
-fn present_entries(entries: &[(Box<str>, NormalizedValue)]) -> Vec<&(Box<str>, NormalizedValue)> {
-    entries
-        .iter()
-        .filter(|(_, value)| *value != NormalizedValue::Null)
-        .collect()
 }
 
 #[allow(clippy::cast_precision_loss)]

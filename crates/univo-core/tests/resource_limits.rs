@@ -239,6 +239,10 @@ fn the_deepest_accepted_values_need_little_stack() {
                     .unwrap()
                     .is_some()
             );
+            let comparison = univo_core::compare(&schema, &left, &right)
+                .unwrap()
+                .unwrap();
+            assert_eq!(comparison.score, Some(1.0));
             drop((left, right, record));
         }
     });

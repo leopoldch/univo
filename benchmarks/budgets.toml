@@ -42,3 +42,13 @@ max_ms = 25.0
 pairs = 1000000
 candidates = 50
 max_ms = 550.0
+
+[core.compare_objects]
+# Pairwise comparison of prepared configurations: discriminant service and
+# environment, discriminant parameters with a nested object compared key by
+# key, semantic description; each against its next `candidates` records,
+# single thread, median of five runs. Measured at 143 ms on the reference
+# machine (U-008 review).
+pairs = 1000000
+candidates = 50
+max_ms = 250.0

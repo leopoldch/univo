@@ -19,9 +19,11 @@ Otherwise each field yields a similarity in `[0, 1]`, or no similarity when it g
 | text, lexical or hybrid mode | the larger of the edit similarity and the trigram similarity | `edit_distance` or `trigrams` |
 | text, semantic mode | none until embeddings are available (U-009) | `semantic` |
 | exact, scalar or list | 1 when equal after normalization, 0 otherwise, with a contradiction | `exact` |
-| exact, object | equal keys / keys present on both sides; a differing key is a contradiction, a key on one side only makes the field `incomplete` | `keys` |
+| exact, object | equal leaves / leaves present on both sides, compared key by key at every depth; a differing leaf is a contradiction, a key on one side only makes the field `incomplete` | `keys` |
 
-A contradiction on a field declared discriminant (`conflict = "reject"`) is a **veto**: the pair must not match, whatever its score. A null value inside an object is unknown, like an absent key: it never contradicts.
+A contradiction on a field declared discriminant (`conflict = "reject"`) is a **veto**: the pair must not match, whatever its score.
+
+Objects are compared key by key, recursively: nested objects present on both sides are descended into, and any other value is a leaf compared by typed equality (a list is a leaf). A null value is unknown at every depth, like an absent key: it never contradicts, it only makes the field incomplete. A key present on one side only counts once, whatever its value.
 
 ## Lexical signals
 
@@ -36,14 +38,19 @@ Both work on the normalized text: NFC, case folded unless the field disables it.
 
 ## Score and coverage
 
+Each field also has an **evidence** fraction `e` in `[0, 1]`:
+- 1 for a compared scalar, list or text;
+- for an object, the shared leaves over the shared leaves plus the one-sided keys;
+- 0 without similarity.
+
 Over the fields `O` that give a similarity, with weights `w`:
 
 ```text
-score    = Σ_{j ∈ O} w_j s_j / Σ_{j ∈ O} w_j
-coverage = Σ_{j ∈ O} w_j / Σ_j w_j
+score    = Σ_{j ∈ O} w_j e_j s_j / Σ_{j ∈ O} w_j e_j
+coverage = Σ_{j ∈ O} w_j e_j / Σ_j w_j
 ```
 
-When no field gives evidence the score is absent, never 1. Coverage tells how much of the schema supported the score: a semantic field before U-009, a missing value or a one-sided object lowers it.
+When no field gives evidence the score is absent, never 1. Coverage tells how much of the schema supported the score, so a 100 % coverage never hides missing information. It is lowered by a semantic field before U-009, by a missing value, and by object keys on one side only: `{"port": 5432}` against `{"port": 5432, "tls": true}` scores 1 with a coverage of 0.5.
 
 ## Explanations
 
@@ -55,4 +62,6 @@ The comparison lists, for each field in schema order, its similarity, its signal
   - every pair of the critical corpus respects the hard rules: no comparison across partitions; a veto exactly when a discriminant field contradicts; `compatible` pairs incomplete and not vetoed; `exact` pairs scored 1;
   - the score is symmetric and deterministic;
   - its AUC on the corpus (0.763 at U-008) is guarded against regressions.
+- `crates/univo-core/tests/object_comparison.rs`: nested nulls are unknown, nested differences veto, one-sided keys lower the coverage.
 - `crates/univo-core/tests/lexical_properties.rs`: edit similarity and trigram Jaccard against naive reference implementations.
+- Release budgets: one million comparisons of standard records in 550 ms (311 ms measured) and of configurations with nested parameters in 250 ms (143 ms measured).

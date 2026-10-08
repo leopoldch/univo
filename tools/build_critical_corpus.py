@@ -1313,6 +1313,23 @@ CASES = [
         "Discriminant fields are compared exactly; case is not folded.",
         constraint="veto",
     ),
+    Case(
+        "critical_parameter-018",
+        "configurations",
+        DISTINCT,
+        config(
+            service="worker",
+            params={"db": {"host": "db1", "port": 5432}},
+            description="Background job worker",
+        ),
+        config(
+            service="worker",
+            params={"db": {"host": "db1", "port": 5433}},
+            description="Background job worker",
+        ),
+        "Nested parameters are compared key by key; a different port is a veto.",
+        constraint="veto",
+    ),
     # version_environment
     Case(
         "version_environment-001",
@@ -1639,6 +1656,22 @@ CASES = [
         "False and zero are different present values.",
         lang="fr",
         constraint="veto",
+    ),
+    Case(
+        "missing_value-017",
+        "configurations",
+        COMPATIBLE,
+        config(
+            service="worker",
+            params={"db": {"host": "db1", "port": None}},
+            description="Job worker",
+        ),
+        config(
+            service="worker",
+            params={"db": {"host": "db1", "port": 5432}},
+            description="Job worker",
+        ),
+        "A nested null is unknown at every depth: compatible, not a contradiction.",
     ),
     # unicode
     Case(

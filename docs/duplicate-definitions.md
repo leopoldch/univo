@@ -13,7 +13,7 @@ A duplicate is defined per profile, never globally. Each profile fixes which fie
 
 ## Shared rules
 
-- **Missing values.** A field is *missing* when it is absent or `null`. A missing value is unknown: it is never a contradiction and never evidence of equality. It lowers coverage.
+- **Missing values.** A field is *missing* when it is absent or `null`. A missing value is unknown: it is never a contradiction and never evidence of equality. It lowers coverage. Inside objects compared key by key, such as configuration parameters, this holds at every depth: `{"db": {"port": null}}` does not contradict `{"db": {"port": 5432}}`.
 - **No contradiction is not a proof.** The absence of a veto never makes a pair a duplicate. When a profile requires equal values and one side is missing, the pair is at best `compatible`.
 - **Present values.** Empty strings, `0` and `false` are present values. They are distinct from each other and from a missing value, and they can contradict another present value.
 - **Types.** Values of different types are different values: `3` and `"3"` contradict, `0` and `false` contradict.
