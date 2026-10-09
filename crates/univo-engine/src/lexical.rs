@@ -116,8 +116,8 @@ impl LexicalIndex {
         self.partitions.is_empty()
     }
 
-    /// Estimated heap bytes: posting entries, hash-map entries and the
-    /// per-record tables.
+    /// Estimated heap bytes: posting entries, hash-map entries, the
+    /// per-partition counts and the per-record tables.
     pub fn heap_bytes(&self) -> usize {
         let lists = |map: &HashMap<(u64, u64), Vec<u32>>| -> usize {
             map.values()
@@ -133,6 +133,7 @@ impl LexicalIndex {
             + self.lengths.capacity() * (size_of::<(u64, u32)>() + size_of::<Vec<u32>>() + 1);
         lists(&self.postings)
             + lengths
+            + self.partition_sizes.capacity() * (size_of::<(u64, usize)>() + 1)
             + self.partitions.capacity() * size_of::<u64>()
             + self.sizes.capacity() * size_of::<(u32, u32)>()
     }
