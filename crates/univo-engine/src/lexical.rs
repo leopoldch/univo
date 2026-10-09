@@ -19,13 +19,15 @@
 //! The rarest trigrams are chosen, so frequent ones are rarely read, and
 //! every candidate is verified with the scoring function itself.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
 
 use univo_core::{
-    Error, FieldKind, FieldState, MAX_EDIT_CHARS, PreparedRecord, Result, Schema, Signal, TextMode,
+    Error, FieldKind, FieldState, MAX_EDIT_CHARS, PreparedRecord, Result, Signal, TextMode,
     lexical_similarity, partition_fingerprint, positional_trigrams,
 };
+
+use crate::store::RecordStore;
 
 /// A record whose text is similar enough to the query's.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -49,13 +51,15 @@ pub struct LexicalSearch {
 }
 
 /// An inverted index of the trigrams of one lexical or hybrid text field,
-/// per partition.
+/// per partition, covering the first records of one [`RecordStore`].
 #[derive(Debug)]
 pub struct LexicalIndex {
-    schema: Schema,
+    store: u64,
     field: usize,
     /// Partition key of each record, by slot.
     partitions: Vec<u64>,
+    /// Indexed records of each partition.
+    partition_sizes: HashMap<u64, usize>,
     /// Characters and distinct trigrams of each record's text, by slot;
     /// zero trigrams when the record has no indexed text.
     sizes: Vec<(u32, u32)>,
@@ -79,24 +83,28 @@ fn slot_number(slot: usize) -> Result<u32> {
 }
 
 impl LexicalIndex {
-    /// An empty index of field `field` of `schema`, which must be a lexical
-    /// or hybrid text field.
+    /// An index of field `field` of `store`'s schema, which must be a
+    /// lexical or hybrid text field, covering the records already stored.
     ///
     /// # Errors
     ///
     /// Returns `state.schema_mismatch` for any other field.
-    pub fn new(schema: &Schema, field: usize) -> Result<Self> {
-        match schema.fields().get(field).map(|field| &field.kind) {
-            Some(FieldKind::Text(text)) if text.mode != TextMode::Semantic => Ok(Self {
-                schema: schema.clone(),
-                field,
-                partitions: Vec::new(),
-                sizes: Vec::new(),
-                postings: HashMap::new(),
-                lengths: HashMap::new(),
-            }),
-            _ => Err(Error::schema_mismatch()),
+    pub fn new(store: &RecordStore, field: usize) -> Result<Self> {
+        match store.schema().fields().get(field).map(|field| &field.kind) {
+            Some(FieldKind::Text(text)) if text.mode != TextMode::Semantic => {}
+            _ => return Err(Error::schema_mismatch()),
         }
+        let mut index = Self {
+            store: store.id(),
+            field,
+            partitions: Vec::new(),
+            partition_sizes: HashMap::new(),
+            sizes: Vec::new(),
+            postings: HashMap::new(),
+            lengths: HashMap::new(),
+        };
+        index.update(store)?;
+        Ok(index)
     }
 
     /// Number of records, indexed or not.
@@ -129,21 +137,18 @@ impl LexicalIndex {
             + self.sizes.capacity() * size_of::<(u32, u32)>()
     }
 
-    /// Indexes `records` as the next slots.
+    /// Indexes the records appended to `store` since the last update.
     ///
     /// # Errors
     ///
-    /// Returns `state.schema_mismatch`, leaving the index unchanged, when a
-    /// record was prepared with another schema, and `limit.index_capacity`
-    /// beyond 2^32 records.
-    pub fn add(&mut self, records: &[PreparedRecord]) -> Result<()> {
-        if !records
-            .iter()
-            .all(|record| record.is_prepared_with(&self.schema))
-        {
-            return Err(Error::schema_mismatch());
+    /// Returns `state.index_out_of_sync` for another store, and
+    /// `limit.index_capacity` beyond 2^32 records.
+    pub fn update(&mut self, store: &RecordStore) -> Result<()> {
+        if store.id() != self.store {
+            return Err(Error::index_out_of_sync(self.len(), store.len(), false));
         }
-        slot_number(self.partitions.len() + records.len())?;
+        slot_number(store.len())?;
+        let records = &store.records()[self.partitions.len()..];
         for record in records {
             let slot = slot_number(self.partitions.len())?;
             let partition = partition_fingerprint(record);
@@ -171,41 +176,55 @@ impl LexicalIndex {
                 );
             }
             self.partitions.push(partition);
+            *self.partition_sizes.entry(partition).or_default() += 1;
             self.sizes.push(size);
         }
         Ok(())
     }
 
-    /// Every indexed record of the query's partition whose lexical
-    /// similarity to `query` is at least `threshold`, reading at most
-    /// `max_entries` index entries. `records` are the indexed records, by
-    /// slot. A threshold at or below 0 is treated as the smallest positive
-    /// one.
+    /// Every record of the query's partition whose lexical similarity to
+    /// `query` is at least `threshold`, reading at most `max_entries` index
+    /// entries. `store` must be the store the index covers, updated.
     ///
     /// # Errors
     ///
-    /// Returns `state.schema_mismatch` when `query` was prepared with another
-    /// schema or `records` are not the indexed records.
+    /// Returns `parameter.threshold` unless `0 < threshold ≤ 1`,
+    /// `state.index_out_of_sync` for another store or records appended
+    /// since the last update, and `state.schema_mismatch` when `query` was
+    /// prepared with another schema.
     pub fn search(
         &self,
-        records: &[PreparedRecord],
+        store: &RecordStore,
         query: &PreparedRecord,
         threshold: f32,
         max_entries: usize,
     ) -> Result<LexicalSearch> {
-        if !query.is_prepared_with(&self.schema) || records.len() != self.partitions.len() {
+        if !(threshold > 0.0 && threshold <= 1.0) {
+            return Err(Error::invalid_threshold(threshold));
+        }
+        if store.id() != self.store || store.len() != self.len() {
+            return Err(Error::index_out_of_sync(
+                self.len(),
+                store.len(),
+                store.id() == self.store,
+            ));
+        }
+        if !query.is_prepared_with(store.schema()) {
             return Err(Error::schema_mismatch());
         }
+        let records = store.records();
         let mut result = LexicalSearch::default();
         let Some((text, trigrams)) = indexed_text(query, self.field) else {
             return Ok(result);
         };
-        let threshold = threshold.clamp(f32::MIN_POSITIVE, 1.0);
         let partition = partition_fingerprint(query);
         let lists = self.plan(partition, text, trigrams, threshold);
 
         let filter = SizeFilter::new(text.chars().count(), trigrams.len(), threshold);
-        let mut seen = vec![0u64; self.partitions.len().div_ceil(64)];
+        let mut seen = Seen::new(
+            self.partitions.len(),
+            self.partition_sizes.get(&partition).copied().unwrap_or(0),
+        );
         'lists: for slots in lists {
             for &slot in slots {
                 if result.entries_read == max_entries {
@@ -213,11 +232,9 @@ impl LexicalIndex {
                     break 'lists;
                 }
                 result.entries_read += 1;
-                let (word, bit) = (slot as usize / 64, 1u64 << (slot % 64));
-                if seen[word] & bit != 0 {
+                if !seen.insert(slot) {
                     continue;
                 }
-                seen[word] |= bit;
                 let slot = slot as usize;
                 if self.partitions[slot] != partition || !filter.admits(self.sizes[slot]) {
                     continue;
@@ -331,6 +348,37 @@ fn edit_bands(chars: usize, threshold: f32) -> Vec<(usize, RangeInclusive<usize>
         }
     }
     bands
+}
+
+/// Records already read during one search: a bitmap over every slot when
+/// the partition is a large share of the index, a hash set otherwise, so
+/// that a search in a small partition does not allocate for the whole index.
+enum Seen {
+    Bitmap(Vec<u64>),
+    Set(HashSet<u32>),
+}
+
+impl Seen {
+    fn new(slots: usize, partition: usize) -> Self {
+        if partition.saturating_mul(32) >= slots {
+            Self::Bitmap(vec![0; slots.div_ceil(64)])
+        } else {
+            Self::Set(HashSet::with_capacity(partition.min(1024)))
+        }
+    }
+
+    /// Records `slot`, and returns whether it was new.
+    fn insert(&mut self, slot: u32) -> bool {
+        match self {
+            Self::Bitmap(words) => {
+                let (word, bit) = (slot as usize / 64, 1u64 << (slot % 64));
+                let new = words[word] & bit == 0;
+                words[word] |= bit;
+                new
+            }
+            Self::Set(set) => set.insert(slot),
+        }
+    }
 }
 
 /// Sizes a candidate needs before its text is read: a Jaccard index of `t`

@@ -31,7 +31,8 @@ The text of an error has three lines: the message, prefixed with the record posi
 | `SchemaMismatch` | Records prepared with different schemas were compared. |
 | `ModelUnavailable` | The embedding model cannot be resolved, downloaded or loaded. |
 | `ModelIntegrity` | Model files or outputs fail verification. |
-| `IndexCompatibility` | Stored state, such as embeddings, comes from another model or format than the one in use. |
+| `IndexCompatibility` | Stored state, such as embeddings, comes from another model or format than the one in use, or an index is used with records it does not cover. |
+| `InvalidParameter` | A parameter of a call is outside its valid range; in Python, also a `ValueError`. |
 
 ## Catalog
 
@@ -516,6 +517,36 @@ Example:
 embeddings of model minishlab/potion-base-2M@389b9f64be5aa4ae7a6bc6fe95ef20ce485ae5da cannot be combined with those of model minishlab/potion-base-8M@bf8b056651a2c21b8d2565580b8569da283cab23
 hint: Encode every record of an index with the same model and revision; to change model, rebuild the index.
 code: state.model_mismatch (https://github.com/leopoldch/univo/blob/main/docs/errors.md#statemodel_mismatch)
+```
+
+### state.index_out_of_sync
+
+An index was used with records it does not cover.
+
+- Kind: `IndexCompatibility` (Python: `univo.IndexCompatibilityError`)
+- Fix: Search an index with the record store it was built from, and update it after appending records.
+
+Example:
+
+```text
+the index covers 1000 records, but the store holds 1200
+hint: Search an index with the record store it was built from, and update it after appending records.
+code: state.index_out_of_sync (https://github.com/leopoldch/univo/blob/main/docs/errors.md#stateindex_out_of_sync)
+```
+
+### parameter.threshold
+
+A similarity threshold is outside its valid range.
+
+- Kind: `InvalidParameter` (Python: `univo.InvalidParameterError`)
+- Fix: Pass a threshold greater than 0 and at most 1.
+
+Example:
+
+```text
+threshold 1.1 is not in (0, 1]
+hint: Pass a threshold greater than 0 and at most 1.
+code: parameter.threshold (https://github.com/leopoldch/univo/blob/main/docs/errors.md#parameterthreshold)
 ```
 
 <!-- catalog:end -->

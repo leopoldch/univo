@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use univo_core::{FieldPath, Map, PreparedRecord, Schema, Text, TextMode, Value, prepare};
-use univo_engine::LexicalIndex;
+use univo_engine::{LexicalIndex, RecordStore};
 
 /// Syllables of synthetic company names: a vocabulary of a few thousand
 /// words, as diverse as real names, unlike a fixed list of words.
@@ -96,17 +96,19 @@ fn lexical_search_stays_within_budget() {
 
     let mut builds: Vec<Duration> = (0..3)
         .map(|_| {
+            let mut store = RecordStore::new(schema.clone());
+            store.append(records.clone()).unwrap();
             let start = Instant::now();
-            let mut index = LexicalIndex::new(&schema, 0).unwrap();
-            index.add(&records).unwrap();
+            let index = LexicalIndex::new(&store, 0).unwrap();
             let elapsed = start.elapsed();
             assert_eq!(std::hint::black_box(&index).len(), count);
             elapsed
         })
         .collect();
     builds.sort_unstable();
-    let mut index = LexicalIndex::new(&schema, 0).unwrap();
-    index.add(&records).unwrap();
+    let mut store = RecordStore::new(schema.clone());
+    store.append(records.clone()).unwrap();
+    let index = LexicalIndex::new(&store, 0).unwrap();
     report(&format!(
         "lexical index of {count} names built in {:?} (median of 3), {:.1} MiB, limit {:?}",
         builds[1],
@@ -124,7 +126,7 @@ fn lexical_search_stays_within_budget() {
             let start = Instant::now();
             #[allow(clippy::cast_possible_truncation)]
             let result = index
-                .search(&records, query, threshold as f32, usize::MAX)
+                .search(&store, query, threshold as f32, usize::MAX)
                 .unwrap();
             samples.push(start.elapsed());
             assert!(result.matches.iter().any(|found| found.similarity >= 1.0));

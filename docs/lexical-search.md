@@ -4,14 +4,20 @@
 
 ## Contract
 
-`index.search(records, query, threshold, max_entries)` returns every record of the query's partition whose lexical similarity to the query is at least `threshold`, most similar first, then by slot.
+Records live in a `RecordStore`, bound to one schema. The store is append-only: records are never reordered, replaced or removed, so an index built from it stays valid for the records it covers.
+- **Building:** `LexicalIndex::new(&store, field)` indexes the records already stored.
+- **Updating:** `index.update(&store)` indexes the records appended since the last update.
+- **Store check:** `index.search(&store, query, threshold, max_entries)` checks, in constant time, that `store` is the store the index was built from and that no record was appended since the last update. Otherwise it returns `state.index_out_of_sync` and never reads mismatched records. The store has an identity and is deliberately not `Clone`, so two diverging copies cannot share it.
+
+The search returns every record of the query's partition whose lexical similarity to the query is at least `threshold`, most similar first, then by slot.
+- **Threshold:** it must satisfy `0 < threshold ≤ 1`; any other value, NaN included, is refused with `parameter.threshold` (`InvalidParameterError`, also a `ValueError`, in Python).
 - **Similarity** is the scoring rule itself (`lexical_similarity`, see [scoring](scoring.md)): the larger of the edit similarity, for texts of at most 64 characters, and the trigram Jaccard index.
 - **Completeness:** without a work limit, the result is exactly what comparing the query with every record would give.
 - **Work limit:** `max_entries` caps the index entries read. When it stops the search, `truncated` is set and matches may be missing; the matches returned are still correct.
 - **Counters:** `entries_read` and `candidates_verified` report the work done.
 - **Missing text:** blank, missing and null texts are neither indexed nor matched, as in scoring.
 - **Partitions:** postings are keyed by partition, and every candidate's partition is compared by value, so a fingerprint collision cannot cross a partition.
-- **Schema:** records and queries prepared with another schema are refused with `state.schema_mismatch`.
+- **Schema:** records prepared with another schema are refused by the store, and queries by the search, with `state.schema_mismatch`.
 
 ## How the search stays complete
 
@@ -21,6 +27,7 @@ Every candidate is verified with the scoring function, so the index only has to 
 - **Edit filter.** An edit similarity of at least `t` bounds both the candidate's length (`t·m ≤ n ≤ m/t`) and the edit distance (`d ≤ (1−t)·max(m, n)`). The search cuts the padded query into `d + 1` disjoint segments of at least three characters. Each edit destroys at most one segment, so one segment survives intact in the match, with all its trigrams. Reading the rarest trigram of each segment is therefore enough.
 - **Length scan.** When the query is too short for `d + 1` segments of three characters, the records of the lengths concerned are scanned instead.
 - **Size filter.** Before a candidate's text is read, its length and trigram count, stored per record, must allow at least one of the two similarities to reach `t`.
+- **Records already read** are tracked in a bitmap over the index when the query's partition is a large share of it, in a hash set otherwise, so a search in a small partition does not allocate for the whole index.
 
 ## Cost
 
@@ -46,7 +53,10 @@ Synthetic company names of about 20 characters (two or three words of syllables 
 - **Short strings:** `abc` and `xbz` share no trigram but reach an edit similarity of 1/3; they are found by the length scan.
 - **Limits and schemas:**
   - truncation is reported, and its matches are a subset of the complete ones;
-  - partitions, blank queries, foreign schemas and semantic fields are handled.
+  - partitions, blank queries, foreign schemas and semantic fields are handled;
+  - another store with the same records in another order, and a store with records appended since the last update, are refused; updating the index makes the new records searchable;
+  - thresholds above 1, at or below 0, NaN and infinity are refused;
+  - a small partition of a large index, searched through the hash set, still equals the scan.
 - **Mutation checks:** reading one trigram instead of the rarest prefix, skipping the length scan, taking `d` segments instead of `d + 1`, and segments of two characters each make these tests fail.
 
 `crates/univo-engine/tests/lexical_search_budget.rs` enforces the build and search budgets in release builds.
