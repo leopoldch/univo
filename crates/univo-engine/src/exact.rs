@@ -5,6 +5,7 @@ use std::ops::Range;
 
 use univo_core::{
     ExactMatch, PreparedRecord, RecordId, Result, Schema, exact_fingerprint, exact_match,
+    is_exact_match,
 };
 
 use crate::store::{RecordStore, id_text_bytes};
@@ -114,6 +115,31 @@ impl ExactIndex {
                 .entry(fingerprint)
                 .or_default()
                 .insert(slot, record.id());
+        }
+        Ok(slots)
+    }
+
+    /// Slots of every record equal to `query` on every field, excluding the
+    /// query's typed ID, without building explanations: the cost of a large
+    /// group of duplicates is one slot each.
+    ///
+    /// # Errors
+    /// Rejects a query prepared with an incompatible schema.
+    pub fn matching_slots(&self, query: &PreparedRecord) -> Result<Vec<usize>> {
+        let fingerprint = exact_fingerprint(self.store.schema(), query)?;
+        let Some(bucket) = self.buckets.get(&fingerprint) else {
+            return Ok(Vec::new());
+        };
+        let records = self.store.records();
+        let mut slots = Vec::new();
+        for slot in bucket.slots.iter().chain(bucket.ids.values()).copied() {
+            let record = &records[slot];
+            if query.id().is_some() && query.id() == record.id() {
+                continue;
+            }
+            if is_exact_match(self.store.schema(), query, record)? {
+                slots.push(slot);
+            }
         }
         Ok(slots)
     }

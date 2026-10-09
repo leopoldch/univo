@@ -382,9 +382,9 @@ impl SearchIndex {
         let mut result = SearchResult::default();
         let mut candidates: Vec<usize> = Vec::new();
 
-        let exact = self.exact.search(query.record, usize::MAX)?;
-        result.lanes.exact = exact.total_matches;
-        candidates.extend(exact.matches.iter().map(|hit| hit.slot));
+        let exact = self.exact.matching_slots(query.record)?;
+        result.lanes.exact = exact.len();
+        candidates.extend(exact);
 
         for index in &self.lexical {
             let found = index.search(self.store(), query.record, threshold, options.max_entries)?;
