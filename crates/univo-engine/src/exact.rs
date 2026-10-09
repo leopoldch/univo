@@ -1,19 +1,19 @@
 //! Exact indexing with verified equality and bounded search output.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::ops::Range;
 
 use univo_core::{
-    Error, ExactMatch, PreparedRecord, RecordId, Result, Schema, exact_fingerprint, exact_match,
+    ExactMatch, PreparedRecord, RecordId, Result, Schema, exact_fingerprint, exact_match,
 };
 
-/// An append-only exact index. Slots identify records without external IDs.
+use crate::store::RecordStore;
+
+/// An append-only exact index over the records of its own [`RecordStore`].
+/// Slots identify records without external IDs.
 #[derive(Debug)]
 pub struct ExactIndex {
-    schema: Schema,
-    max_records: usize,
-    records: Vec<PreparedRecord>,
-    ids: HashSet<RecordId>,
+    store: RecordStore,
     buckets: HashMap<u64, Bucket>,
 }
 
@@ -56,63 +56,48 @@ impl ExactSearch {
 impl ExactIndex {
     pub fn new(schema: Schema, max_records: usize) -> Self {
         Self {
-            schema,
-            max_records,
-            records: Vec::new(),
-            ids: HashSet::new(),
+            store: RecordStore::new(schema, max_records),
             buckets: HashMap::new(),
         }
     }
 
     pub fn len(&self) -> usize {
-        self.records.len()
+        self.store.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.records.is_empty()
+        self.store.is_empty()
     }
 
     pub fn schema(&self) -> &Schema {
-        &self.schema
+        self.store.schema()
     }
 
     pub fn record(&self, slot: usize) -> Option<&PreparedRecord> {
-        self.records.get(slot)
+        self.store.get(slot)
+    }
+
+    /// The records this index covers.
+    pub fn store(&self) -> &RecordStore {
+        &self.store
     }
 
     /// Validates the whole batch before inserting it; returns its slots.
     ///
     /// # Errors
-    /// Rejects incompatible schemas, repeated IDs and batches exceeding capacity.
+    /// Rejects incompatible schemas, repeated IDs and batches exceeding capacity,
+    /// leaving the index unchanged; see [`RecordStore::append`].
     pub fn add(&mut self, records: Vec<PreparedRecord>) -> Result<Range<usize>> {
-        let start = self.len();
-        let end = start.saturating_add(records.len());
-        if records.len() > self.max_records.saturating_sub(start) {
-            return Err(Error::index_capacity(end, self.max_records));
-        }
-        let mut ids = HashSet::new();
-        let mut fingerprints = Vec::with_capacity(records.len());
-        for (index, record) in records.iter().enumerate() {
-            let locate = |error: Error| error.with_record(index, record.id().cloned());
-            fingerprints.push(exact_fingerprint(&self.schema, record).map_err(locate)?);
-            if let Some(id) = record.id()
-                && (self.ids.contains(id) || !ids.insert(id))
-            {
-                return Err(locate(Error::duplicate_id()));
-            }
-        }
-        for (record, fingerprint) in records.into_iter().zip(fingerprints) {
-            let slot = self.len();
-            if let Some(id) = record.id() {
-                self.ids.insert(id.clone());
-            }
+        let slots = self.store.append(records)?;
+        for slot in slots.clone() {
+            let record = &self.store.records()[slot];
+            let fingerprint = exact_fingerprint(self.store.schema(), record)?;
             self.buckets
                 .entry(fingerprint)
                 .or_default()
                 .insert(slot, record.id());
-            self.records.push(record);
         }
-        Ok(start..end)
+        Ok(slots)
     }
 
     /// Verifies every record in the fingerprint bucket, including collisions.
@@ -121,7 +106,7 @@ impl ExactIndex {
     /// # Errors
     /// Rejects a query prepared with an incompatible schema.
     pub fn search(&self, query: &PreparedRecord, limit: usize) -> Result<ExactSearch> {
-        let fingerprint = exact_fingerprint(&self.schema, query)?;
+        let fingerprint = exact_fingerprint(self.store.schema(), query)?;
         match self.buckets.get(&fingerprint) {
             Some(bucket) if bucket.ids.is_empty() => {
                 self.search_slots(query, bucket.slots.iter().copied(), limit)
@@ -140,11 +125,11 @@ impl ExactIndex {
         let mut result = ExactSearch::default();
         for slot in slots {
             result.candidates_examined += 1;
-            let record = &self.records[slot];
+            let record = &self.store.records()[slot];
             if query.id().is_some() && query.id() == record.id() {
                 continue;
             }
-            let Some(evidence) = exact_match(&self.schema, query, record)? else {
+            let Some(evidence) = exact_match(self.store.schema(), query, record)? else {
                 continue;
             };
             result.total_matches += 1;

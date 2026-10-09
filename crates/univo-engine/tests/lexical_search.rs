@@ -33,7 +33,7 @@ fn record(schema: &Schema, tenant: &str, name: &str) -> PreparedRecord {
 
 /// A store holding `records` and an index of its first field.
 fn indexed(schema: &Schema, records: &[PreparedRecord]) -> (RecordStore, LexicalIndex) {
-    let mut store = RecordStore::new(schema.clone());
+    let mut store = RecordStore::new(schema.clone(), usize::MAX);
     store.append(records.to_vec()).unwrap();
     let index = LexicalIndex::new(&store, 0).unwrap();
     (store, index)
@@ -136,7 +136,7 @@ fn search_finds_exactly_what_an_exhaustive_scan_finds() {
     for mode in [TextMode::Lexical, TextMode::Hybrid] {
         let schema = schema(mode);
         let records = corpus(&schema, 600, 42);
-        let mut store = RecordStore::new(schema.clone());
+        let mut store = RecordStore::new(schema.clone(), usize::MAX);
         store.append(records[..250].to_vec()).unwrap();
         let mut index = LexicalIndex::new(&store, 0).unwrap();
         store.append(records[250..].to_vec()).unwrap();
@@ -213,7 +213,7 @@ fn partitions_blank_texts_and_schemas_are_respected() {
     assert_eq!(error.code(), ErrorCode::SchemaMismatch);
     assert_eq!(store.len(), 3);
 
-    let semantic = RecordStore::new(self::schema(TextMode::Semantic));
+    let semantic = RecordStore::new(self::schema(TextMode::Semantic), 0);
     let error = LexicalIndex::new(&semantic, 0).unwrap_err();
     assert_eq!(error.code(), ErrorCode::SchemaMismatch);
 }

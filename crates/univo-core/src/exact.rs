@@ -19,6 +19,12 @@ pub struct ExactMatch {
     pub normalized_fields: Vec<(usize, Transforms)>,
 }
 
+/// In-memory key of a normalized value: equal values have equal keys, and a
+/// collision is never evidence. Not a persistent format.
+pub fn value_fingerprint(value: &NormalizedValue) -> u64 {
+    fingerprint::normalized(value)
+}
+
 /// In-memory key of a record's partition values: records of one partition
 /// have equal keys, but a collision is never evidence, so candidates must
 /// still be checked with [`PreparedRecord::partition`] equality. Not a
