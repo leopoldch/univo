@@ -96,7 +96,7 @@ fn lexical_search_stays_within_budget() {
 
     let mut builds: Vec<Duration> = (0..3)
         .map(|_| {
-            let mut store = RecordStore::new(schema.clone());
+            let mut store = RecordStore::new(schema.clone(), usize::MAX);
             store.append(records.clone()).unwrap();
             let start = Instant::now();
             let index = LexicalIndex::new(&store, 0).unwrap();
@@ -106,7 +106,7 @@ fn lexical_search_stays_within_budget() {
         })
         .collect();
     builds.sort_unstable();
-    let mut store = RecordStore::new(schema.clone());
+    let mut store = RecordStore::new(schema.clone(), usize::MAX);
     store.append(records.clone()).unwrap();
     let index = LexicalIndex::new(&store, 0).unwrap();
     report(&format!(

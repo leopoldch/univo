@@ -19,6 +19,12 @@ pub struct ExactMatch {
     pub normalized_fields: Vec<(usize, Transforms)>,
 }
 
+/// In-memory key of a normalized value: equal values have equal keys, and a
+/// collision is never evidence. Not a persistent format.
+pub fn value_fingerprint(value: &NormalizedValue) -> u64 {
+    fingerprint::normalized(value)
+}
+
 /// In-memory key of a record's partition values: records of one partition
 /// have equal keys, but a collision is never evidence, so candidates must
 /// still be checked with [`PreparedRecord::partition`] equality. Not a
@@ -68,6 +74,36 @@ pub fn exact_fingerprint(schema: &Schema, record: &PreparedRecord) -> Result<u64
         }
     }
     Ok(hasher.finish())
+}
+
+/// Whether two records are an exact match, as [`exact_match`] decides,
+/// without building the explanation: no allocation, for candidate lanes
+/// that only need the answer.
+///
+/// # Errors
+///
+/// As [`exact_match`].
+pub fn is_exact_match(
+    schema: &Schema,
+    left: &PreparedRecord,
+    right: &PreparedRecord,
+) -> Result<bool> {
+    let expected = schema.preparation_fingerprint();
+    if left.schema != expected || right.schema != expected {
+        return Err(Error::schema_mismatch());
+    }
+    if left.partition != right.partition {
+        return Ok(false);
+    }
+    let mut informative = false;
+    let pairs = left.fields.iter().zip(right.fields.iter());
+    for (field, (a, b)) in schema.fields().iter().zip(pairs) {
+        if a.state != b.state {
+            return Ok(false);
+        }
+        informative |= is_informative(&field.kind, &a.state);
+    }
+    Ok(informative)
 }
 
 /// Returns the exact match between two records prepared with `schema`, if

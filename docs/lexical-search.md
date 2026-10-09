@@ -1,10 +1,10 @@
 # Lexical candidates (U-010)
 
-`univo-engine` finds the records whose text is lexically similar to a query's, through an inverted index of character trigrams, without comparing every pair. One `LexicalIndex` covers one lexical or hybrid text field. Combining it with exact and semantic candidates, and choosing thresholds and limits, is the candidate union of U-010's next step.
+`univo-engine` finds the records whose text is lexically similar to a query's, through an inverted index of character trigrams, without comparing every pair. One `LexicalIndex` covers one lexical or hybrid text field. [Search](search.md) combines it with the exact, semantic and value lanes.
 
 ## Contract
 
-Records live in a `RecordStore`, bound to one schema. The store is append-only: records are never reordered, replaced or removed, so an index built from it stays valid for the records it covers.
+Records live in a `RecordStore`, bound to one schema, with unique typed IDs and an explicit record limit, both checked for a whole batch before any record is stored. The store is append-only: records are never reordered, replaced or removed, so an index built from it stays valid for the records it covers.
 - **Building:** `LexicalIndex::new(&store, field)` indexes the records already stored.
 - **Updating:** `index.update(&store)` indexes the records appended since the last update.
 - **Store check:** `index.search(&store, query, threshold, max_entries)` checks, in constant time, that `store` is the store the index was built from and that no record was appended since the last update. Otherwise it returns `state.index_out_of_sync` and never reads mismatched records. The store has an identity and is deliberately not `Clone`, so two diverging copies cannot share it.

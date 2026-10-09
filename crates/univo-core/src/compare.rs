@@ -171,7 +171,7 @@ fn compare_field(
     right: &PreparedField,
     vectors: Option<(&[f32], &[f32])>,
 ) -> FieldComparison {
-    let (left_present, right_present) = (is_present(field, left), is_present(field, right));
+    let (left_present, right_present) = (has_value(field, left), has_value(field, right));
     if !(left_present && right_present) {
         return missing(left_present || right_present);
     }
@@ -186,8 +186,9 @@ fn compare_field(
     }
 }
 
-/// Absent, null and blank values give no evidence.
-fn is_present(field: &Field, prepared: &PreparedField) -> bool {
+/// Whether a prepared field holds a value that can give evidence: absent,
+/// null and blank values never do.
+pub fn has_value(field: &Field, prepared: &PreparedField) -> bool {
     match (&field.kind, &prepared.state) {
         (_, FieldState::Absent | FieldState::Null) => false,
         (FieldKind::Text(_), FieldState::Text(text)) => !text.trim().is_empty(),

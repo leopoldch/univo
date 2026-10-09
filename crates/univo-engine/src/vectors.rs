@@ -93,6 +93,16 @@ impl RecordVectors {
             .collect()
     }
 
+    /// Checks that [`RecordVectors::extend`] would accept `other`, without
+    /// changing anything.
+    ///
+    /// # Errors
+    ///
+    /// As [`RecordVectors::extend`].
+    pub fn check_extend(&self, other: &Self) -> Result<()> {
+        self.offsets(other).map(drop)
+    }
+
     /// Appends the embeddings of later records, embedded with the same
     /// schema and model.
     ///
@@ -103,6 +113,20 @@ impl RecordVectors {
     /// or dimension, and `limit.index_capacity` beyond 2^32 distinct
     /// embeddings in a field.
     pub fn extend(&mut self, other: Self) -> Result<()> {
+        let offsets = self.offsets(&other)?;
+        for ((field, more), offset) in self.fields.iter_mut().zip(other.fields).zip(offsets) {
+            if let (Some(field), Some(more)) = (field, more) {
+                field.data.extend_from_slice(&more.data);
+                field
+                    .rows
+                    .extend(more.rows.iter().map(|row| row.map(|row| row + offset)));
+            }
+        }
+        Ok(())
+    }
+
+    /// The row offset of `other`'s embeddings in each field once appended.
+    fn offsets(&self, other: &Self) -> Result<Vec<u32>> {
         if other.schema != self.schema || other.fields.len() != self.fields.len() {
             return Err(Error::schema_mismatch());
         }
@@ -128,15 +152,7 @@ impl RecordVectors {
             };
             offsets.push(offset);
         }
-        for ((field, more), offset) in self.fields.iter_mut().zip(other.fields).zip(offsets) {
-            if let (Some(field), Some(more)) = (field, more) {
-                field.data.extend_from_slice(&more.data);
-                field
-                    .rows
-                    .extend(more.rows.iter().map(|row| row.map(|row| row + offset)));
-            }
-        }
-        Ok(())
+        Ok(offsets)
     }
 
     pub fn heap_bytes(&self) -> usize {

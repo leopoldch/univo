@@ -95,6 +95,11 @@ fn indexed_search_agrees_with_exhaustive_pairwise_oracle() {
         assert_eq!(actual, expected);
         assert_eq!(result.total_matches, expected.len());
         assert!(!result.truncated());
+        let mut slots = index.matching_slots(query).unwrap();
+        slots.sort_unstable();
+        let mut expected_slots: Vec<usize> = expected.iter().map(|(slot, _)| *slot).collect();
+        expected_slots.sort_unstable();
+        assert_eq!(slots, expected_slots);
     }
 }
 

@@ -7,7 +7,7 @@
 mod corpus;
 
 use corpus::{BATCH_LEVEL_CASES, cases, error_name, path, prepare_pair, schema};
-use univo_core::{Map, Schema, Text, Transforms, Value, exact_match, prepare};
+use univo_core::{Map, Schema, Text, Transforms, Value, exact_match, is_exact_match, prepare};
 
 #[test]
 fn reproduces_every_label_of_the_critical_corpus() {
@@ -43,6 +43,9 @@ fn reproduces_every_label_of_the_critical_corpus() {
         };
         let expected_exact = case["expected_kind"] == "exact";
         let exact = exact_match(&schema, &left, &right).unwrap();
+        if is_exact_match(&schema, &left, &right).unwrap() != exact.is_some() {
+            failures.push(format!("{id}: is_exact_match disagrees with exact_match"));
+        }
         if exact.is_some() != expected_exact {
             failures.push(format!(
                 "{id}: exact is {}, expected {expected_exact}",

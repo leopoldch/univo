@@ -17,11 +17,14 @@ mod semantic;
 mod value;
 
 pub use compare::{
-    Comparison, FieldComparison, SCORING_VERSION, Signal, compare, compare_with_vectors,
+    Comparison, FieldComparison, SCORING_VERSION, Signal, compare, compare_with_vectors, has_value,
     lexical_similarity,
 };
 pub use error::{Detail, Error, ErrorCode, ErrorKind, RecordLocation, Result};
-pub use exact::{ExactMatch, exact_fingerprint, exact_match, partition_fingerprint};
+pub use exact::{
+    ExactMatch, exact_fingerprint, exact_match, is_exact_match, partition_fingerprint,
+    value_fingerprint,
+};
 pub use lexical::{MAX_EDIT_CHARS, edit_similarity, jaccard, positional_trigrams, trigrams};
 pub use normalize::{
     InvalidHostname, KeyCollision, NORMALIZER_VERSION, NormalizedValue, Transforms,
