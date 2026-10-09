@@ -18,10 +18,11 @@ mod value;
 
 pub use compare::{
     Comparison, FieldComparison, SCORING_VERSION, Signal, compare, compare_with_vectors,
+    lexical_similarity,
 };
 pub use error::{Detail, Error, ErrorCode, ErrorKind, RecordLocation, Result};
-pub use exact::{ExactMatch, exact_fingerprint, exact_match};
-pub use lexical::{MAX_EDIT_CHARS, edit_similarity, jaccard, trigrams};
+pub use exact::{ExactMatch, exact_fingerprint, exact_match, partition_fingerprint};
+pub use lexical::{MAX_EDIT_CHARS, edit_similarity, jaccard, positional_trigrams, trigrams};
 pub use normalize::{
     InvalidHostname, KeyCollision, NORMALIZER_VERSION, NormalizedValue, Transforms,
     normalize_hostname, normalize_text, normalize_value,

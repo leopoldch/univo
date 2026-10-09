@@ -10,6 +10,7 @@ from collections.abc import Mapping
 __all__ = [
     "DuplicateIdError",
     "IndexCompatibilityError",
+    "InvalidParameterError",
     "InvalidRecordError",
     "InvalidSchemaError",
     "ModelIntegrityError",
@@ -93,4 +94,9 @@ class ModelIntegrityError(UnivoError):
 
 class IndexCompatibilityError(UnivoError):
     """Stored state, such as embeddings, comes from another model or format
-    than the one in use."""
+    than the one in use, or an index is used with records it does not
+    cover."""
+
+
+class InvalidParameterError(UnivoError, ValueError):
+    """A parameter of a call is outside its valid range."""

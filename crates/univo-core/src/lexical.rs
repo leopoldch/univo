@@ -12,10 +12,11 @@ pub const MAX_EDIT_CHARS: usize = 64;
 /// produce trigrams.
 const PADDING: char = ' ';
 
-/// Sorted, deduplicated character trigrams of `text`, padded with two spaces
-/// at each end. Each trigram is encoded exactly in a `u64`: three 21-bit code
-/// points, so equal codes mean equal trigrams.
-pub fn trigrams(text: &str) -> Box<[u64]> {
+/// Character trigrams of `text` padded with two spaces at each end, in
+/// position order: `text.chars().count() + 2` codes. Each trigram is encoded
+/// exactly in a `u64`: three 21-bit code points, so equal codes mean equal
+/// trigrams.
+pub fn positional_trigrams(text: &str) -> Vec<u64> {
     let padded = [PADDING, PADDING]
         .into_iter()
         .chain(text.chars())
@@ -28,6 +29,13 @@ pub fn trigrams(text: &str) -> Box<[u64]> {
             codes.push((window[0] << 42) | (window[1] << 21) | window[2]);
         }
     }
+    codes
+}
+
+/// Sorted, deduplicated character trigrams of `text`, padded with two spaces
+/// at each end; see [`positional_trigrams`].
+pub fn trigrams(text: &str) -> Box<[u64]> {
+    let mut codes = positional_trigrams(text);
     codes.sort_unstable();
     codes.dedup();
     codes.into_boxed_slice()

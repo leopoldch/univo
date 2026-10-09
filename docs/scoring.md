@@ -34,6 +34,8 @@ Both work on the normalized text: NFC, case folded unless the field disables it.
   - It is computed only when both strings have at most 64 characters, by the bit-parallel algorithm of Myers (in Hyyrö's formulation for the global distance), which keeps a column of the dynamic-programming matrix in one machine word.
   - It catches typos in short strings, where trigrams are least informative.
 - **Trigram similarity**: Jaccard index of the sets of character trigrams of the text padded with two spaces at each end.
+
+`lexical_similarity` is this rule, shared with the lexical index ([lexical candidates](lexical-search.md)), so that candidates and scores never disagree.
   - Trigrams are extracted once, when a record is prepared, and kept sorted, so a comparison is a linear merge.
   - Only lexical and hybrid text fields keep them, which is why the text mode belongs to the schema's preparation fingerprint.
 

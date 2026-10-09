@@ -36,6 +36,8 @@ pub enum ErrorKind {
     /// Stored state, such as embeddings, comes from another model or format
     /// than the one in use.
     IndexCompatibility,
+    /// A parameter of a call is outside its valid range.
+    InvalidParameter,
 }
 
 impl ErrorKind {
@@ -50,6 +52,7 @@ impl ErrorKind {
             Self::ModelUnavailable => "ModelUnavailable",
             Self::ModelIntegrity => "ModelIntegrity",
             Self::IndexCompatibility => "IndexCompatibility",
+            Self::InvalidParameter => "InvalidParameter",
         }
     }
 }
@@ -195,6 +198,12 @@ error_codes! {
     ModelMismatch => "state.model_mismatch", IndexCompatibility,
         "Embeddings of different models were combined",
         "Encode every record of an index with the same model and revision; to change model, rebuild the index.";
+    IndexOutOfSync => "state.index_out_of_sync", IndexCompatibility,
+        "An index was used with records it does not cover",
+        "Search an index with the record store it was built from, and update it after appending records.";
+    InvalidThreshold => "parameter.threshold", InvalidParameter,
+        "A similarity threshold is outside its valid range",
+        "Pass a threshold greater than 0 and at most 1.";
 }
 
 /// Base URL of the error catalog; each code has an anchor there.
@@ -677,6 +686,27 @@ impl Error {
         .text("found", found)
     }
 
+    /// `indexed` records are indexed; the store holds `stored`, or is
+    /// another store when `same_store` is false.
+    pub fn index_out_of_sync(indexed: usize, stored: usize, same_store: bool) -> Self {
+        let message = if same_store {
+            format!("the index covers {indexed} records, but the store holds {stored}")
+        } else {
+            "the index was built from another record store".to_owned()
+        };
+        Self::new(ErrorCode::IndexOutOfSync, message)
+            .count("indexed", indexed)
+            .count("stored", stored)
+    }
+
+    pub fn invalid_threshold(threshold: f32) -> Self {
+        Self::new(
+            ErrorCode::InvalidThreshold,
+            format!("threshold {threshold} is not in (0, 1]"),
+        )
+        .detail("threshold", Detail::Number(f64::from(threshold)))
+    }
+
     pub fn index_capacity(requested: usize, limit: usize) -> Self {
         Self::new(
             ErrorCode::IndexCapacity,
@@ -736,7 +766,9 @@ mod tests {
                 code.as_str()
             );
             let (namespace, name) = code.as_str().split_once('.').unwrap();
-            assert!(["schema", "record", "limit", "state", "model"].contains(&namespace));
+            assert!(
+                ["schema", "record", "limit", "state", "model", "parameter"].contains(&namespace)
+            );
             assert!(
                 !name.is_empty()
                     && name

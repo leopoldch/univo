@@ -210,11 +210,7 @@ fn compare_text(
 ) -> FieldComparison {
     let lexical = match (mode, &left_field.trigrams, &right_field.trigrams) {
         (TextMode::Lexical | TextMode::Hybrid, Some(a), Some(b)) => {
-            let trigrams = lexical::jaccard(a, b);
-            Some(match lexical::edit_similarity(left, right) {
-                Some(edit) if edit >= trigrams => (edit, Signal::EditDistance),
-                _ => (trigrams, Signal::Trigrams),
-            })
+            Some(lexical_similarity(left, a, right, b))
         }
         _ => None,
     };
@@ -238,6 +234,22 @@ fn compare_text(
         veto: false,
         incomplete: false,
         evidence,
+    }
+}
+
+/// Similarity of two normalized texts compared lexically, with their sorted
+/// trigrams: the larger of the edit similarity, for strings of at most
+/// [`lexical::MAX_EDIT_CHARS`] characters, and the trigram Jaccard index.
+pub fn lexical_similarity(
+    left: &str,
+    left_trigrams: &[u64],
+    right: &str,
+    right_trigrams: &[u64],
+) -> (f32, Signal) {
+    let trigrams = lexical::jaccard(left_trigrams, right_trigrams);
+    match lexical::edit_similarity(left, right) {
+        Some(edit) if edit >= trigrams => (edit, Signal::EditDistance),
+        _ => (trigrams, Signal::Trigrams),
     }
 }
 
