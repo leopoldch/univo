@@ -7,7 +7,7 @@ use univo_core::{
     ExactMatch, PreparedRecord, RecordId, Result, Schema, exact_fingerprint, exact_match,
 };
 
-use crate::store::RecordStore;
+use crate::store::{RecordStore, id_text_bytes};
 
 /// An append-only exact index over the records of its own [`RecordStore`].
 /// Slots identify records without external IDs.
@@ -75,6 +75,24 @@ impl ExactIndex {
 
     pub fn record(&self, slot: usize) -> Option<&PreparedRecord> {
         self.store.get(slot)
+    }
+
+    /// Estimated heap bytes of the fingerprint postings and the ID set,
+    /// excluding the records. Ordered postings count each B-tree entry
+    /// with half its size again for node overhead.
+    pub fn heap_bytes(&self) -> usize {
+        let buckets: usize = self
+            .buckets
+            .values()
+            .map(|bucket| {
+                bucket.slots.capacity() * size_of::<usize>()
+                    + bucket.ids.len() * (size_of::<RecordId>() + size_of::<usize>()) * 3 / 2
+                    + id_text_bytes(bucket.ids.keys())
+            })
+            .sum();
+        buckets
+            + self.buckets.capacity() * (size_of::<u64>() + size_of::<Bucket>() + 1)
+            + self.store.id_heap_bytes()
     }
 
     /// The records this index covers.

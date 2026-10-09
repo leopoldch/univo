@@ -96,10 +96,16 @@ max_query_ms = 15.0
 # the standard workload of specs/07-performance.md: ID, tenant, a name of
 # about 20 characters, a semantic description of 30 words with synthetic
 # embeddings of 256 dimensions, one record in ten a near-duplicate of the
-# previous one; one thread, p95 of 200 queries, no work limit, in one
-# partition (the worst case) and in ten. Measured at 10.5 ms and 2.2 ms on
-# the reference machine (U-010); specs/07-performance.md allows 50 ms with
-# four threads. Encoding a new query with the model is not included.
+# previous one; one thread, limit 10, no work limit. Protocol of
+# specs/07-performance.md: five independent repetitions of 1000 queries
+# after a warmup; the budget applies to the median of the five p95.
+# max_ms covers one partition (the worst case) and ten; max_group_ms covers
+# queries from a group of 10 000 identical records in one partition, which
+# score every member. Measured at 9.9 ms (one partition), 2.2 ms (ten) and
+# 8.0 ms (group) on the reference machine (U-010);
+# specs/07-performance.md allows 50 ms with four threads. Encoding a new
+# query with the model is not included.
 records = 100000
 min_score = 0.8
 max_ms = 25.0
+max_group_ms = 20.0

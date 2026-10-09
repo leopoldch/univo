@@ -56,6 +56,12 @@ impl RecordStore {
         self.records.get(slot)
     }
 
+    /// Estimated heap bytes of the ID set, string IDs included; the records
+    /// themselves are not counted.
+    pub fn id_heap_bytes(&self) -> usize {
+        self.ids.capacity() * (size_of::<RecordId>() + 1) + id_text_bytes(self.ids.iter())
+    }
+
     /// The records, by slot.
     pub fn records(&self) -> &[PreparedRecord] {
         &self.records
@@ -93,4 +99,13 @@ impl RecordStore {
         self.records.extend(records);
         Ok(start..end)
     }
+}
+
+/// Heap bytes of the text of string IDs.
+pub(crate) fn id_text_bytes<'a>(ids: impl Iterator<Item = &'a RecordId>) -> usize {
+    ids.map(|id| match id {
+        RecordId::Str(text) => text.len(),
+        RecordId::Int(_) => 0,
+    })
+    .sum()
 }

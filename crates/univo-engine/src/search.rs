@@ -9,19 +9,20 @@
 //! - semantic text: exhaustive vector search in the query's partition;
 //! - exact values: equal values, or for objects one equal leaf;
 //!
-//! and records equal to the query on every field are always included
+//! Lanes lower the minimum by a relative 10⁻⁶ against rounding, and
+//! records equal to the query on every field are always included
 //! through the exact index, whatever the work limit. Without truncation the
 //! result is exactly the one of [`SearchIndex::search_exhaustive`], which
 //! scores every record of the partition: the oracle, at `O(n)` per query.
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{BinaryHeap, HashMap};
 use std::ops::Range;
 use std::sync::Arc;
 
 use univo_core::{
-    Comparison, Error, FieldKind, PreparedRecord, Result, Schema, TextMode, compare_with_vectors,
-    partition_fingerprint,
+    Comparison, Error, FieldKind, PreparedRecord, RecordId, Result, Schema, TextMode,
+    compare_with_vectors, partition_fingerprint,
 };
 use univo_embed::Embedder;
 
@@ -32,8 +33,9 @@ use crate::store::RecordStore;
 use crate::values::ValueIndex;
 use crate::vectors::{RecordVectors, embed_records, is_embedded};
 
-/// Margin by which lanes lower the minimum score, so that rounding in the
-/// weighted mean never drops a record that reaches it.
+/// Relative margin by which lanes lower the minimum score, so that rounding
+/// in the weighted mean never drops a record that reaches it. Relative, so
+/// that the lowered minimum stays positive for every positive minimum.
 const ROUNDING_MARGIN: f32 = 1e-6;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -187,17 +189,25 @@ impl SearchIndex {
     }
 
     /// Embeds and appends `records`, returning their slots. The batch is
-    /// embedded, then checked and stored as a whole: on error the index is
-    /// unchanged.
+    /// embedded and every check is made before anything is stored: on error
+    /// the index is unchanged.
     ///
     /// # Errors
     ///
-    /// Returns the errors of [`RecordStore::append`] and of the embedder.
+    /// Returns the errors of [`RecordStore::append`] and of the embedder,
+    /// and `state.model_mismatch` when the embedder no longer describes the
+    /// model of the stored embeddings.
     pub fn add(&mut self, records: Vec<PreparedRecord>) -> Result<Range<usize>> {
         let batch = match (&self.embedder, &self.vectors) {
-            (Some(model), Some(_)) => Some(embed_records(self.schema(), &records, model.as_ref())?),
+            (Some(model), Some(vectors)) => {
+                let batch = embed_records(self.schema(), &records, model.as_ref())?;
+                vectors.check_extend(&batch)?;
+                Some(batch)
+            }
             _ => None,
         };
+        // Every check is done: from here on nothing can fail but the store's
+        // own validation, which changes nothing when it fails.
         let slots = self.exact.add(records)?;
         if let (Some(vectors), Some(batch)) = (&mut self.vectors, batch) {
             vectors.extend(batch)?;
@@ -218,13 +228,15 @@ impl SearchIndex {
         Ok(slots)
     }
 
-    /// Estimated heap bytes of the indexes, excluding the records and the
-    /// model.
+    /// Estimated heap bytes of every index, the ID set and the embeddings,
+    /// excluding the records and the model.
     pub fn heap_bytes(&self) -> usize {
-        self.lexical
-            .iter()
-            .map(LexicalIndex::heap_bytes)
-            .sum::<usize>()
+        self.exact.heap_bytes()
+            + self
+                .lexical
+                .iter()
+                .map(LexicalIndex::heap_bytes)
+                .sum::<usize>()
             + self
                 .values
                 .iter()
@@ -327,7 +339,7 @@ impl SearchIndex {
         let record = self
             .store()
             .get(slot)
-            .ok_or_else(|| Error::index_capacity(slot + 1, self.len()))?;
+            .ok_or_else(|| Error::index_capacity(slot.saturating_add(1), self.len()))?;
         let vectors = self
             .vectors
             .as_ref()
@@ -339,15 +351,20 @@ impl SearchIndex {
         })
     }
 
+    /// Embeds the query, checking that its embeddings come from the model
+    /// of the stored ones.
     fn embed_query(&self, query: &PreparedRecord) -> Result<Option<RecordVectors>> {
-        match (&self.embedder, &self.vectors) {
-            (Some(model), Some(_)) => Ok(Some(embed_records(
-                self.schema(),
-                std::slice::from_ref(query),
-                model.as_ref(),
-            )?)),
-            _ => Ok(None),
+        let (Some(model), Some(vectors)) = (&self.embedder, &self.vectors) else {
+            return Ok(None);
+        };
+        let embedded = embed_records(self.schema(), std::slice::from_ref(query), model.as_ref())?;
+        if embedded.model() != vectors.model() {
+            return Err(Error::model_mismatch(
+                &vectors.model().name(),
+                &embedded.model().name(),
+            ));
         }
+        Ok(Some(embedded))
     }
 
     fn partition(&self, record: &PreparedRecord) -> &[u32] {
@@ -361,7 +378,7 @@ impl SearchIndex {
         if !query.record.is_prepared_with(self.schema()) {
             return Err(Error::schema_mismatch());
         }
-        let threshold = (options.min_score - ROUNDING_MARGIN).max(f32::MIN_POSITIVE);
+        let threshold = options.min_score * (1.0 - ROUNDING_MARGIN);
         let mut result = SearchResult::default();
         let mut candidates: Vec<usize> = Vec::new();
 
@@ -418,8 +435,10 @@ impl SearchIndex {
         Ok(result)
     }
 
-    /// Scores `slots`, each given once, against the query and keeps the
-    /// matches.
+    /// Scores `slots`, each given once, against the query. Every match is
+    /// counted, and only the best `limit` are kept, in a bounded heap: a
+    /// large group of duplicates costs `O(limit)` memory, not one
+    /// explanation per match.
     fn score(
         &self,
         query: &Query<'_>,
@@ -428,7 +447,8 @@ impl SearchIndex {
         result: &mut SearchResult,
     ) -> Result<()> {
         let records = self.store().records();
-        let mut matches = Vec::new();
+        let mut kept: BinaryHeap<Ranked<'_>> =
+            BinaryHeap::with_capacity(options.limit.min(1024).saturating_add(1));
         for slot in slots {
             if Some(slot) == query.slot {
                 continue;
@@ -452,34 +472,65 @@ impl SearchIndex {
             else {
                 continue;
             };
-            if !comparison.vetoed
-                && comparison
-                    .score
-                    .is_some_and(|score| score >= options.min_score)
-            {
-                matches.push(SearchMatch { slot, comparison });
+            let Some(score) = comparison.score.filter(|score| *score >= options.min_score) else {
+                continue;
+            };
+            if comparison.vetoed {
+                continue;
+            }
+            result.total_matches += 1;
+            let candidate = Ranked {
+                score,
+                id: record.id(),
+                found: SearchMatch { slot, comparison },
+            };
+            if kept.len() < options.limit {
+                kept.push(candidate);
+            } else if kept.peek().is_some_and(|worst| candidate < *worst) {
+                kept.pop();
+                kept.push(candidate);
             }
         }
-        matches.sort_by(|a, b| {
-            let score = |found: &SearchMatch| found.comparison.score.unwrap_or(0.0);
-            score(b)
-                .total_cmp(&score(a))
-                .then_with(|| compare_ids(records, a.slot, b.slot))
-        });
-        result.total_matches = matches.len();
-        matches.truncate(options.limit);
-        result.matches = matches;
+        result.matches = kept
+            .into_sorted_vec()
+            .into_iter()
+            .map(|ranked| ranked.found)
+            .collect();
         Ok(())
     }
 }
 
-/// Typed-ID order, strings before integers, then slot order.
-fn compare_ids(records: &[PreparedRecord], left: usize, right: usize) -> Ordering {
-    records[left]
-        .id()
-        .cmp(&records[right].id())
-        .then_with(|| left.cmp(&right))
+/// A kept match. The greatest is the worst: lowest score, then highest
+/// typed ID (strings before integers), then highest slot.
+struct Ranked<'a> {
+    score: f32,
+    id: Option<&'a RecordId>,
+    found: SearchMatch,
 }
+
+impl Ord for Ranked<'_> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other
+            .score
+            .total_cmp(&self.score)
+            .then_with(|| self.id.cmp(&other.id))
+            .then_with(|| self.found.slot.cmp(&other.found.slot))
+    }
+}
+
+impl PartialOrd for Ranked<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Ranked<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for Ranked<'_> {}
 
 fn check_options(options: SearchOptions) -> Result<()> {
     if options.min_score > 0.0 && options.min_score <= 1.0 {

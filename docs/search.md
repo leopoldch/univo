@@ -28,7 +28,7 @@ A record's score is a weighted mean of its field similarities, so a score of at 
 | Exact object | Records sharing one equal leaf, or both empty | A positive similarity needs an equal leaf |
 
 Two more rules complete the guarantee:
-- **Rounding.** Lanes use `s − 10⁻⁶`, so that rounding in the weighted mean never drops a record that reaches `s`.
+- **Rounding.** Lanes use `s·(1 − 10⁻⁶)`, so that rounding in the weighted mean never drops a record that reaches `s`. The margin is relative, so it stays positive even for the smallest positive minimum.
 - **Exact records.** Records equal to the query on every field are always included, through the [exact index](exact-index.md), whatever the work limit.
 
 Every candidate is then scored with `compare_with_vectors`:
@@ -44,27 +44,34 @@ Every candidate is then scored with `compare_with_vectors`:
   - `limit` bounds the matches returned, while `total_matches` counts them all;
   - `max_entries` bounds the index entries each lexical or value lane reads. When a lane reaches it, `truncated` is set and matches may be missing. The exact lane and the semantic scan are not limited.
 - **Order:** highest score first, then typed ID (strings before integers), then slot.
+- **Memory:** every match is counted, but only the best `limit` are kept, in a bounded heap. A group of 100,000 duplicates with `limit = 10` keeps ten explanations, not 100,000; ranking costs `O(M log limit)` for `M` matches.
 - **Diagnostics:** `candidates` counts the records scored; `lanes` counts the candidates each lane proposed.
-- **Adding records:** `add(records)` embeds the batch, then stores it as a whole. Schema, unique typed IDs and the record limit are checked first, so on error the index is unchanged.
+- **Adding records:** `add(records)` embeds the batch and makes every check before storing anything, so on error the index is unchanged. The checks are: schema, unique typed IDs, the record limit, and the model of the new embeddings against the stored ones (`state.model_mismatch` if the embedder changed).
+- **Queries:** a query's embeddings are checked against the model of the stored ones in the same way. Slots beyond the records return `limit.index_capacity`.
 - **Model:** a schema with semantic fields needs a model (`model.unavailable` otherwise).
 - **Record limit:** at most 2³² records (`limit.index_capacity`).
 
 ## Cost
 
-Standard workload of [specs/07-performance.md](../specs/07-performance.md), Apple M2, one thread:
+Standard workload of [specs/07-performance.md](../specs/07-performance.md):
 - 100,000 records: ID, tenant, a name of about 20 characters, a semantic description of 30 words;
 - one record in ten is a near-duplicate of the previous one;
 - synthetic embeddings of 256 dimensions;
-- search of a stored record at a minimum score of 0.8, p95 of 200 queries.
+- search of a stored record at a minimum score of 0.8, `limit = 10`, Apple M2, one thread.
 
-| Partitions | Median | p95 | Budget |
-| --- | --- | --- | --- |
-| 1 | 6.0 ms | 10.5 ms | 25 ms |
-| 10 | 1.8 ms | 2.4 ms | 25 ms |
+Following the specification's protocol, each scenario runs five independent repetitions (index rebuilt each time) of 1,000 queries after a warmup. The figures are the median repetition.
 
-The specification allows 50 ms at the p95 with four threads. Most of the time goes to the semantic scan (about 2.5 ms per 100,000 vectors) and the lexical lane.
+| Scenario | Median | p95 (range over 5) | p99 | Budget (p95) |
+| --- | --- | --- | --- | --- |
+| 1 partition | 5.9 ms | 9.9 ms (9.8–10.1) | 11.9 ms | 25 ms |
+| 10 partitions | 1.7 ms | 2.2 ms (2.2–2.2) | 2.5 ms | 25 ms |
+| 1 partition, queries from a group of 10,000 identical records | 7.6 ms | 8.0 ms (8.0–8.1) | 8.3 ms | 20 ms |
 
-Building the indexes for 100,000 records takes 0.19 s with synthetic embeddings; encoding with the default model adds about 47 µs per distinct description on one thread. The indexes take about 104 MiB, mostly the 98 MiB of embeddings. Records and the model are not counted.
+- **Group scenario.** Each query scores the 9,999 other members, all matches, and keeps ten.
+- **Specification.** It allows 50 ms at the p95 with four threads.
+- **Where the time goes.** Most of it goes to the semantic scan (about 2.5 ms per 100,000 vectors) and the lexical lane.
+
+**Build and memory.** Building the indexes for 100,000 records takes about 0.18 s with synthetic embeddings; encoding with the default model adds about 47 µs per distinct description on one thread. The estimated heap of the indexes is about 115 MiB: every lane, the exact index and the ID set, most of it the 98 MiB of embeddings. Records and the model are not counted.
 
 **Lower minimum scores cost more.** The lexical lane's cost rises sharply below 0.8 ([lexical candidates](lexical-search.md)). The semantic scan stays linear in the partition until an approximate index replaces it (U-016).
 
@@ -73,5 +80,11 @@ Building the indexes for 100,000 records takes 0.19 s with synthetic embeddings;
 - `crates/univo-engine/tests/search_oracle.rs`: search equals the exhaustive oracle, matches and counts, on stored records and new queries.
   - **Data:** minimum scores from 0.2 to 1; a partition; typed IDs; a hybrid name with typos; a hostname with blank values; a discriminant SKU; nested objects that can be empty or null; a semantic description, some without known tokens; indexing in two batches.
   - **Mutation checks:** removing the lexical, semantic or value lane, nested object leaves, or the empty-object key makes the tests fail.
-  - **Also covered:** ranking and limits, work limits that keep exact matches and report truncation, invalid minimum scores, foreign schemas, missing models, oversized limits, and failed batches leaving the index unchanged.
+  - **Also covered:**
+    - ranking and limits, including a group of a thousand identical records with limits from 0 to 500;
+    - work limits that keep exact matches and report truncation;
+    - invalid minimum scores, and minimum scores as small as `10⁻⁴⁰` with a subnormal cosine;
+    - foreign schemas, missing models, oversized limits, and slots up to `usize::MAX`;
+    - failed batches, and an embedder whose descriptor changes, leaving the index unchanged.
+  - A reversed ID order in the bounded heap makes the tests fail.
 - `crates/univo-engine/tests/search_budget.rs` enforces the budget in release builds.
