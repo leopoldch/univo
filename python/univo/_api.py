@@ -129,6 +129,7 @@ class Finder:
         threads: int = 1,
         max_records: int = 100_000,
         max_exhaustive_pairs: int = 1_000_000,
+        max_semantic_comparisons: int = 1_000_000,
     ) -> None:
         if schema is not None and (fields is not None or id_field is not None):
             raise _univo.invalid_option("schema", "exclusive of fields and id_field")
@@ -146,6 +147,12 @@ class Finder:
             schema = Schema(fields={path: Text() for path in fields}, id_field=id_field)
         if type(max_exhaustive_pairs) is not int or not 0 <= max_exhaustive_pairs <= 2**63 - 1:
             raise _univo.invalid_option("max_exhaustive_pairs", "an integer in [0, 2**63 - 1]")
+        if (
+            type(max_semantic_comparisons) is not int
+            or not 0 <= max_semantic_comparisons <= 2**63 - 1
+        ):
+            raise _univo.invalid_option("max_semantic_comparisons", "an integer in [0, 2**63 - 1]")
+        self._max_semantic_comparisons = max_semantic_comparisons
         self._max_exhaustive_pairs = max_exhaustive_pairs
         self._schema = schema
         self._native_schema = _univo.Schema() if schema is None else schema._native
@@ -195,12 +202,16 @@ class Finder:
         exhaustive: bool = False,
     ) -> Report:
         """Report unordered pairs from a temporary dataset, without storing it."""
-        self._validate_options(limit, max_entries)
+        min_score = self._validate_options(min_score, limit, max_entries)
         with self._lock:
             index = self._new_index()
             index.add(records)
             result = index.find(
-                min_score, limit, self._entries(max_entries), exhaustive, self._max_exhaustive_pairs
+                min_score,
+                limit,
+                self._entries(max_entries),
+                exhaustive,
+                (self._max_exhaustive_pairs, self._max_semantic_comparisons),
             )
             result["generation"] = 0 if self._index is None else self._index.stats()["generation"]
             return self._report(result, exhaustive)
@@ -215,7 +226,7 @@ class Finder:
         exhaustive: bool = False,
     ) -> Report:
         """Read-only search; exclude an existing query ID. Never merges data."""
-        self._validate_options(limit, max_entries)
+        min_score = self._validate_options(min_score, limit, max_entries)
         with self._lock:
             result = self._persistent_index().search(
                 record, min_score, limit, self._entries(max_entries), exhaustive
@@ -223,10 +234,12 @@ class Finder:
             return self._report(result, exhaustive)
 
     @staticmethod
-    def _validate_options(limit: int, max_entries: int | None) -> None:
+    def _validate_options(min_score: float, limit: int, max_entries: int | None) -> float:
         for name, value in (("limit", limit), ("max_entries", max_entries)):
             if value is not None and (type(value) is not int or not 0 <= value <= 2**32 - 1):
                 raise _univo.invalid_option(name, "an integer in [0, 2**32 - 1]")
+
+        return _univo.validate_threshold(min_score)
 
     @staticmethod
     def _entries(value: int | None) -> int:
@@ -276,6 +289,7 @@ class Finder:
                 "effective_threads": self._threads if self._native_schema.needs_model else 1,
                 "max_records": self._max_records,
                 "max_exhaustive_pairs": self._max_exhaustive_pairs,
+                "max_semantic_comparisons": self._max_semantic_comparisons,
                 "config_fingerprint": self._native_schema.configuration_fingerprint(
                     self._model_ref, self._model
                 ),

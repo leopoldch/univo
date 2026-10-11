@@ -102,6 +102,9 @@ macro_rules! error_codes {
 }
 
 error_codes! {
+    SemanticComparisonLimit => "limit.semantic_comparisons", ResourceLimit,
+        "A semantic candidate report exceeds its scan budget",
+        "Partition the records or explicitly raise max_semantic_comparisons.";
     PairLimit => "limit.pair_count", ResourceLimit,
         "An exhaustive report exceeds its pair budget",
         "Use candidate search, partition the records, or explicitly raise max_exhaustive_pairs.";
@@ -291,6 +294,12 @@ struct Inner {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl Error {
+    pub fn semantic_comparison_limit(requested: usize, limit: usize) -> Self {
+        Self::new(ErrorCode::SemanticComparisonLimit,
+            format!("semantic candidate report requires at most {requested} vector entries, above the limit of {limit}"))
+            .count("requested",requested).count("limit",limit)
+    }
+
     pub fn pair_limit(requested: usize, limit: usize) -> Self {
         Self::new(
             ErrorCode::PairLimit,

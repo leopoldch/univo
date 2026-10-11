@@ -230,3 +230,68 @@ def test_exact_baseline_survives_unknown_semantic_tokens() -> None:
     assert match.score == match.coverage == match.field_scores["text"] == 1.0
     assert finder.find([{"text": "hello world"}] * 2).total_matches == 1
     assert finder.find([{"text": "hello world"}] * 2, exhaustive=True).total_matches == 1
+
+
+@pytest.mark.parametrize("minimum", [0.0, -1.0, 1.0000000001, float("nan"), float("inf"), 1e-300])
+@pytest.mark.parametrize("offline", [False, True])
+def test_invalid_threshold_never_resolves_model(
+    monkeypatch: pytest.MonkeyPatch, minimum: float, offline: bool
+) -> None:
+    def forbidden_load(*args: object, **kwargs: object) -> None:
+        pytest.fail("invalid options must fail before loading the model")
+
+    monkeypatch.setattr("univo.models._load", forbidden_load)
+    finder = Finder(schema=Schema(fields={"text": Text(mode="semantic")}), offline=offline)
+    with pytest.raises(InvalidParameterError) as failure:
+        finder.find([{"text": "online"}], min_score=minimum)
+    assert failure.value.code == "parameter.threshold"
+    with pytest.raises(InvalidParameterError) as failure:
+        finder.search({"text": "online"}, min_score=minimum)
+    assert failure.value.code == "parameter.threshold"
+    assert finder.stats()["records"] == 0
+    assert not finder.config()["model_loaded"]
+
+
+def test_oversized_object_key_fails_before_child_path_allocation() -> None:
+    finder = Finder(schema=Schema(fields={"v": Exact()}, max_selected_bytes=32))
+    before = finder.stats()
+    with pytest.raises(ResourceLimitError) as failure:
+        finder.add([{"v": {"x" * (1 << 20): 1}}])
+    assert failure.value.code == "limit.record_size"
+    # Early refusal points to the containing object, without copying the huge key into a path.
+    assert failure.value.path == "v"
+    assert failure.value.record_index == 0
+    assert finder.stats() == before
+
+
+def test_semantic_candidate_find_requires_explicit_scan_budget() -> None:
+    schema = Schema(fields={"text": Text(mode="semantic")})
+    records = [{"text": "online"}, {"text": "cloud"}, {"text": "payments"}]
+    finder = Finder(schema=schema, model_path=TINY, offline=True, max_semantic_comparisons=8)
+    for limit in (0, 10):
+        with pytest.raises(ResourceLimitError) as failure:
+            finder.find(records, limit=limit, max_entries=0)
+        assert failure.value.code == "limit.semantic_comparisons"
+        assert failure.value.details["requested"] == 9
+        assert finder.stats()["records"] == 0
+    allowed = Finder(schema=schema, model_path=TINY, offline=True, max_semantic_comparisons=9)
+    assert allowed.find(records).matches == allowed.find(records, exhaustive=True).matches
+    assert allowed.config()["max_semantic_comparisons"] == 9
+
+
+def test_semantic_scan_budget_respects_partitions_and_field_count() -> None:
+    schema = Schema(
+        partition_by=["tenant"],
+        fields={
+            "one": Text(mode="semantic"),
+            "two": Text(mode="semantic"),
+        },
+    )
+    records = [{"tenant": i // 2, "one": "online", "two": "cloud"} for i in range(3)]
+    # Two fields, partitions of sizes 2 and 1: (2*2 + 1*1) * 2 = 10 entries.
+    blocked = Finder(schema=schema, model_path=TINY, offline=True, max_semantic_comparisons=9)
+    with pytest.raises(ResourceLimitError) as failure:
+        blocked.find(records)
+    assert failure.value.details["requested"] == 10
+    allowed = Finder(schema=schema, model_path=TINY, offline=True, max_semantic_comparisons=10)
+    assert allowed.find(records).total_matches == 1

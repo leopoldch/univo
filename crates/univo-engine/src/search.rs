@@ -349,6 +349,16 @@ impl SearchIndex {
             .fold(0, usize::saturating_add)
     }
 
+    /// Conservative count of dense semantic lane entries for all queries.
+    /// Includes both directions and self entries, for every semantic field.
+    pub(crate) fn semantic_scan_count(&self) -> usize {
+        self.partitions
+            .values()
+            .map(|slots| slots.len().saturating_mul(slots.len()))
+            .fold(0, usize::saturating_add)
+            .saturating_mul(self.semantic.len())
+    }
+
     pub(crate) fn search_pairs(
         &self,
         slot: usize,

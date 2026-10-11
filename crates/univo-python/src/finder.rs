@@ -198,6 +198,13 @@ fn convert(
                 .to_str()
                 .map_err(|_| Error::unsupported_type(path, "non-UTF-8 key"))?;
             *used = used.saturating_add(key.len());
+            if *used > limits.max_selected_bytes {
+                return Err(Error::record_too_large(
+                    path,
+                    limits.max_selected_bytes,
+                    *used,
+                ));
+            }
             let child = child_path(path, key)?;
             entries.push((
                 key.to_owned(),
@@ -467,8 +474,9 @@ impl NativeIndex {
         limit: usize,
         max_entries: usize,
         exhaustive: bool,
-        max_pairs: usize,
+        budgets: (usize, usize),
     ) -> PyResult<Bound<'py, PyDict>> {
+        let (max_pairs, max_semantic_comparisons) = budgets;
         let result = py
             .detach(|| {
                 run(self.pool.as_deref(), || {
@@ -480,6 +488,7 @@ impl NativeIndex {
                         },
                         exhaustive,
                         max_pairs,
+                        max_semantic_comparisons,
                     )
                 })
             })
@@ -550,4 +559,15 @@ fn run<T: Send>(pool: Option<&rayon::ThreadPool>, work: impl FnOnce() -> T + Sen
         Some(pool) => pool.install(work),
         None => work(),
     }
+}
+
+/// Validate before any model resolution, using the same f32 range as search.
+#[pyfunction]
+#[allow(clippy::cast_possible_truncation)]
+pub(crate) fn validate_threshold(py: Python<'_>, min_score: f64) -> PyResult<f32> {
+    let score = min_score as f32;
+    if !(min_score.is_finite() && min_score > 0.0 && min_score <= 1.0 && score > 0.0) {
+        return Err(to_py_err(py, &Error::invalid_threshold(score)));
+    }
+    Ok(score)
 }

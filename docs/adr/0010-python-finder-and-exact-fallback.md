@@ -33,3 +33,7 @@ The Python layer holds a lock across model resolution and computation, favoring 
 ## Revisit
 
 Revisit when U-012 calibrates scoring, U-013 provides embedding reuse, U-014 defines persistent fingerprints, or U-017 requires concurrent generations. The multilingual model/download budget remains a separate measured decision; this ADR does not change ADR 0007 or the 100 MiB default-model target.
+
+## PR #15 review corrections
+
+Candidate semantic reports enforce a separate explicit scan budget: semantic fields × sum of squared partition bucket sizes, default one million. Counting absent vectors conservatively avoids an extra scan and guarantees the guard also covers dense lane traversal. This replaces the unguarded dense semantic path, without claiming a universal CPU cap for lexical/value retrieval. Global ranking uses a bounded heap (O(log limit) per retained replacement) and a single final sort. Threshold validation runs through Rust before model resolution; object-key byte budgets are checked before copying keys or extending diagnostic paths. Regression tests compare heap results with an independent full-sort oracle, check both report budgets, and exercise the real Python wrapper with a forbidden model loader.

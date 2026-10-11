@@ -39,6 +39,21 @@ The text of an error has three lines: the message, prefixed with the record posi
 Generated from the Rust core by `crates/univo-core/tests/error_catalog.rs`; each example is produced by a real call.
 
 <!-- catalog:start -->
+### limit.semantic_comparisons
+
+A semantic candidate report exceeds its scan budget.
+
+- Kind: `ResourceLimit` (Python: `univo.ResourceLimitError`)
+- Fix: Partition the records or explicitly raise max_semantic_comparisons.
+
+Example:
+
+```text
+semantic candidate report requires at most 1000001 vector entries, above the limit of 1000000
+hint: Partition the records or explicitly raise max_semantic_comparisons.
+code: limit.semantic_comparisons (https://github.com/leopoldch/univo/blob/main/docs/errors.md#limitsemantic_comparisons)
+```
+
 ### limit.pair_count
 
 An exhaustive report exceeds its pair budget.
