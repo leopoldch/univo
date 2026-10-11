@@ -15,6 +15,8 @@ Each record captures one decision, the alternatives considered, the evidence, th
 | [0009](0009-semantic-evidence-in-scoring.md) | Semantic evidence in pairwise scoring | Accepted |
 | [0010](0010-python-finder-and-exact-fallback.md) | Python Finder and exact fallback | Accepted (U-011) |
 
+| [0011](0011-offline-quality-calibration.md) | Offline calibration and experimental quality scope | Accepted (benchmark protocol) |
+
 ## Template
 
 ```markdown

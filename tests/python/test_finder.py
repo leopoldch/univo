@@ -295,3 +295,15 @@ def test_semantic_scan_budget_respects_partitions_and_field_count() -> None:
     assert failure.value.details["requested"] == 10
     allowed = Finder(schema=schema, model_path=TINY, offline=True, max_semantic_comparisons=10)
     assert allowed.find(records).total_matches == 1
+
+
+def test_quality_profile_runner_preserves_every_critical_hard_gate() -> None:
+    from quality_profiles import evaluate
+
+    corpus = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "critical" / "cases.jsonl"
+    for rows, pairs, failures in (
+        evaluate(corpus, "lexical", TINY),
+        evaluate(corpus, "semantic", TINY),
+    ):
+        assert failures == []
+        assert len(rows) == len(pairs) == 178
