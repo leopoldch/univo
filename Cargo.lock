@@ -1346,8 +1346,10 @@ name = "univo-python"
 version = "0.0.0"
 dependencies = [
  "pyo3",
+ "rayon",
  "univo-core",
  "univo-embed",
+ "univo-engine",
 ]
 
 [[package]]

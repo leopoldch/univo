@@ -57,3 +57,22 @@ def test_importing_univo_and_its_models_loads_no_heavy_or_network_module() -> No
 def test_import_opens_no_python_socket() -> None:
     """Covers Python-level sockets; native code is covered by tools/check_native_dependencies.py."""
     assert run_isolated(SOCKET_AUDIT_EVENTS) == []
+
+
+CONSTRUCTION = """
+import json, sys
+from univo import Finder, Schema, Text
+before = set(sys.modules)
+events = []
+sys.addaudithook(lambda event, args: events.append(event) if event.startswith("socket.") else None)
+finder = Finder(schema=Schema(fields={"text": Text(mode="semantic")}),
+                model="/missing/univo/model", offline=True)
+print(json.dumps({"loaded": finder.config()["model_loaded"],
+                  "network": events,
+                  "model_modules": sorted(name for name in set(sys.modules) - before
+                                          if name.startswith("univo.models"))}))
+"""
+
+
+def test_finder_construction_neither_loads_model_nor_opens_socket() -> None:
+    assert run_isolated(CONSTRUCTION) == {"loaded": False, "network": [], "model_modules": []}

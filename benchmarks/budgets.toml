@@ -10,6 +10,10 @@
 p95_ms = 20.0
 samples = 30
 
+[python.finder_construction]
+p95_ms = 20.0
+samples = 30
+
 [wheel]
 # Compressed wheel size, model weights excluded.
 max_compressed_mib = 30.0

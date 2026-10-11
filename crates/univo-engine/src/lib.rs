@@ -21,6 +21,11 @@ pub mod vectors;
 pub use dense::{Neighbor, top_k, within};
 pub use exact::{ExactHit, ExactIndex, ExactSearch};
 pub use lexical::{LexicalIndex, LexicalMatch, LexicalSearch};
-pub use search::{LaneCounts, SearchIndex, SearchMatch, SearchOptions, SearchResult};
+pub use search::{
+    LaneCounts, SEARCH_VERSION, SearchIndex, SearchMatch, SearchOptions, SearchResult,
+};
 pub use store::RecordStore;
 pub use vectors::{FieldVectors, RecordVectors, embed_records, is_embedded};
+
+mod report;
+pub use report::{PairMatch, PairReport};

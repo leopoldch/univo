@@ -20,7 +20,7 @@ Every dependency is recorded here with its purpose, enabled features, license, f
 
 `univo-embed` ([ADR 0008](adr/0008-model-download-and-inference-backend.md)) is linked into the Python extension since U-009: the macOS arm64 wheel grows from 0.15 MiB to 1.43 MiB (extension of 3.2 MB stripped). Downloads use Python's standard library (`urllib`), imported only when a download starts, so the package still has no runtime Python dependency. Its 108 linked packages are listed by `cargo tree -p univo-embed -e normal`; their licenses are permissive (MIT, Apache-2.0, BSD-2-Clause, Unlicense, Zlib, BSL-1.0 and Unicode-3.0 options), and their notices ship with the wheels in U-019. `tokenizers` runs batches on Rayon's global thread pool.
 
-`univo-engine` depends on the local `univo-core` and `univo-embed` crates (MIT, no additional features); it embeds records through the `Embedder` trait. Its indexes use standard-library collections and the core's fingerprint and dot-product code. Beyond those of `univo-embed`, it adds no third-party or native dependency, and it is not yet linked into the Python wheel.
+`univo-engine` depends on the local `univo-core` and `univo-embed` crates (MIT, no additional features); it embeds records through the `Embedder` trait. Its indexes use standard-library collections and the core's fingerprint and dot-product code. Beyond those of `univo-embed`, it adds no third-party or native dependency, and U-011 links it into the Python wheel. The wheel-size effect is recorded in [performance](performance.md).
 
 ## Development only
 
@@ -37,3 +37,6 @@ The engine's dense-insertion budget test reuses this `toml` development dependen
 The minimum supported Rust version is 1.89: `model2vec-rs` requires 1.88, and the model cache uses the standard library's file locks, stable since 1.89.
 
 Python development tools (`maturin`, `pytest`, `ruff`, `mypy`) are pinned in `uv.lock`; the package has no runtime Python dependency.
+
+
+U-011 adds `rayon` 1.12.0 as a direct runtime dependency of `univo-python` to bound semantic encoding by the Finder thread budget (default features; MIT OR Apache-2.0). Rayon and its transitive dependencies were already linked through `tokenizers`: no new third-party or native package is added. The exact/lexical path creates no pool. The Python facade uses only the standard library; it introduces no runtime Python requirement.

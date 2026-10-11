@@ -76,3 +76,6 @@ The comparison lists, for each field in schema order, its similarity, its signal
 - `crates/univo-core/tests/object_comparison.rs`: nested nulls are unknown, nested differences veto, one-sided keys lower the coverage, objects of unknown values give no evidence, empty objects are equal.
 - `crates/univo-core/tests/lexical_properties.rs`: edit similarity and trigram Jaccard against naive reference implementations.
 - Release budgets: one million comparisons of standard records in 550 ms (311 ms measured) and of configurations with nested parameters in 250 ms (143 ms measured).
+
+
+U-011 search preserves verified whole-record equality when the pairwise score is absent because semantic tokens have no embedding. This is engine `SEARCH_VERSION=1`, independent of `SCORING_VERSION=2`; it assigns exact evidence only after the complete equality oracle succeeds, and does not turn partial unknown-token equality into semantic evidence. See [ADR 0010](adr/0010-python-finder-and-exact-fallback.md).

@@ -129,6 +129,8 @@ fn examples() -> Vec<Error> {
         .unwrap();
 
     vec![
+        Error::pair_limit(1_000_001, 1_000_000),
+        Error::invalid_option("mode", "lexical, semantic or hybrid"),
         schema_error(Schema::builder()),
         schema_error({
             let mut builder = Schema::builder();

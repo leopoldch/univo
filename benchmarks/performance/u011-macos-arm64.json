@@ -1,0 +1,53 @@
+{
+  "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+  "processor": "arm",
+  "python": "3.14.7",
+  "univo": "0.0.0",
+  "records": 100000,
+  "queries_per_repeat": 1000,
+  "repeats": 5,
+  "threads": 1,
+  "partitions": 1,
+  "model_bytes": 0,
+  "model_state": "not loaded; lexical schema",
+  "query_state": "warm index, new query IDs and texts, no embedding cache",
+  "add_ms": [
+    113.151333,
+    105.101125,
+    114.534083,
+    99.556458,
+    103.830625
+  ],
+  "search_p95_ms": [
+    0.40588545,
+    0.4058771,
+    0.41734309999999997,
+    0.40715899999999994,
+    0.40554404999999993
+  ],
+  "search_p99_ms": [
+    0.47739041,
+    0.48923541,
+    0.47868233,
+    0.45809092,
+    0.46950833
+  ],
+  "import_p95_ms": 2.67901905,
+  "construction_p95_ms": 0.0171394,
+  "index_bytes": 27667758,
+  "process_peak_rss_bytes": 185876480,
+  "date": "2026-10-11",
+  "cpu": "Apple M2",
+  "memory_bytes": 17179869184,
+  "rust": "1.99.0",
+  "build": "release, portable CPU target, macOS arm64 abi3 wheel",
+  "dataset": "100000 fixed-seed random 20-character ASCII names, integer IDs; seed 11",
+  "wheel_compressed_bytes": 1744847,
+  "wheel_uncompressed_bytes": 3891014,
+  "extension_bytes": 3686128,
+  "power_source": "AC Power reported by pmset",
+  "measurement_state": "after build and test processes completed",
+  "min_score": 0.8,
+  "output_limit": 10,
+  "pyo3": "0.29.3"
+}

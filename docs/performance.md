@@ -50,3 +50,22 @@ Measured on 2026-10-07: Apple M2, 16 GiB, macOS 27.0.1, Rust 1.99.0, release, on
 | 40,000 | 718.0 ms | 1.146 ms | 1.739 ms | 5.406 ms | 6.199 ms |
 
 At 40k, current single-addition samples ranged from 1.735 to 1.780 ms without IDs and 6.088 to 6.448 ms with decreasing IDs. The 25 ms insertion budget leaves room for allocator/runtime noise while rejecting the previous dense-bucket sorting cost, including the normal CI slack. It is not an end-to-end ingestion or search-latency target. Ordered ID postings add tree-node storage and another owned ID key; total RSS and byte budgeting remain separate work. See [ADR 0006](adr/0006-incremental-exact-postings.md).
+
+
+## Python Finder (U-011)
+
+[Reproduction script](../benchmarks/performance/python_finder.py), [raw measurements](../benchmarks/performance/u011-macos-arm64.json). On 2026-10-11: Apple M2, 16 GiB RAM, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0; portable CPU release wheel installed outside the repository. Fixed seed 11, 100,000 random 20-character ASCII names and integer IDs, one lexical field, one partition, one thread. Five repeats, 20 warmup queries then 1,000 newly converted queries per repeat (new IDs, one changed character); no model loaded, model footprint zero. Input generation, construction and index destruction are outside add/search timers. The full Python-to-Rust-to-Python path is timed. The final run starts after build/test processes finish; `pmset` reports AC power. Search uses `min_score=0.8`, output limit 10.
+
+| Measurement | Result |
+| --- | --- |
+| Full `add` of 100,000 records | median 105.1 ms; range 99.6–114.5 ms |
+| Full warm `search` p95 | median of five 0.406 ms; range 0.406–0.417 ms |
+| Full warm `search` p99 | median of five 0.477 ms; range 0.458–0.489 ms |
+| `import univo` p95 | 2.68 ms, 30 fresh interpreters |
+| `Finder()` construction p95 | 0.017 ms, 30 fresh interpreters; facade import outside timer |
+| Estimated index heap | 26.4 MiB, excluding prepared records and model |
+| Process peak RSS | 177.3 MiB, including synthetic Python inputs and all repeat lifetimes |
+| Compressed wheel | 1.664 MiB, macOS arm64 |
+| Uncompressed wheel / native extension | 3.71 / 3.52 MiB |
+
+All query assertions passed; candidate lanes were untruncated and returned the intended near-match. The random names make candidate retrieval selective: these numbers are a lexical integration benchmark, not the semantic standard workload, dense-match find or a quality estimate. The process RSS includes pre-generated data and the maximum across all repeats; it is not the isolated incremental engine RSS. Other platform wheel sizes and Finder performance have not been measured locally. The full release Rust suite passed before the exact fallback; final affected engine oracle/report tests also pass in release. The final installed wheel passes 1,050 Python/tool/corpus tests (three platform/conditional skips), outside the source tree with Rust absent from PATH. Native architecture checks pass separately.

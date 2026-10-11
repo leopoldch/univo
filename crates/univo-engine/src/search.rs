@@ -21,8 +21,8 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use univo_core::{
-    Comparison, Error, FieldKind, PreparedRecord, RecordId, Result, Schema, TextMode,
-    compare_with_vectors, partition_fingerprint,
+    Comparison, Error, FieldKind, PreparedRecord, RecordId, Result, Schema, Signal, TextMode,
+    compare_with_vectors, has_value, is_exact_match, partition_fingerprint,
 };
 use univo_embed::Embedder;
 
@@ -37,6 +37,10 @@ use crate::vectors::{RecordVectors, embed_records, is_embedded};
 /// in the weighted mean never drops a record that reaches it. Relative, so
 /// that the lowered minimum stays positive for every positive minimum.
 const ROUNDING_MARGIN: f32 = 1e-6;
+
+/// Search decision version, independent of pairwise scoring. Version 1
+/// preserves verified whole-record equality when embeddings give no evidence.
+pub const SEARCH_VERSION: u32 = 1;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SearchOptions {
@@ -113,6 +117,7 @@ struct Query<'a> {
     record: &'a PreparedRecord,
     vectors: Vec<Option<&'a [f32]>>,
     slot: Option<usize>,
+    min_slot: usize,
 }
 
 impl SearchIndex {
@@ -266,6 +271,7 @@ impl SearchIndex {
                 .as_ref()
                 .map_or_else(Vec::new, |vectors| vectors.record(0)),
             slot: None,
+            min_slot: 0,
         };
         self.search_candidates(&query, options)
     }
@@ -304,6 +310,7 @@ impl SearchIndex {
                 .as_ref()
                 .map_or_else(Vec::new, |vectors| vectors.record(0)),
             slot: None,
+            min_slot: 0,
         };
         let slots = self
             .partition(query.record)
@@ -335,6 +342,34 @@ impl SearchIndex {
         Ok(result)
     }
 
+    pub(crate) fn pair_count(&self) -> usize {
+        self.partitions
+            .values()
+            .map(|slots| slots.len().saturating_mul(slots.len().saturating_sub(1)) / 2)
+            .fold(0, usize::saturating_add)
+    }
+
+    pub(crate) fn search_pairs(
+        &self,
+        slot: usize,
+        options: SearchOptions,
+        exhaustive: bool,
+    ) -> Result<SearchResult> {
+        check_options(options)?;
+        let mut query = self.stored_query(slot)?;
+        query.min_slot = slot + 1;
+        if !exhaustive {
+            return self.search_candidates(&query, options);
+        }
+        let slots = self
+            .partition(query.record)
+            .iter()
+            .map(|&slot| slot as usize);
+        let mut result = SearchResult::default();
+        self.score(&query, slots, options, &mut result)?;
+        Ok(result)
+    }
+
     fn stored_query(&self, slot: usize) -> Result<Query<'_>> {
         let record = self
             .store()
@@ -348,6 +383,7 @@ impl SearchIndex {
             record,
             vectors,
             slot: Some(slot),
+            min_slot: 0,
         })
     }
 
@@ -450,7 +486,7 @@ impl SearchIndex {
         let mut kept: BinaryHeap<Ranked<'_>> =
             BinaryHeap::with_capacity(options.limit.min(1024).saturating_add(1));
         for slot in slots {
-            if Some(slot) == query.slot {
+            if slot < query.min_slot || Some(slot) == query.slot {
                 continue;
             }
             let record = &records[slot];
@@ -462,7 +498,7 @@ impl SearchIndex {
                 .vectors
                 .as_ref()
                 .map_or_else(Vec::new, |vectors| vectors.record(slot));
-            let Some(comparison) = compare_with_vectors(
+            let Some(mut comparison) = compare_with_vectors(
                 self.schema(),
                 query.record,
                 &query.vectors,
@@ -472,6 +508,9 @@ impl SearchIndex {
             else {
                 continue;
             };
+            if comparison.score.is_none() && is_exact_match(self.schema(), query.record, record)? {
+                exact_evidence(self.schema(), query.record, &mut comparison);
+            }
             let Some(score) = comparison.score.filter(|score| *score >= options.min_score) else {
                 continue;
             };
@@ -537,5 +576,32 @@ fn check_options(options: SearchOptions) -> Result<()> {
         Ok(())
     } else {
         Err(Error::invalid_threshold(options.min_score))
+    }
+}
+
+/// Whole-record equality is a proof of normalized equality even if the
+/// encoder knows none of the text. Missing fields remain missing evidence.
+fn exact_evidence(schema: &Schema, record: &PreparedRecord, comparison: &mut Comparison) {
+    let mut total = 0.0f64;
+    let mut backed = 0.0f64;
+    for ((field, value), evidence) in schema
+        .fields()
+        .iter()
+        .zip(record.fields())
+        .zip(comparison.fields.iter_mut())
+    {
+        let weight = f64::from(field.kind.weight());
+        total += weight;
+        if has_value(field, value) {
+            evidence.similarity = Some(1.0);
+            evidence.signal = Signal::Exact;
+            evidence.evidence = 1.0;
+            backed += weight;
+        }
+    }
+    comparison.score = Some(1.0);
+    #[allow(clippy::cast_possible_truncation)]
+    {
+        comparison.coverage = (backed / total) as f32;
     }
 }

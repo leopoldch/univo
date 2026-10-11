@@ -157,3 +157,15 @@ Match(
 Le rapport expose : liste ou itérateur borné de matches, nombre d’objets traités, avertissements de troncature, génération d’index, empreinte de configuration, profil de recherche et compteurs de candidats. Un résultat ANN ne porte jamais un indicateur trompeur « aucun doublon possible ».
 
 État de recherche : `exhaustive` seulement si toutes les paires admissibles ont été scorées ; sinon `bounded` ou `approximate`. Distinguer troncature de sortie (`limit`) et limitation des candidats internes.
+
+
+### Contrat livré en U-011
+
+`Finder`, `Schema`, `Text`, `Exact`, `Match` et `Report` sont exposés par Python ; voir le [quickstart et les limites](../docs/quickstart.md). Le raccourci `generic-v1` conserve les champs hybrid scorés lexicalement selon l’ADR 0009, sans modèle. Les champs explicitement semantic résolvent le modèle paresseusement. `min_score=0.8` est une valeur de commodité non calibrée, à évaluer en U-012, pas un seuil d’identité validé.
+
+La capacité par défaut est de 100 000 enregistrements. `find(exhaustive=True)` refuse un majorant de plus de 1 000 000 de paires dans les partitions avant scoring (`max_exhaustive_pairs` configurable) ; `limit` borne uniquement la sortie. `Report` distingue `output_truncated` et `candidate_truncated`, expose `total_matches`, `processed`, `candidates`, `generation`, `config_fingerprint`, `search_profile` et `warnings`. La recherche par union porte `bounded`, même sans troncature ; l’oracle explicite seul porte `exhaustive`.
+
+`threads` borne le pool de l’encodage sémantique ; scoring et retrieval restent à un thread. Les appels sur un même Finder sont sérialisés. `stats().index_bytes` exclut enregistrements et modèle ; les limites par enregistrement et de capacité ne sont pas un plafond RSS global. Persistance, upsert/remove et calibration restent aux tâches suivantes.
+
+
+Le moteur U-011 expose `SEARCH_VERSION=1` en plus de `SCORING_VERSION=2` : une égalité normalisée complète vérifiée reste exacte, de score 1, lorsque les textes sémantiques n’ont aucun token connu et que le score pairwise est absent. Les valeurs manquantes restent sans preuve ; des textes inconnus distincts ne se rapprochent pas. Ce fallback et ses alternatives sont consignés dans l’[ADR 0010](../docs/adr/0010-python-finder-and-exact-fallback.md).
