@@ -102,6 +102,15 @@ macro_rules! error_codes {
 }
 
 error_codes! {
+    SemanticComparisonLimit => "limit.semantic_comparisons", ResourceLimit,
+        "A semantic candidate report exceeds its scan budget",
+        "Partition the records or explicitly raise max_semantic_comparisons.";
+    PairLimit => "limit.pair_count", ResourceLimit,
+        "An exhaustive report exceeds its pair budget",
+        "Use candidate search, partition the records, or explicitly raise max_exhaustive_pairs.";
+    InvalidOption => "parameter.invalid_option", InvalidParameter,
+        "An API option is invalid",
+        "Use one of the documented values for this option.";
     NoFields => "schema.no_fields", InvalidSchema,
         "The schema compares no field",
         "Add at least one Text or Exact field to the schema.";
@@ -285,6 +294,32 @@ struct Inner {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl Error {
+    pub fn semantic_comparison_limit(requested: usize, limit: usize) -> Self {
+        Self::new(ErrorCode::SemanticComparisonLimit,
+            format!("semantic candidate report requires at most {requested} vector entries, above the limit of {limit}"))
+            .count("requested",requested).count("limit",limit)
+    }
+
+    pub fn pair_limit(requested: usize, limit: usize) -> Self {
+        Self::new(
+            ErrorCode::PairLimit,
+            format!(
+                "exhaustive report requires at most {requested} pairs, above the limit of {limit}"
+            ),
+        )
+        .count("requested", requested)
+        .count("limit", limit)
+    }
+
+    pub fn invalid_option(name: &str, expected: &str) -> Self {
+        Self::new(
+            ErrorCode::InvalidOption,
+            format!("option `{name}` must be {expected}"),
+        )
+        .text("option", name)
+        .text("expected", expected)
+    }
+
     fn new(code: ErrorCode, message: String) -> Self {
         Self(Box::new(Inner {
             code,
@@ -441,7 +476,7 @@ impl Error {
         )
     }
 
-    pub(crate) fn wrong_shape(path: &FieldPath, expected: &str, found: &str) -> Self {
+    pub fn wrong_shape(path: &FieldPath, expected: &str, found: &str) -> Self {
         let message = if path.is_root() {
             format!(
                 "the record must be {expected}, found {}",
@@ -565,7 +600,7 @@ impl Error {
         .at(path)
     }
 
-    pub(crate) fn nesting_too_deep(path: &FieldPath, limit: usize) -> Self {
+    pub fn nesting_too_deep(path: &FieldPath, limit: usize) -> Self {
         Self::new(
             ErrorCode::NestingTooDeep,
             format!("field `{path}` is nested more than {limit} levels deep"),
@@ -574,7 +609,7 @@ impl Error {
         .count("limit", limit)
     }
 
-    pub(crate) fn record_too_large(path: &FieldPath, limit: usize, reached: usize) -> Self {
+    pub fn record_too_large(path: &FieldPath, limit: usize, reached: usize) -> Self {
         Self::new(
             ErrorCode::RecordTooLarge,
             format!(

@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-11",
+  "hardware": "Apple M2, 16 GiB RAM",
+  "rust": "1.99.0",
+  "build": "portable CPU release wheels installed outside source tree",
+  "baseline_commit": "0e3d491",
+  "after_state": "PR #15 review corrections",
+  "baseline": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7",
+    "records": 10000,
+    "early_group": 150,
+    "limit": 10000,
+    "threads": 1,
+    "partitions": 1,
+    "model_bytes": 0,
+    "seed": 15,
+    "state": "new temporary index per repeat; no model; data generation excluded",
+    "find_ms": [
+      771.50975,
+      745.700458,
+      746.229125,
+      750.117667,
+      746.721083
+    ],
+    "median_ms": 746.721083,
+    "process_peak_rss_bytes": 64438272
+  },
+  "bounded_heap": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7",
+    "records": 10000,
+    "early_group": 150,
+    "limit": 10000,
+    "threads": 1,
+    "partitions": 1,
+    "model_bytes": 0,
+    "seed": 15,
+    "state": "new temporary index per repeat; no model; data generation excluded",
+    "find_ms": [
+      94.220584,
+      96.982875,
+      152.534584,
+      118.599042,
+      98.813708
+    ],
+    "median_ms": 98.813708,
+    "process_peak_rss_bytes": 65241088
+  },
+  "wheel_bytes": 1744301
+}

@@ -5,6 +5,7 @@ from check_wheel import check
 
 VALID_FILES = (
     "univo/__init__.py",
+    "univo/_api.py",
     "univo/py.typed",
     "univo/_transport.py",
     "univo/_univo.pyi",

@@ -9,6 +9,7 @@ import zipfile
 
 REQUIRED = {
     "univo/__init__.py",
+    "univo/_api.py",
     "univo/_transport.py",
     "univo/_univo.pyi",
     "univo/errors.py",

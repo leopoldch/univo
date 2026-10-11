@@ -3,6 +3,7 @@
 //! the interpreter.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::Mutex;
 
 use pyo3::exceptions::PyException;
@@ -98,7 +99,7 @@ impl Transport for PyTransport {
 /// A loaded embedding model.
 #[pyclass(frozen, module = "univo._univo")]
 pub(crate) struct Model {
-    embedder: StaticEmbedder,
+    pub(crate) embedder: Arc<StaticEmbedder>,
     path: PathBuf,
 }
 
@@ -241,7 +242,7 @@ pub(crate) fn load_model(
         let resolved = resolve(&spec, &Cache::new(root), &options, &transport)?;
         let embedder = resolved.load()?;
         Ok::<_, Error>(Model {
-            embedder,
+            embedder: Arc::new(embedder),
             path: resolved.path().to_path_buf(),
         })
     });

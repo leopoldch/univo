@@ -13,6 +13,7 @@ Each record captures one decision, the alternatives considered, the evidence, th
 | [0007](0007-default-embedding-model.md) | Default embedding model and model selection | Proposed |
 | [0008](0008-model-download-and-inference-backend.md) | Model download, cache and inference backend | Accepted |
 | [0009](0009-semantic-evidence-in-scoring.md) | Semantic evidence in pairwise scoring | Accepted |
+| [0010](0010-python-finder-and-exact-fallback.md) | Python Finder and exact fallback | Accepted (U-011) |
 
 ## Template
 

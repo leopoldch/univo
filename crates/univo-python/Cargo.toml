@@ -15,8 +15,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 univo-core.workspace = true
+univo-engine.workspace = true
 univo-embed.workspace = true
 pyo3 = { workspace = true, features = ["macros", "abi3-py311"] }
+
+rayon = "1.12.0"
 
 [features]
 # Enabled by maturin for wheel builds; plain cargo builds link libpython instead.

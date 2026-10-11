@@ -2,11 +2,25 @@
 
 **Fast, local duplicate detection for your data.**
 
-Univo is a planned library for finding duplicate candidates in strings and structured objects, with a reusable Rust core and a simple Python interface. Inference runs locally; applications do not need to manage embeddings or deploy a vector database.
+Univo is a library under construction for finding duplicate candidates in strings and structured objects, with a reusable Rust core and a simple Python interface. Inference runs locally; applications do not need to manage embeddings or deploy a vector database.
 
 ## Project status
 
-The library is under construction and not published yet. Rust provides types, schemas, normalization, errors, pairwise exact matching and an [exact index](docs/exact-index.md). Rust also provides [search](docs/search.md) by score across exact, lexical and semantic evidence. Python exposes typed errors and [model download, cache and offline use](docs/models.md); `Finder` remains to be implemented. See the [development guide](docs/development.md). API examples and performance budgets in the specifications describe targets unless explicitly validated.
+The library is under construction and not published yet. Rust provides types, schemas, normalization, errors, pairwise exact matching and an [exact index](docs/exact-index.md). Rust also provides [search](docs/search.md) by score across exact, lexical and semantic evidence. Python exposes [Finder](docs/quickstart.md), typed errors and [model download, cache and offline use](docs/models.md). See the [development guide](docs/development.md). API examples and performance budgets in the specifications describe targets unless explicitly validated.
+
+## Quickstart
+
+With a locally built wheel ([development](docs/development.md)):
+
+```python
+from univo import Finder
+
+report = Finder(offline=True).find(["Amazon", "Amiazon", "Microsoft"])
+for match in report.matches:
+    print(match.left_id, match.right_id, match.score)
+```
+
+The Amazon/Amiazon pair is returned as a candidate. Default hybrid fields use lexical evidence and need no model. Explicit semantic fields load a local model lazily. Scores are not probabilities; [limits and structured examples](docs/quickstart.md).
 
 ## Specifications
 
