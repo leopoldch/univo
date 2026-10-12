@@ -212,8 +212,9 @@ impl SearchIndex {
     ///
     /// Nodes are searched in parallel inside a Rayon pool. Workers
     /// buffer at most [`EDGE_BUFFER`] pairs before folding them into the
-    /// shared map, which only grows: the budget fails exactly when more
-    /// than `max_pairs` distinct pairs qualify, whatever the threads.
+    /// shared map, which only grows and stops at `max_pairs + 1` pairs: the
+    /// budget fails exactly when more than `max_pairs` distinct pairs
+    /// qualify, with the same count, whatever the threads.
     fn qualifying_pairs(
         &self,
         exact: &Exact,
@@ -228,6 +229,11 @@ impl SearchIndex {
         let edges: Mutex<HashMap<(usize, usize), f32>> = Mutex::new(HashMap::new());
         let fold = |buffer: &mut Vec<((usize, usize), f32)>| -> Result<()> {
             let mut edges = edges.lock().map_err(|_| Error::index_poisoned())?;
+            // Another worker may have exceeded the budget: insert nothing
+            // more, so the reported count does not depend on the schedule.
+            if edges.len() > options.max_pairs {
+                return Err(Error::group_pair_limit(edges.len(), options.max_pairs));
+            }
             for (pair, score) in buffer.drain(..) {
                 let kept = edges.entry(pair).or_insert(score);
                 *kept = kept.max(score);

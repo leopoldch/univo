@@ -216,11 +216,21 @@ fn the_group_pair_budget_fails_exactly_above_the_qualifying_pairs() {
     for threads in [1, 2, 8] {
         let fits = on(threads, || index.groups(group_options(0.6, false, pairs))).unwrap();
         assert_eq!(fits.qualifying_pairs, pairs);
-        let error = on(threads, || {
-            index.groups(group_options(0.6, false, pairs - 1))
-        })
-        .unwrap_err();
-        assert_eq!(error.code(), ErrorCode::GroupPairLimit, "{threads}");
+        // Repeated: a worker folding after another one failed must not
+        // insert more pairs, or the reported count would vary.
+        // A limit reached while other workers are still folding, too.
+        for limit in [pairs - 1, pairs / 4] {
+            for _ in 0..50 {
+                let error =
+                    on(threads, || index.groups(group_options(0.6, false, limit))).unwrap_err();
+                assert_eq!(error.code(), ErrorCode::GroupPairLimit, "{threads}");
+                assert_eq!(
+                    error.details(),
+                    univo_core::Error::group_pair_limit(limit + 1, limit).details(),
+                    "{threads} {limit}"
+                );
+            }
+        }
     }
 }
 
