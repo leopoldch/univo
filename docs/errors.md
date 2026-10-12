@@ -114,6 +114,21 @@ hint: Partition the records or explicitly raise max_semantic_comparisons.
 code: limit.semantic_comparisons (https://github.com/leopoldch/univo/blob/main/docs/errors.md#limitsemantic_comparisons)
 ```
 
+### limit.group_pairs
+
+Grouping found more qualifying pairs than allowed.
+
+- Kind: `ResourceLimit` (Python: `univo.ResourceLimitError`)
+- Fix: Raise max_pairs if the memory is available, raise min_score, or partition the records into smaller groups of comparison.
+
+Example:
+
+```text
+grouping found at least 1000001 qualifying pairs, above the limit of 1000000
+hint: Raise max_pairs if the memory is available, raise min_score, or partition the records into smaller groups of comparison.
+code: limit.group_pairs (https://github.com/leopoldch/univo/blob/main/docs/errors.md#limitgroup_pairs)
+```
+
 ### limit.pair_count
 
 An exhaustive report exceeds its pair budget.

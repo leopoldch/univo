@@ -15,6 +15,7 @@ pub use ann::AnnOptions;
 pub mod dense;
 pub mod embedding_cache;
 pub mod exact;
+pub mod groups;
 pub mod lexical;
 pub mod search;
 pub mod store;
@@ -24,6 +25,7 @@ pub mod vectors;
 pub use dense::{Neighbor, top_k, within};
 pub use embedding_cache::{CacheStats, EmbeddingCache};
 pub use exact::{ExactHit, ExactIndex, ExactSearch};
+pub use groups::{Group, GroupOptions, GroupReport};
 pub use lexical::{LexicalIndex, LexicalMatch, LexicalSearch};
 pub use search::{
     CheckOrAdd, Decision, LaneCounts, QueryEncoder, SEARCH_VERSION, SearchIndex, SearchMatch,

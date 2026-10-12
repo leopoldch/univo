@@ -5,7 +5,7 @@ use std::ops::Range;
 
 use univo_core::{
     ExactMatch, PreparedRecord, RecordId, Result, Schema, exact_fingerprint, exact_match,
-    is_exact_match,
+    has_exact_evidence, is_exact_match,
 };
 
 use crate::store::{RecordStore, id_text_bytes};
@@ -141,6 +141,11 @@ impl ExactIndex {
     /// # Errors
     /// Rejects a query prepared with an incompatible schema.
     pub fn matching_slots(&self, query: &PreparedRecord) -> Result<Vec<usize>> {
+        // A query without exact evidence matches nothing: its bucket, which
+        // holds every blank record, is not scanned.
+        if !has_exact_evidence(self.store.schema(), query)? {
+            return Ok(Vec::new());
+        }
         let fingerprint = exact_fingerprint(self.store.schema(), query)?;
         let Some(bucket) = self.buckets.get(&fingerprint) else {
             return Ok(Vec::new());

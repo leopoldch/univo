@@ -109,6 +109,42 @@ class Report:
 
 
 @dataclass(frozen=True)
+class Group:
+    """Records every pair of which reaches ``min_score`` without a veto.
+
+    A group proposes records to review together; it is not a proof that they
+    describe one entity. ``min_score`` is the lowest score among its pairs.
+    """
+
+    members: tuple[RecordId, ...]
+    min_score: float
+
+
+@dataclass(frozen=True)
+class Groups:
+    """Groups of a temporary dataset, from ``Finder.group``.
+
+    ``exact`` holds records equal on every selected field after
+    normalization. ``groups`` holds conservative groups: a record joins only
+    when every pair with the members qualifies, so records linked only
+    through others stay apart (``split_pairs`` counts such pairs). Groups
+    depend on the order in which pairs are considered: strongest first, then
+    input position.
+    """
+
+    exact: tuple[tuple[RecordId, ...], ...]
+    groups: tuple[Group, ...]
+    processed: int
+    qualifying_pairs: int
+    split_pairs: int
+    candidates: int
+    config_fingerprint: str
+    search_profile: Literal["exhaustive", "bounded", "approximate"]
+    candidate_truncated: bool
+    warnings: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Decision:
     """Outcome of ``Finder.check_or_add``.
 
@@ -314,6 +350,68 @@ class Finder:
         )
         result["generation"] = 0 if stored is None else stored.stats()["generation"]
         return self._report(result, exhaustive)
+
+    def group(
+        self,
+        records: Iterable[object],
+        *,
+        min_score: float = 0.8,
+        max_group_size: int = 100,
+        max_pairs: int = 1_000_000,
+        max_entries: int | None = None,
+        exhaustive: bool = False,
+    ) -> Groups:
+        """Group a temporary dataset, without storing it.
+
+        Exact groups are sound: equality after normalization is transitive.
+        Conservative groups only join records whose every pair reaches
+        ``min_score`` without a veto, up to ``max_group_size`` records; they
+        never close a chain A-B-C into one group unless A-C qualifies too.
+        """
+        min_score = self._validate_options(min_score, 0, max_entries)
+        for name, value in (("max_group_size", max_group_size), ("max_pairs", max_pairs)):
+            if type(value) is not int or not 0 <= value <= 2**63 - 1:
+                raise _univo.invalid_option(name, "an integer in [0, 2**63 - 1]")
+        with self._lock:
+            index = self._new_index(exhaustive=exhaustive)
+        budget = self._max_semantic_comparisons if self._ann and not exhaustive else None
+        index.add(records, budget)
+        raw = index.groups(
+            min_score,
+            self._entries(max_entries),
+            exhaustive,
+            max_group_size,
+            max_pairs,
+            (self._max_exhaustive_pairs, self._max_semantic_comparisons),
+        )
+        warnings = []
+        if raw["approximate"]:
+            warnings.append("HNSW approximate retrieval; pairs may be missing.")
+        if raw["candidate_truncated"]:
+            warnings.append("Candidate work limit reached; pairs may be missing.")
+        if raw["split_pairs"]:
+            warnings.append(
+                f"{raw['split_pairs']} qualifying pairs link records left in different "
+                "groups: similarity is not transitive."
+            )
+        return Groups(
+            exact=tuple(tuple(group) for group in raw["exact"]),
+            groups=tuple(
+                Group(members=tuple(members), min_score=score) for members, score in raw["groups"]
+            ),
+            processed=raw["processed"],
+            qualifying_pairs=raw["qualifying_pairs"],
+            split_pairs=raw["split_pairs"],
+            candidates=raw["candidates"],
+            config_fingerprint=self._native_schema.configuration_fingerprint(
+                self._model_ref, self._model, self._ann
+            ),
+            search_profile="exhaustive"
+            if exhaustive
+            else ("approximate" if raw["approximate"] else "bounded"),
+            candidate_truncated=raw["candidate_truncated"],
+            warnings=tuple(warnings),
+        )
 
     def search(
         self,

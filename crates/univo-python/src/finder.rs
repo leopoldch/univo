@@ -8,7 +8,7 @@ use univo_core::{
     Comparison, Conflict, Error, Exact, ExactNormalizer, FieldKind, FieldPath, Limits, Map,
     PreparedRecord, RecordId, Schema, Text, TextMode, Value, exact_match, prepare,
 };
-use univo_engine::{Decision, QueryEncoder, SearchIndex, SearchOptions};
+use univo_engine::{Decision, GroupOptions, QueryEncoder, SearchIndex, SearchOptions};
 
 type FieldSpec = (String, String, String, f32, bool, bool, String);
 
@@ -834,6 +834,72 @@ impl NativeIndex {
             })
             .map_err(|e: Error| to_py_err(py, &e))?;
         report_dict(py, &report)
+    }
+
+    /// Exact and conservative groups of the indexed records.
+    #[allow(clippy::too_many_arguments)] // PyO3 mirrors the Python options.
+    fn groups<'py>(
+        &self,
+        py: Python<'py>,
+        min_score: f32,
+        max_entries: usize,
+        exhaustive: bool,
+        max_group_size: usize,
+        max_pairs: usize,
+        budgets: (usize, usize),
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let options = GroupOptions {
+            min_score,
+            max_entries,
+            exhaustive,
+            max_group_size,
+            max_pairs,
+            max_exhaustive_pairs: budgets.0,
+            max_semantic_comparisons: budgets.1,
+        };
+        let (report, ids, processed) = py
+            .detach(|| {
+                let state = self.read()?;
+                let report = run(self.pool.as_deref(), || state.index.groups(options))?;
+                let store = state.index.store();
+                let ids = |slots: &[usize]| -> Vec<OutputId> {
+                    slots
+                        .iter()
+                        .map(|&slot| OutputId::of(&store.records()[slot], slot))
+                        .collect()
+                };
+                let exact: Vec<Vec<OutputId>> =
+                    report.exact.iter().map(|group| ids(group)).collect();
+                let groups: Vec<(Vec<OutputId>, f32)> = report
+                    .groups
+                    .iter()
+                    .map(|group| (ids(&group.members), group.min_score))
+                    .collect();
+                Ok((report, (exact, groups), state.index.len()))
+            })
+            .map_err(|e: Error| to_py_err(py, &e))?;
+        let to_list = |members: &[OutputId]| -> PyResult<Vec<Py<PyAny>>> {
+            members.iter().map(|id| id.to_py(py)).collect()
+        };
+        let exact = ids
+            .0
+            .iter()
+            .map(|group| to_list(group))
+            .collect::<PyResult<Vec<_>>>()?;
+        let groups = PyList::empty(py);
+        for (members, min_score) in &ids.1 {
+            groups.append((to_list(members)?, *min_score))?;
+        }
+        let out = PyDict::new(py);
+        out.set_item("exact", exact)?;
+        out.set_item("groups", groups)?;
+        out.set_item("processed", processed)?;
+        out.set_item("qualifying_pairs", report.qualifying_pairs)?;
+        out.set_item("split_pairs", report.split_pairs)?;
+        out.set_item("candidates", report.candidates)?;
+        out.set_item("candidate_truncated", report.truncated)?;
+        out.set_item("approximate", report.approximate)?;
+        Ok(out)
     }
 
     #[allow(clippy::needless_pass_by_value)] // PyO3 extracts an owned path.

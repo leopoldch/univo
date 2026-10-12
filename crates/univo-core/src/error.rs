@@ -117,6 +117,9 @@ error_codes! {
     SemanticComparisonLimit => "limit.semantic_comparisons", ResourceLimit,
         "A semantic candidate report exceeds its scan budget",
         "Partition the records or explicitly raise max_semantic_comparisons.";
+    GroupPairLimit => "limit.group_pairs", ResourceLimit,
+        "Grouping found more qualifying pairs than allowed",
+        "Raise max_pairs if the memory is available, raise min_score, or partition the records into smaller groups of comparison.";
     PairLimit => "limit.pair_count", ResourceLimit,
         "An exhaustive report exceeds its pair budget",
         "Use candidate search, partition the records, or explicitly raise max_exhaustive_pairs.";
@@ -337,6 +340,17 @@ impl Error {
         Self::new(ErrorCode::SemanticComparisonLimit,
             format!("semantic candidate report requires at most {requested} vector entries, above the limit of {limit}"))
             .count("requested",requested).count("limit",limit)
+    }
+
+    /// Grouping stops once more than `limit` qualifying pairs are found;
+    /// `found` is the count when it stopped, a lower bound.
+    pub fn group_pair_limit(found: usize, limit: usize) -> Self {
+        Self::new(
+            ErrorCode::GroupPairLimit,
+            format!("grouping found at least {found} qualifying pairs, above the limit of {limit}"),
+        )
+        .count("found", found)
+        .count("limit", limit)
     }
 
     pub fn pair_limit(requested: usize, limit: usize) -> Self {

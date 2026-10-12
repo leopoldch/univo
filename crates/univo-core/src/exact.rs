@@ -76,6 +76,25 @@ pub fn exact_fingerprint(schema: &Schema, record: &PreparedRecord) -> Result<u64
     Ok(hasher.finish())
 }
 
+/// Whether `record` holds a value that can make it an exact match: two
+/// records without one, such as blank strings, are never exact matches,
+/// even with equal states. Cheap enough to skip their fingerprint bucket.
+///
+/// # Errors
+///
+/// Returns `state.schema_mismatch` for a record prepared with another
+/// schema.
+pub fn has_exact_evidence(schema: &Schema, record: &PreparedRecord) -> Result<bool> {
+    if record.schema != schema.preparation_fingerprint() {
+        return Err(Error::schema_mismatch());
+    }
+    Ok(schema
+        .fields()
+        .iter()
+        .zip(record.fields.iter())
+        .any(|(field, prepared)| is_informative(&field.kind, &prepared.state)))
+}
+
 /// Whether two records are an exact match, as [`exact_match`] decides,
 /// without building the explanation: no allocation, for candidate lanes
 /// that only need the answer.

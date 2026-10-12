@@ -82,6 +82,16 @@ class RawDecision(TypedDict):
     id: str | int | None
     report: RawReport
 
+class RawGroups(TypedDict):
+    exact: list[list[str | int]]
+    groups: list[tuple[list[str | int], float]]
+    processed: int
+    qualifying_pairs: int
+    split_pairs: int
+    candidates: int
+    candidate_truncated: bool
+    approximate: bool
+
 class Index:
     def __init__(
         self,
@@ -111,6 +121,15 @@ class Index:
         exhaustive: bool,
         budgets: tuple[int, int],
     ) -> RawReport: ...
+    def groups(
+        self,
+        min_score: float,
+        max_entries: int,
+        exhaustive: bool,
+        max_group_size: int,
+        max_pairs: int,
+        budgets: tuple[int, int],
+    ) -> RawGroups: ...
     def save(self, path: str, configuration: str, max_bytes: int) -> None: ...
     def stats(self) -> dict[str, int]: ...
 
