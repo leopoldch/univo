@@ -88,3 +88,9 @@ Following the specification's protocol, each scenario runs five independent repe
     - failed batches, and an embedder whose descriptor changes, leaving the index unchanged.
   - A reversed ID order in the bounded heap makes the tests fail.
 - `crates/univo-engine/tests/search_budget.rs` enforces the budget in release builds.
+
+U-016 adds optional [HNSW routing](ann.md) for semantic fields. The dense default
+and exhaustive oracle remain complete within their declared limits. Reports
+using a graph expose `approximate` even without observed saturation; the
+exact/lexical union and core reranking remain. Snapshot reconstruction and
+compaction can change approximate recall without changing logical generation.

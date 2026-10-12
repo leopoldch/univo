@@ -17,6 +17,7 @@ pub struct PairReport {
     pub total_matches: usize,
     pub candidates: usize,
     pub candidate_truncated: bool,
+    pub approximate: bool,
 }
 
 impl SearchIndex {
@@ -52,6 +53,7 @@ impl SearchIndex {
             report.total_matches += result.total_matches;
             report.candidates += result.candidates;
             report.candidate_truncated |= result.truncated;
+            report.approximate |= result.approximate;
             for found in result.matches {
                 let candidate = RankedPair {
                     right_id: self.store().records()[found.slot].id(),

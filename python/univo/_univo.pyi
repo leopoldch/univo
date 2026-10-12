@@ -53,7 +53,9 @@ class Schema:
     def needs_model(self) -> bool: ...
     def check_mutation(self, operation: str) -> None: ...
     def missing_ids(self, inputs: Iterable[str | int], max: int) -> list[str | int]: ...
-    def configuration_fingerprint(self, model_ref: str, model: Model | None = None) -> str: ...
+    def configuration_fingerprint(
+        self, model_ref: str, model: Model | None = None, ann: tuple[int, int] | None = None
+    ) -> str: ...
 
 class RawMatch(TypedDict):
     left_id: str | int
@@ -71,6 +73,7 @@ class RawReport(TypedDict):
     total_matches: int
     candidates: int
     generation: int
+    approximate: bool
     candidate_truncated: bool
     output_truncated: bool
 
@@ -82,8 +85,11 @@ class Index:
         model: Model | None = None,
         threads: int = 1,
         cache: EmbeddingCache | None = None,
+        ann: tuple[int, int] | None = None,
     ) -> None: ...
-    def add(self, inputs: Iterable[object]) -> list[str | int]: ...
+    def add(
+        self, inputs: Iterable[object], semantic_budget: int | None = None
+    ) -> list[str | int]: ...
     def upsert(self, inputs: Iterable[object]) -> list[str | int]: ...
     def remove(self, inputs: Iterable[str | int]) -> list[str | int]: ...
     def search(
@@ -120,4 +126,5 @@ class Snapshot:
         model: Model | None = None,
         threads: int = 1,
         cache: EmbeddingCache | None = None,
+        ann: tuple[int, int] | None = None,
     ) -> Index: ...

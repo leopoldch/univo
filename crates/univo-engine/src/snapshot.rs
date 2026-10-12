@@ -40,6 +40,8 @@ struct Manifest {
     records: usize,
     dimension: usize,
     model: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ann: Option<Value>,
     configuration: Value,
     record_file: Blob,
     vector_file: Blob,
@@ -480,6 +482,7 @@ fn write_generation(
         dimension: index.vectors.as_ref().map_or(0, |v| v.model().dimension),
         model: index.vectors.as_ref().map(|v| model_identity(v.model())),
         configuration,
+        ann: index.ann_options.map(crate::AnnOptions::identity),
         record_file,
         vector_file,
     };
@@ -626,6 +629,9 @@ impl Snapshot {
             || index.schema().preparation_fingerprint() != self.manifest.schema_fingerprint
         {
             return Err(invalid("schema changed; rebuild the index"));
+        }
+        if self.manifest.ann != index.ann_options.map(crate::AnnOptions::identity) {
+            return Err(invalid("ANN configuration changed; rebuild the index"));
         }
         self.check_capacity(index.store().max_records())?;
         let model = index.vectors.as_ref().map(|v| v.model().clone());

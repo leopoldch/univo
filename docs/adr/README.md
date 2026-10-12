@@ -23,6 +23,8 @@ Each record captures one decision, the alternatives considered, the evidence, th
 
 | [0014](0014-id-mutations.md) | Typed ID mutations and amortized compaction | Accepted (U-015) |
 
+| [0015](0015-explicit-partition-ann.md) | Explicit partition-scoped HNSW and measured recall | Accepted (experimental U-016) |
+
 ## Template
 
 ```markdown

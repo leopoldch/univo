@@ -57,3 +57,10 @@ Gates de non-régression proposés sur runner stable : alerte dès +10 % de p95,
 
 
 U-011 enforces the existing Finder construction budget (p95 ≤ 20 ms, 30 fresh interpreters, import of the facade outside the construction timer) in `python.finder_construction`. The [Python benchmark](../benchmarks/performance/python_finder.py) measures full add/search conversion and reports index estimates and process peak RSS on synthetic lexical records. It does not substitute for the semantic standard workload or U-012 quality benchmark. Exhaustive find defaults to a declared maximum of 1,000,000 partition pair-count upper bounds; callers may raise it explicitly. Candidate semantic find additionally defaults to a conservative limit of 1,000,000 dense lane entries (semantic fields × sum of squared partition sizes), independently of output and lexical lane limits. Raising `max_semantic_comparisons` explicitly authorizes larger scans. Global output retention uses a bounded heap and one final sort, rather than sorting after every record. Candidate find can still need quadratic work on dense matches; the output limit is not a CPU limit.
+
+U-016 mesure le backend vectoriel séparément de la recherche Finder complète
+à 1k/10k/100k et 1/4 threads. Les copies de graphes, visited sets et pics de
+reconstruction sont déclarés ; `ann_bytes` est une estimation retenue, pas
+un plafond RSS. Le défaut reste dense : les mesures ne justifient pas encore
+un `auto` et le budget incrémental de 512 Mio reste ouvert.
+[Protocole et données](../benchmarks/spikes/u016/README.md).

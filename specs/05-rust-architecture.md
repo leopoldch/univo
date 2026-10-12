@@ -63,3 +63,11 @@ Si une correspondance dépasse le seuil configuré, retourner `review` ou `match
 **Limite essentielle : l’atomicité locale ne couvre pas une DB externe ni plusieurs processus indépendants.** Une application distribuée doit organiser sa transaction, son idempotence et ses contraintes d’unicité. Ne jamais présenter `check_or_add` comme une protection globale contre les courses entre services.
 
 `threads` contrôle le budget global. Éviter de multiplier les pools Rust, tokenizer et runtime d’inférence. Tester un thread, puis plusieurs ; publier le nombre utilisé. Ne pas faire dépendre le bon fonctionnement d’un fork après initialisation du runtime.
+
+U-016 garde l'intégration HNSW, le filtrage et le reranking dans Rust,
+sans nouvelle thread pool. Le kernel Euclidien à huit accumulateurs est
+safe et portable. Les graphes copient les vecteurs distincts ; la recherche
+alloue un visited set par graphe parcouru. Construction de graphes seulement
+pour le profil explicite et les partitions assez grandes ; compaction et
+restauration reconstruisent depuis les vecteurs, sans inférence.
+Voir [ANN](../docs/ann.md).

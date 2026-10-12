@@ -1,0 +1,16 @@
+{
+  "counts": {
+    "background": {
+      "texts": 8772,
+      "vectors": 8707
+    },
+    "queries": {
+      "texts": 2063,
+      "vectors": 2048
+    }
+  },
+  "dimension": 256,
+  "model_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+  "corpus_sha256": "7f4c38bf853ece4ef54f156ae515ebda8955f9b9ed7dcfaa61b53d7c2ce41a58",
+  "splits": "background train+validation; queries held-out test, identical normalized texts excluded"
+}

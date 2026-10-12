@@ -88,3 +88,9 @@ finder = Finder(
 The first [offline quality benchmark](../benchmarks/quality/README.md) does not meet the precision/recall gates on organization-name aliases. Its validation thresholds are experimental measurements, not supported production profiles. The default score is still uncalibrated.
 
 `stats()` exposes active `records`, `retained_slots` and `tombstones`. Periodic Rust compaction reclaims obsolete versions without inference; it may pause calls and temporarily increase memory. Mutations become durable only after `save()`.
+
+For large semantic partitions, explicit `Finder(..., retrieval="hnsw")`
+enables approximate routing; default `retrieval="exact"` keeps the full vector
+scan. `ann_ef_search=512` and `ann_max_candidates=1024` control graph retrieval.
+An approximate report can miss matches without saturation. Read the
+[ANN contract and costs](ann.md) before selecting this profile.
