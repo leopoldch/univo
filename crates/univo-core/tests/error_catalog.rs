@@ -253,6 +253,7 @@ fn model_examples() -> Vec<Error> {
         Error::corrupt_model("/opt/models/m", "a vector is not finite"),
         Error::index_out_of_sync(1000, 1200, true),
         Error::index_poisoned(),
+        Error::group_pair_limit(1_000_001, 1_000_000),
         Error::invalid_threshold(1.1),
         Error::model_mismatch(
             "minishlab/potion-base-8M@bf8b056651a2c21b8d2565580b8569da283cab23",

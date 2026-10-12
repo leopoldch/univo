@@ -37,15 +37,7 @@ impl SearchIndex {
         if !(options.min_score.is_finite() && options.min_score > 0.0 && options.min_score <= 1.0) {
             return Err(univo_core::Error::invalid_threshold(options.min_score));
         }
-        if exhaustive && self.pair_count() > max_pairs {
-            return Err(univo_core::Error::pair_limit(self.pair_count(), max_pairs));
-        }
-        if !exhaustive && self.semantic_scan_count() > max_semantic_comparisons {
-            return Err(univo_core::Error::semantic_comparison_limit(
-                self.semantic_scan_count(),
-                max_semantic_comparisons,
-            ));
-        }
+        self.check_scan(exhaustive, max_pairs, max_semantic_comparisons)?;
         let mut report = PairReport::default();
         let mut kept = BinaryHeap::with_capacity(options.limit.min(1024).saturating_add(1));
         for left in self.store().active_slots() {
@@ -77,6 +69,28 @@ impl SearchIndex {
             .map(|ranked| ranked.found)
             .collect();
         Ok(report)
+    }
+}
+
+impl SearchIndex {
+    /// Refuses an all-pairs scan above its budget, before any scoring: the
+    /// admissible pairs when exhaustive, the semantic comparisons otherwise.
+    pub(crate) fn check_scan(
+        &self,
+        exhaustive: bool,
+        max_pairs: usize,
+        max_semantic_comparisons: usize,
+    ) -> Result<()> {
+        if exhaustive && self.pair_count() > max_pairs {
+            return Err(univo_core::Error::pair_limit(self.pair_count(), max_pairs));
+        }
+        if !exhaustive && self.semantic_scan_count() > max_semantic_comparisons {
+            return Err(univo_core::Error::semantic_comparison_limit(
+                self.semantic_scan_count(),
+                max_semantic_comparisons,
+            ));
+        }
+        Ok(())
     }
 }
 

@@ -117,6 +117,8 @@ Groupes optionnels, après stabilisation des paires :
 - groupes candidats : graphe explicite, sans statut « entité unique » ;
 - regroupement conservateur : ajout seulement si toutes les paires nécessaires satisfont la politique, avec ordre stable et limite de taille ; documenter la dépendance possible à l’ordre de construction et le coût O(g²).
 
+U-018 implémente `Finder.group` : groupes exacts par égalité normalisée vérifiée, groupes conservateurs où chaque paire interne atteint le seuil sans veto, ordre stable (score décroissant puis position), taille et nombre de paires bornés, paires scindées comptées et signalées. Voir [groupes](../docs/groups.md) et [ADR 0017](../docs/adr/0017-conservative-groups.md).
+
 Pas de fusion métier automatique en 1.0. Une future fonction `plan_merge` doit conserver la provenance par champ, exposer les conflits, choisir un représentant de façon déterministe et produire un plan réversible. Ne pas utiliser union-find sur toutes les paires similaires comme une preuve d’identité.
 
 U-016 implémente HNSW explicite par champ semantic et partition typée avec
