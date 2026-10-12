@@ -52,6 +52,40 @@ impl FieldVectors {
         self.data.capacity() * size_of::<f32>() + self.rows.capacity() * size_of::<Option<u32>>()
     }
 
+    /// Row remapping for active slots, without copying vector data.
+    pub(crate) fn selected_rows(
+        &self,
+        slots: impl Iterator<Item = usize>,
+    ) -> Result<(Vec<Option<u32>>, Vec<u32>)> {
+        let mut mapping = HashMap::new();
+        let mut source = Vec::new();
+        let mut selected = Vec::new();
+        for slot in slots {
+            let row = match self
+                .rows
+                .get(slot)
+                .copied()
+                .ok_or_else(Error::schema_mismatch)?
+            {
+                Some(row) => {
+                    let next = if let Some(&next) = mapping.get(&row) {
+                        next
+                    } else {
+                        let next = u32::try_from(source.len())
+                            .map_err(|_| Error::index_capacity(source.len(), MAX_ROWS))?;
+                        mapping.insert(row, next);
+                        source.push(row);
+                        next
+                    };
+                    Some(next)
+                }
+                None => None,
+            };
+            selected.push(row);
+        }
+        Ok((selected, source))
+    }
+
     /// Stores a new row and returns its number.
     fn add_row(&mut self, vector: &[f32]) -> Result<u32> {
         debug_assert_eq!(vector.len(), self.dimension);
@@ -86,6 +120,70 @@ impl RecordVectors {
             model,
             fields,
         }
+    }
+
+    /// Compact selected slots without re-encoding, preserving shared rows.
+    pub(crate) fn select(&self, slots: &[usize]) -> Result<Self> {
+        let mut selected = Self {
+            schema: self.schema,
+            model: self.model.clone(),
+            fields: Vec::new(),
+        };
+        for field in &self.fields {
+            let Some(field) = field else {
+                selected.fields.push(None);
+                continue;
+            };
+            let (rows, source) = field.selected_rows(slots.iter().copied())?;
+            let mut output = FieldVectors::new(field.dimension);
+            for row in source {
+                let start = row as usize * field.dimension;
+                output.add_row(&field.data[start..start + field.dimension])?;
+            }
+            output.rows = rows;
+            selected.fields.push(Some(output));
+        }
+        Ok(selected)
+    }
+
+    pub(crate) fn reuse(
+        &mut self,
+        old: &Self,
+        slots: &[Option<usize>],
+        records: &[PreparedRecord],
+        store: &crate::RecordStore,
+    ) -> Result<()> {
+        for (index, field) in self.fields.iter_mut().enumerate() {
+            let (Some(field), Some(previous)) = (field, old.field(index)) else {
+                continue;
+            };
+            let mut reused = HashMap::new();
+            for (position, slot) in slots.iter().enumerate() {
+                let Some(slot) = slot else {
+                    continue;
+                };
+                if records[position].fields()[index].state
+                    != store.records()[*slot].fields()[index].state
+                {
+                    continue;
+                }
+                field.rows[position] = match previous.rows[*slot] {
+                    Some(row) => {
+                        let next = if let Some(&next) = reused.get(&row) {
+                            next
+                        } else {
+                            let next = field
+                                .add_row(previous.get(*slot).ok_or_else(Error::schema_mismatch)?)?;
+                            reused.insert(row, next);
+                            next
+                        };
+                        Some(next)
+                    }
+                    None => None,
+                };
+            }
+        }
+        Ok(())
     }
 
     /// The model that produced these embeddings.
@@ -212,6 +310,16 @@ pub fn embed_records_cached(
     embedder: &dyn Embedder,
     cache: Option<&EmbeddingCache>,
 ) -> Result<RecordVectors> {
+    embed_records_selected(schema, records, embedder, cache, |_, _| true)
+}
+
+pub(crate) fn embed_records_selected(
+    schema: &Schema,
+    records: &[PreparedRecord],
+    embedder: &dyn Embedder,
+    cache: Option<&EmbeddingCache>,
+    selected: impl Fn(usize, usize) -> bool,
+) -> Result<RecordVectors> {
     if !records.iter().all(|record| record.is_prepared_with(schema)) {
         return Err(Error::schema_mismatch());
     }
@@ -238,8 +346,9 @@ pub fn embed_records_cached(
         let mut positions: HashMap<&str, usize> = HashMap::new();
         let texts: Vec<Option<usize>> = records
             .iter()
-            .map(|record| match &record.fields()[index].state {
-                FieldState::Text(text) if !text.trim().is_empty() => {
+            .enumerate()
+            .map(|(position, record)| match &record.fields()[index].state {
+                FieldState::Text(text) if selected(position, index) && !text.trim().is_empty() => {
                     Some(*positions.entry(text).or_insert_with(|| {
                         distinct.push(text);
                         distinct.len() - 1

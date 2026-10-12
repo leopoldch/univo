@@ -35,7 +35,7 @@ report = finder.search(records[0])
 assert [match.right_id for match in report.matches] == ["org-2"]
 ```
 
-`find` creates a temporary index and never changes the stored records or generation. It reports each unordered pair once. `add` validates and encodes a bounded batch before committing; it returns typed external IDs or generated integer slots when no `id_field` is configured. An ID collision rejects the entire batch, across partitions too. Integer `1` and string `"1"` are distinct IDs. Generated slots are stable within the instance; updates by ID belong to U-015. With no ID field, a query has no external ID to exclude. `search` is read-only and excludes an existing query ID when the schema provides one.
+`find` creates a temporary index and never changes the stored records or generation. It reports each unordered pair once. `add` validates and encodes a bounded batch before committing; it returns typed external IDs or generated integer slots when no `id_field` is configured. An ID collision rejects the entire batch, across partitions too. Integer `1` and string `"1"` are distinct IDs. Generated slots are stable within the instance; `upsert` replaces by external ID and `remove` returns missing IDs; see [mutations](mutations.md). With no ID field, a query has no external ID to exclude. `search` is read-only and excludes an existing query ID when the schema provides one.
 
 Only the selected fields, identifier and partition keys are converted. Values outside that projection can be arbitrary Python objects. Supported selected values are strings, signed 64-bit integers, finite floats, booleans, null, lists and dictionaries with string keys. No implicit `str()` call is made. Inputs are never changed. Nested dotted paths are supported; an object and its child cannot both be selected. Required fields, types, normalizers, vetoes and missing evidence follow the shared Rust contracts. Errors expose a stable `code`, `path`, `hint`, structured `details` and, for batches, `record_index`; see the [error catalog](errors.md).
 
@@ -48,7 +48,7 @@ Only the selected fields, identifier and partition keys are converted. Values ou
 | `search(..., limit=...)` | `10` | Maximum returned records |
 | `max_entries` on find/search | `None` | Work per lexical/value lane; `None` uses the largest supported budget; exact and semantic lanes are not capped by it |
 | `exhaustive` on find/search | `False` | Score every admissible pair/record rather than use candidate lanes |
-| `Finder(max_records=...)` | `100000` | Capacity of each persistent or temporary index; iterables stop at capacity plus one |
+| `Finder(max_records=...)` | `100000` | Active capacity of each index; mutation batches also stop at capacity plus one |
 | `Finder(max_exhaustive_pairs=...)` | `1000000` | Maximum pair-count upper bound for an exhaustive `find`, including when output limit is zero |
 | `Schema(max_selected_bytes=...)` | `1048576` | Bytes per selected record, with node/key accounting |
 | `Schema(max_depth=...)` | `16` | Nesting in a selected value; cycles hit this bound |
@@ -86,3 +86,5 @@ finder = Finder(
 [Explicit snapshots](persistence.md) and [bounded embedding reuse](embedding-cache.md) are implemented. `finder.save(path)` publishes the persistent index; `Finder.load(path, offline=True)` verifies and restores it without reencoding saved vectors. Upsert/remove, calibrated production thresholds and ANN remain later roadmap tasks.
 
 The first [offline quality benchmark](../benchmarks/quality/README.md) does not meet the precision/recall gates on organization-name aliases. Its validation thresholds are experimental measurements, not supported production profiles. The default score is still uncalibrated.
+
+`stats()` exposes active `records`, `retained_slots` and `tombstones`. Periodic Rust compaction reclaims obsolete versions without inference; it may pause calls and temporarily increase memory. Mutations become durable only after `save()`.

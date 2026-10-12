@@ -134,3 +134,52 @@ in release, including abrupt process exits at twelve boundaries and a real-model
 whole-batch versus chunked-row oracle. The [persistence contract](persistence.md)
 documents Windows directory-sync and retained-generation limitations. Other
 platform results await native CI; no release is published by U-014.
+
+## U-015 mutations and compaction
+
+[Reproduction script](../benchmarks/performance/python_mutations.py) and
+[raw samples](../benchmarks/performance/u015-macos-arm64.json). Release abi3 wheel,
+Apple M2 / 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, one thread.
+Five fresh processes per size, warm local potion-base-8M files at the U-014
+pinned revision (29.49 MiB, dimension 256), cache disabled. Synthetic integer
+IDs, 100 partitions, random 20-character lexical names and the U-014 semantic
+description workload; generation is outside timers. The final repetitions ran
+without concurrent builds/tests. These are workload measurements, not a
+universal latency or quality guarantee.
+
+After add, each process upserts one lexical-only batch, changes semantic text
+in a separate batch, removes another batch, then performs 60 unchanged upserts.
+The latter include periodic full lane/vector compaction without inference.
+Ten updated-ID retrieval checks succeed per repetition. Mutation decisions are
+also validated separately against a fresh exhaustive index, not inferred from
+benchmark speed.
+
+| Initial records | Batch size | Median full add, including model load | Median lexical-only upsert | Median semantic-changed upsert | Median remove | Median unchanged churn | Maximum churn call | Whole-process peak RSS |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1,000 | 100 | 60.6 ms | 0.31 ms | 4.12 ms | 0.014 ms | 0.20 ms | 2.18 ms | 114.8 MiB |
+| 10,000 | 1,000 | 425.4 ms | 2.98 ms | 41.41 ms | 0.101 ms | 2.23 ms | 25.19 ms | 312.4 MiB |
+| 100,000 | 1,000 | 4,077.0 ms | 3.53 ms | 41.37 ms | 0.152 ms | 3.22 ms | 273.71 ms | 916.0 MiB |
+
+Churn medians are the median of the five within-process medians; maxima and RSS
+are the largest observations across repetitions. Each 100k process compacts
+once during churn; smaller sizes compact twelve times. Retained slots stay
+within twice the active capacity. The 100k result retains 99k active records
+and includes the memory spike of rebuilding while the old index is still held.
+
+The RSS figure includes Python inputs, the loaded model, all selected fields,
+indexes, matrices and allocator high-water effects. It does **not** demonstrate
+the 512 MiB incremental engine target. That budget remains unchanged and open;
+compaction latency and peak memory need profiling before release. Removal only
+masks data immediately; obsolete records/vectors are reclaimed on a later
+mutation's compaction. See the [mutation contract](mutations.md).
+
+Validation: 208 Rust workspace tests pass (nine performance-budget tests ignored
+in debug); seven mutation tests and engine snapshot units pass in release.
+The four engine performance-budget suites pass in release, and 33 affected
+cache/vector/oracle/corpus tests pass in release with the real pinned model.
+Installed-wheel suites pass 1,108 tests plus one conditional skip on each of
+CPython 3.12 and 3.14, outside the repository with Rust absent from PATH.
+Ruff, mypy, fmt, clippy and documentation links pass. The final wheel is 1.762 MiB,
+with the same 112 linked packages and no network crate; no dependencies or model
+files were added. Cross-platform execution remains native CI's responsibility;
+no release or merge is performed by this implementation.

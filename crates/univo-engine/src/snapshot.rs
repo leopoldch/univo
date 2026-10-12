@@ -420,8 +420,8 @@ fn write_generation(
     let record_file = write_blob(&directory.join("records.bin"), max_bytes, |out| {
         out.write_all(RECORD_MAGIC).map_err(io)?;
         count(out, index.len())?;
-        for record in index.store().records() {
-            univo_core::snapshot::write_record(out, record)?;
+        for slot in index.store().active_slots() {
+            univo_core::snapshot::write_record(out, &index.store().records()[slot])?;
         }
         Ok(())
     })?;
@@ -437,14 +437,30 @@ fn write_generation(
                 out.write_all(&[u8::from(field.is_some())]).map_err(io)?;
                 if let Some(field) = field {
                     count(out, field.dimension)?;
-                    count(out, field.data.len() / field.dimension.max(1))?;
-                    count(out, field.rows.len())?;
-                    for row in &field.rows {
-                        out.write_all(&row.unwrap_or(u32::MAX).to_le_bytes())
-                            .map_err(io)?;
-                    }
-                    for value in &field.data {
-                        out.write_all(&value.to_le_bytes()).map_err(io)?;
+                    if index.store().len() == index.len() {
+                        count(out, field.data.len() / field.dimension.max(1))?;
+                        count(out, field.rows.len())?;
+                        for row in &field.rows {
+                            out.write_all(&row.unwrap_or(u32::MAX).to_le_bytes())
+                                .map_err(io)?;
+                        }
+                        for value in &field.data {
+                            out.write_all(&value.to_le_bytes()).map_err(io)?;
+                        }
+                    } else {
+                        let (rows, source) = field.selected_rows(index.store().active_slots())?;
+                        count(out, source.len())?;
+                        count(out, rows.len())?;
+                        for row in rows {
+                            out.write_all(&row.unwrap_or(u32::MAX).to_le_bytes())
+                                .map_err(io)?;
+                        }
+                        for row in source {
+                            let start = row as usize * field.dimension;
+                            for value in &field.data[start..start + field.dimension] {
+                                out.write_all(&value.to_le_bytes()).map_err(io)?;
+                            }
+                        }
                     }
                 }
             }
@@ -606,7 +622,7 @@ impl Snapshot {
     pub fn restore(self, mut index: SearchIndex) -> Result<SearchIndex> {
         check_metadata(&index)?;
         if self.manifest.schema != schema_identity(index.schema())
-            || !index.is_empty()
+            || !index.store().is_empty()
             || index.schema().preparation_fingerprint() != self.manifest.schema_fingerprint
         {
             return Err(invalid("schema changed; rebuild the index"));

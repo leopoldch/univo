@@ -240,6 +240,9 @@ impl LexicalIndex {
                 if self.partitions[slot] != partition || !filter.admits(self.sizes[slot]) {
                     continue;
                 }
+                if !store.is_active(slot) {
+                    continue;
+                }
                 let candidate = &records[slot];
                 if candidate.partition() != query.partition() {
                     continue;

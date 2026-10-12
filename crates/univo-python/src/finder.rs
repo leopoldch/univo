@@ -109,6 +109,28 @@ impl PySchema {
             .iter()
             .any(|f| matches!(f.kind, FieldKind::Text(t) if t.mode == TextMode::Semantic))
     }
+    fn check_mutation(&self, py: Python<'_>, operation: &str) -> PyResult<()> {
+        if self.schema.id_field().is_none() {
+            return Err(to_py_err(
+                py,
+                &Error::invalid_option(operation, "a schema with id_field"),
+            ));
+        }
+        Ok(())
+    }
+
+    fn missing_ids(
+        &self,
+        py: Python<'_>,
+        inputs: &Bound<'_, PyAny>,
+        max: usize,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        ids(py, &self.schema, inputs, max)?
+            .iter()
+            .map(|value| external_id(py, value))
+            .collect()
+    }
+
     #[pyo3(signature = (model_ref, model=None))]
     fn configuration_fingerprint(&self, model_ref: &str, model: Option<&Model>) -> String {
         let mut hash = std::collections::hash_map::DefaultHasher::new();
@@ -302,6 +324,49 @@ fn batch(
     Ok(records)
 }
 
+fn ids(
+    py: Python<'_>,
+    schema: &Schema,
+    inputs: &Bound<'_, PyAny>,
+    max: usize,
+) -> PyResult<Vec<RecordId>> {
+    let path = schema.id_field().ok_or_else(|| {
+        to_py_err(
+            py,
+            &Error::invalid_option("remove", "a schema with id_field"),
+        )
+    })?;
+    let mut output = Vec::new();
+    for (position, input) in inputs.try_iter()?.enumerate() {
+        if position >= max {
+            return Err(to_py_err(
+                py,
+                &Error::index_capacity(position.saturating_add(1), max),
+            ));
+        }
+        let converted = convert(&input?, path, 0, schema.limits(), &mut 0)
+            .and_then(|value| match value {
+                Value::Str(text) => Ok(RecordId::Str(text.into_boxed_str())),
+                Value::Int(value) => Ok(RecordId::Int(value)),
+                other => Err(Error::wrong_shape(
+                    path,
+                    "a string or an integer",
+                    other.type_name(),
+                )),
+            })
+            .map_err(|error| to_py_err(py, &error.with_record(position, None)))?;
+        output.push(converted);
+    }
+    Ok(output)
+}
+
+fn external_id(py: Python<'_>, id: &RecordId) -> PyResult<Py<PyAny>> {
+    match id {
+        RecordId::Str(text) => Ok(text.as_ref().into_pyobject(py)?.into_any().unbind()),
+        RecordId::Int(value) => Ok(value.into_pyobject(py)?.into_any().unbind()),
+    }
+}
+
 #[derive(Debug)]
 #[pyclass(module = "univo._univo", name = "Index")]
 pub(crate) struct NativeIndex {
@@ -418,16 +483,7 @@ impl NativeIndex {
             inputs,
             self.max_records - self.index.len(),
         )?;
-        let next_generation = if records.is_empty() {
-            self.generation
-        } else {
-            self.generation.checked_add(1).ok_or_else(|| {
-                to_py_err(
-                    py,
-                    &Error::snapshot_invalid("index generation exhausted; rebuild the index"),
-                )
-            })?
-        };
+        let next_generation = self.next_generation(py, !records.is_empty())?;
         let slots = py
             .detach(|| run(self.pool.as_deref(), || self.index.add(records)))
             .map_err(|e| to_py_err(py, &e))?;
@@ -436,6 +492,30 @@ impl NativeIndex {
             .map(|slot| id(py, &self.index.store().records()[slot], slot))
             .collect()
     }
+    fn upsert(&mut self, py: Python<'_>, inputs: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyAny>>> {
+        let records = batch(py, self.index.schema(), inputs, self.max_records)?;
+        let generation = self.next_generation(py, !records.is_empty())?;
+        let slots = py
+            .detach(|| run(self.pool.as_deref(), || self.index.upsert(records)))
+            .map_err(|e| to_py_err(py, &e))?;
+        self.generation = generation;
+        slots
+            .into_iter()
+            .map(|slot| id(py, &self.index.store().records()[slot], slot))
+            .collect()
+    }
+
+    fn remove(&mut self, py: Python<'_>, inputs: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyAny>>> {
+        let ids = ids(py, self.index.schema(), inputs, self.max_records)?;
+        let changed = ids.iter().any(|id| self.index.store().contains_id(id));
+        let generation = self.next_generation(py, changed)?;
+        let missing = py
+            .detach(|| self.index.remove(&ids))
+            .map_err(|e| to_py_err(py, &e))?;
+        self.generation = generation;
+        missing.iter().map(|value| external_id(py, value)).collect()
+    }
+
     fn search<'py>(
         &self,
         py: Python<'py>,
@@ -551,12 +631,26 @@ impl NativeIndex {
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let out = PyDict::new(py);
         out.set_item("records", self.index.len())?;
+        out.set_item("retained_slots", self.index.store().len())?;
+        out.set_item("tombstones", self.index.store().len() - self.index.len())?;
         out.set_item("generation", self.generation)?;
         out.set_item("index_bytes", self.index.heap_bytes())?;
         Ok(out)
     }
 }
 impl NativeIndex {
+    fn next_generation(&self, py: Python<'_>, changed: bool) -> PyResult<u64> {
+        if !changed {
+            return Ok(self.generation);
+        }
+        self.generation.checked_add(1).ok_or_else(|| {
+            to_py_err(
+                py,
+                &Error::snapshot_invalid("index generation exhausted; rebuild the index"),
+            )
+        })
+    }
+
     fn report<'py>(
         &self,
         py: Python<'py>,

@@ -207,11 +207,11 @@ impl SearchIndex {
     }
 
     pub fn len(&self) -> usize {
-        self.exact.len()
+        self.store().active_len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.exact.is_empty()
+        self.len() == 0
     }
 
     pub fn schema(&self) -> &Schema {
@@ -232,6 +232,7 @@ impl SearchIndex {
     /// and `state.model_mismatch` when the embedder no longer describes the
     /// model of the stored embeddings.
     pub fn add(&mut self, records: Vec<PreparedRecord>) -> Result<Range<usize>> {
+        self.compact_if_needed(records.len())?;
         let batch = match (&self.embedder, &self.vectors) {
             (Some(model), Some(_)) => {
                 let batch = embed_records_cached(
@@ -247,6 +248,119 @@ impl SearchIndex {
         self.add_preembedded(records, batch)
     }
 
+    /// Replace typed IDs atomically after validation and encoding. New IDs are inserted.
+    ///
+    /// # Errors
+    /// Rejects absent/repeated IDs, incompatible schemas/models, capacity or encoding failures.
+    pub fn upsert(&mut self, records: Vec<PreparedRecord>) -> Result<Vec<usize>> {
+        self.store().replacements(&records)?;
+        if records.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.compact_if_needed(records.len())?;
+        let old = self.store().replacements(&records)?;
+        let batch = match (&self.embedder, &self.vectors) {
+            (Some(model), Some(previous)) => {
+                let mut batch = crate::vectors::embed_records_selected(
+                    self.schema(),
+                    &records,
+                    model.as_ref(),
+                    self.cache.as_deref(),
+                    |position, field| {
+                        old[position].is_none_or(|slot| {
+                            records[position].fields()[field].state
+                                != self.store().records()[slot].fields()[field].state
+                        })
+                    },
+                )?;
+                // Check compatibility before copying; reuse can add rows, so
+                // capacity must also be checked afterward.
+                previous.check_extend(&batch)?;
+                batch.reuse(previous, &old, &records, self.store())?;
+                previous.check_extend(&batch)?;
+                Some(batch)
+            }
+            _ => None,
+        };
+        let slots = self.exact.upsert(records)?;
+        self.publish_vectors(slots.clone(), batch)?;
+        self.update_lanes(slots.clone())?;
+        Ok(slots.collect())
+    }
+
+    /// Missing IDs are returned in input order. Removed slots are masked in every lane.
+    ///
+    /// # Errors
+    /// Requires a schema with external IDs.
+    pub fn remove(&mut self, ids: &[RecordId]) -> Result<Vec<RecordId>> {
+        self.exact.remove(ids)
+    }
+
+    /// Rebuild when obsolete slots would grow beyond an amortized bound.
+    /// Layout changes do not change the logical generation or encode records.
+    fn compact_if_needed(&mut self, incoming: usize) -> Result<()> {
+        let dead = self.store().len() - self.len();
+        if dead == 0
+            || (dead < self.len().div_ceil(2).max(64)
+                && self.store().len().saturating_add(incoming)
+                    <= self
+                        .store()
+                        .max_records()
+                        .saturating_mul(2)
+                        .min(u32::MAX as usize))
+        {
+            return Ok(());
+        }
+        let slots: Vec<_> = self.store().active_slots().collect();
+        let records = slots
+            .iter()
+            .map(|&slot| self.store().records()[slot].clone())
+            .collect();
+        let vectors = self
+            .vectors
+            .as_ref()
+            .map(|vectors| vectors.select(&slots))
+            .transpose()?;
+        let mut fresh = Self::new(
+            self.schema().clone(),
+            self.store().max_records(),
+            self.embedder.clone(),
+        )?;
+        fresh.cache.clone_from(&self.cache);
+        fresh.add_preembedded(records, vectors)?;
+        *self = fresh;
+        Ok(())
+    }
+
+    fn publish_vectors(&mut self, slots: Range<usize>, batch: Option<RecordVectors>) -> Result<()> {
+        if let (Some(vectors), Some(batch)) = (&mut self.vectors, batch) {
+            if slots.start == 0 {
+                *vectors = batch;
+            } else {
+                vectors.extend(batch)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn update_lanes(&mut self, slots: Range<usize>) -> Result<()> {
+        let store = self.exact.store();
+        for index in &mut self.lexical {
+            index.update(store)?;
+        }
+        for index in &mut self.values {
+            index.update(store)?;
+        }
+        for slot in slots {
+            let partition = partition_fingerprint(&store.records()[slot]);
+            self.partitions
+                .entry(partition)
+                .or_default()
+                .push(u32::try_from(slot).unwrap_or(u32::MAX));
+        }
+        Ok(())
+    }
+
     pub(crate) fn add_preembedded(
         &mut self,
         records: Vec<PreparedRecord>,
@@ -260,26 +374,8 @@ impl SearchIndex {
         // Every check is done: from here on nothing can fail but the store's
         // own validation, which changes nothing when it fails.
         let slots = self.exact.add(records)?;
-        if let (Some(vectors), Some(batch)) = (&mut self.vectors, batch) {
-            if slots.start == 0 {
-                *vectors = batch;
-            } else {
-                vectors.extend(batch)?;
-            }
-        }
-        let store = self.exact.store();
-        for index in &mut self.lexical {
-            index.update(store)?;
-        }
-        for index in &mut self.values {
-            index.update(store)?;
-        }
-        for slot in slots.clone() {
-            let partition = partition_fingerprint(&store.records()[slot]);
-            // Within the limit checked by `new`.
-            let slot = u32::try_from(slot).unwrap_or(u32::MAX);
-            self.partitions.entry(partition).or_default().push(slot);
-        }
+        self.publish_vectors(slots.clone(), batch)?;
+        self.update_lanes(slots.clone())?;
         Ok(slots)
     }
 
@@ -395,16 +491,29 @@ impl SearchIndex {
     pub(crate) fn pair_count(&self) -> usize {
         self.partitions
             .values()
-            .map(|slots| slots.len().saturating_mul(slots.len().saturating_sub(1)) / 2)
+            .map(|slots| {
+                let count = slots
+                    .iter()
+                    .filter(|&&slot| self.store().is_active(slot as usize))
+                    .count();
+                count.saturating_mul(count.saturating_sub(1)) / 2
+            })
             .fold(0, usize::saturating_add)
     }
 
     /// Conservative count of dense semantic lane entries for all queries.
-    /// Includes both directions and self entries, for every semantic field.
+    /// Includes both directions, self entries and retained tombstones walked
+    /// by active queries, for every semantic field.
     pub(crate) fn semantic_scan_count(&self) -> usize {
         self.partitions
             .values()
-            .map(|slots| slots.len().saturating_mul(slots.len()))
+            .map(|slots| {
+                let count = slots
+                    .iter()
+                    .filter(|&&slot| self.store().is_active(slot as usize))
+                    .count();
+                count.saturating_mul(slots.len())
+            })
             .fold(0, usize::saturating_add)
             .saturating_mul(self.semantic.len())
     }
@@ -434,6 +543,7 @@ impl SearchIndex {
         let record = self
             .store()
             .get(slot)
+            .filter(|_| self.store().is_active(slot))
             .ok_or_else(|| Error::index_capacity(slot.saturating_add(1), self.len()))?;
         let vectors = self
             .vectors
@@ -506,7 +616,10 @@ impl SearchIndex {
                 let found = within(
                     field_vectors,
                     query_vector,
-                    partition.iter().map(|&slot| slot as usize),
+                    partition
+                        .iter()
+                        .map(|&slot| slot as usize)
+                        .filter(|&slot| self.store().is_active(slot)),
                     threshold,
                     |slot| slot,
                 );
@@ -551,7 +664,7 @@ impl SearchIndex {
         let mut kept: BinaryHeap<Ranked<'_>> =
             BinaryHeap::with_capacity(options.limit.min(1024).saturating_add(1));
         for slot in slots {
-            if slot < query.min_slot || Some(slot) == query.slot {
+            if !self.store().is_active(slot) || slot < query.min_slot || Some(slot) == query.slot {
                 continue;
             }
             let record = &records[slot];
