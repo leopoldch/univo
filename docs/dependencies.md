@@ -42,3 +42,5 @@ Python development tools (`maturin`, `pytest`, `ruff`, `mypy`) are pinned in `uv
 U-011 adds `rayon` 1.12.0 as a direct runtime dependency of `univo-python` to bound semantic encoding by the Finder thread budget (default features; MIT OR Apache-2.0). Rayon and its transitive dependencies were already linked through `tokenizers`: no new third-party or native package is added. The exact/lexical path creates no pool. The Python facade uses only the standard library; it introduces no runtime Python requirement.
 
 U-012 quality tooling uses only the Python standard library and the installed Univo wheel. It adds no runtime, development, native or wheel dependency. ROR names/IDs are an explicitly downloaded CC0 benchmark input, not bundled data or a library dependency; GeoNames location metadata is not exported. See the [corpus manifest and protocol](../benchmarks/quality/README.md).
+
+U-013 adds no dependency or enabled feature. Embedding memoization uses Rust standard-library HashMap/VecDeque, immutable Arc rows and a Mutex, entirely in univo-engine. Python holds only the native cache handle; no Python cache, external runtime, disk cache or bundled model is added.

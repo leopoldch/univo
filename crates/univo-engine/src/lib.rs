@@ -11,6 +11,7 @@
 //!   the reference for any approximate index.
 
 pub mod dense;
+pub mod embedding_cache;
 pub mod exact;
 pub mod lexical;
 pub mod search;
@@ -19,13 +20,14 @@ mod values;
 pub mod vectors;
 
 pub use dense::{Neighbor, top_k, within};
+pub use embedding_cache::{CacheStats, EmbeddingCache};
 pub use exact::{ExactHit, ExactIndex, ExactSearch};
 pub use lexical::{LexicalIndex, LexicalMatch, LexicalSearch};
 pub use search::{
     LaneCounts, SEARCH_VERSION, SearchIndex, SearchMatch, SearchOptions, SearchResult,
 };
 pub use store::RecordStore;
-pub use vectors::{FieldVectors, RecordVectors, embed_records, is_embedded};
+pub use vectors::{FieldVectors, RecordVectors, embed_records, embed_records_cached, is_embedded};
 
 mod report;
 pub use report::{PairMatch, PairReport};

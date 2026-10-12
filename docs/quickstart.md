@@ -54,6 +54,7 @@ Only the selected fields, identifier and partition keys are converted. Values ou
 | `Schema(max_depth=...)` | `16` | Nesting in a selected value; cycles hit this bound |
 | `Schema(max_fields=...)` | `64` | Selected field count |
 | `Finder(max_semantic_comparisons=...)` | `1000000` | Maximum dense semantic lane entries for candidate `find`; raise explicitly for large jobs |
+| `embedding_cache_bytes` | `4194304` | Estimated retained semantic cache bytes per Finder; `0` disables it; [contract](embedding-cache.md) |
 | `threads` | `1` | Semantic encoding pool budget; lexical retrieval/scoring currently use one thread |
 
 `Report.matches` is a bounded tuple of `Match` values. `processed` counts input records (one for search). `total_matches` counts qualifying matches found, including output omitted by `limit`. `candidates` counts comparisons attempted after self/ID exclusion; find counts unordered pairs, search counts records. Hash collisions may contribute attempted cross-partition comparisons, which Rust still rejects.

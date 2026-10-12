@@ -169,3 +169,5 @@ La capacité par défaut est de 100 000 enregistrements. `find(exhaustive=True)`
 
 
 Le moteur U-011 expose `SEARCH_VERSION=1` en plus de `SCORING_VERSION=2` : une égalité normalisée complète vérifiée reste exacte, de score 1, lorsque les textes sémantiques n’ont aucun token connu et que le score pairwise est absent. Les valeurs manquantes restent sans preuve ; des textes inconnus distincts ne se rapprochent pas. Ce fallback et ses alternatives sont consignés dans l’[ADR 0010](../docs/adr/0010-python-finder-and-exact-fallback.md).
+
+U-013 adds `Finder(embedding_cache_bytes=4 << 20)`, with zero disabling retention. `config()` exposes that budget; `stats()` exposes semantic cache hits, misses, evictions, entries and estimated retained bytes separately from `index_bytes`. Model/schema/scoring compatibility and report fingerprints are unchanged. The [cache contract](../docs/embedding-cache.md) documents FIFO eviction, concurrency, absent vectors and diagnostic changes on failed insertion.

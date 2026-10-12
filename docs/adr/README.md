@@ -17,6 +17,8 @@ Each record captures one decision, the alternatives considered, the evidence, th
 
 | [0011](0011-offline-quality-calibration.md) | Offline calibration and experimental quality scope | Accepted (benchmark protocol) |
 
+| [0012](0012-bounded-embedding-cache.md) | Bounded semantic embedding cache | Accepted (U-013) |
+
 ## Template
 
 ```markdown

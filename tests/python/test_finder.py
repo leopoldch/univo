@@ -307,3 +307,63 @@ def test_quality_profile_runner_preserves_every_critical_hard_gate() -> None:
     ):
         assert failures == []
         assert len(rows) == len(pairs) == 178
+
+
+def test_semantic_cache_is_shared_and_counts_normalized_texts() -> None:
+    finder = Finder(
+        schema=Schema(fields={"text": Text(mode="semantic")}), model_path=TINY, offline=True
+    )
+    assert finder.stats()["embedding_cache_bytes"] == 0
+    finder.add([{"text": "ONLINE"}])
+    assert finder.stats()["embedding_cache_misses"] == 1
+    first = finder.search({"text": "online", "unused": "before"})
+    second = finder.search({"text": "ONLINE", "unused": "after"})
+    assert first.matches[0].score == second.matches[0].score
+    assert first.matches[0].kind == second.matches[0].kind
+    assert first.matches[0].right_id == second.matches[0].right_id
+    assert first.matches[0].reasons != second.matches[0].reasons
+    finder.find([{"text": "online"}, {"text": "ONLINE"}])
+    stats = finder.stats()
+    assert stats["embedding_cache_misses"] == 1
+    assert stats["embedding_cache_hits"] == 3
+    assert stats["embedding_cache_entries"] == 1
+    maximum = finder.config()["embedding_cache_bytes"]
+    assert isinstance(maximum, int)
+    assert 0 < stats["embedding_cache_bytes"] <= maximum
+
+
+def test_cache_reuses_only_unchanged_semantic_fields() -> None:
+    finder = Finder(
+        schema=Schema(fields={"one": Text(mode="semantic"), "two": Text(mode="semantic")}),
+        model_path=TINY,
+        offline=True,
+    )
+    finder.add([{"one": "online", "two": "cloud"}])
+    finder.search({"one": "online", "two": "payments"})
+    assert finder.stats()["embedding_cache_misses"] == 3
+    assert finder.stats()["embedding_cache_hits"] == 1
+    finder.search({"one": "online", "two": "payments"})
+    assert finder.stats()["embedding_cache_misses"] == 3
+    assert finder.stats()["embedding_cache_hits"] == 3
+
+
+@pytest.mark.parametrize("budget", [0, 1, 512])
+def test_cache_budget_preserves_matches_and_can_disable_retention(budget: int) -> None:
+    schema = Schema(fields={"text": Text(mode="semantic")})
+    cached = Finder(schema=schema, model_path=TINY, offline=True, embedding_cache_bytes=budget)
+    plain = Finder(schema=schema, model_path=TINY, offline=True, embedding_cache_bytes=0)
+    records = [{"text": "online"}, {"text": "cloud"}, {"text": "unknown"}]
+    assert cached.find(records).matches == plain.find(records).matches
+    assert (
+        cached.find(records, exhaustive=True).matches
+        == plain.find(records, exhaustive=True).matches
+    )
+    assert cached.stats()["embedding_cache_bytes"] <= budget
+    if budget < 512:
+        assert cached.stats()["embedding_cache_entries"] == 0
+
+
+@pytest.mark.parametrize("budget", [-1, True, 0.5, 2**63])
+def test_invalid_cache_budget_fails_at_construction(budget: int) -> None:
+    with pytest.raises(InvalidParameterError):
+        Finder(embedding_cache_bytes=budget)
