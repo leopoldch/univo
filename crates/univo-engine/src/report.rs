@@ -47,7 +47,7 @@ impl SearchIndex {
         }
         let mut report = PairReport::default();
         let mut kept = BinaryHeap::with_capacity(options.limit.min(1024).saturating_add(1));
-        for left in 0..self.len() {
+        for left in self.store().active_slots() {
             let result = self.search_pairs(left, options, exhaustive)?;
             report.total_matches += result.total_matches;
             report.candidates += result.candidates;

@@ -128,3 +128,7 @@ versions identify the current generic scoring/search policy. These owned wire
 representations belong to format 1; changing their meaning requires a new format
 version. The preparation fingerprint is an additional compatibility check for
 this version, never the sole proof of compatibility.
+
+## Mutations et vue active
+
+U-015 snapshots contain only active records and referenced vector rows, preserving external typed IDs and the logical generation. Row remapping streams the original float buffers; no full matrix copy is needed for save. Format v1 remains unchanged and old snapshots remain readable. Load drops in-memory tombstones and supports further upsert/remove without reencoding unchanged semantic fields. Older saved generations can still contain records removed afterward; no automatic disk erasure is promised. See [mutations](mutations.md).

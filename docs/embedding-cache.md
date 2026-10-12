@@ -22,7 +22,7 @@ The key is the normalized semantic text, verified by full string equality even o
 
 Field paths, weights, IDs, partition keys and unselected fields do not change the encoder's output for the same normalized text. Identical semantic texts can therefore share inference across fields/partitions while matching still enforces all partitions and vetoes. A changed selected text misses; unchanged selected texts hit. Missing/blank fields are not encoded, and texts with no known model token cache an absent vector, preserving missing-evidence semantics.
 
-A cache from another model, tokenizer, configuration, dimension or backend is refused with `state.model_mismatch`, before a hit can be consumed. Create a new cache/index when changing that namespace. Python Finder's model and schema have no mutation API in this milestone; upsert/remove remain U-015 work.
+A cache from another model, tokenizer, configuration, dimension or backend is refused with `state.model_mismatch`, before a hit can be consumed. Create a new cache/index when changing that namespace. Python Finder's model and schema remain fixed; record upsert/remove are covered by the [mutation contract](mutations.md).
 
 ## Eviction and memory
 
@@ -49,3 +49,5 @@ The real default-model quality evaluator reproduces the merged U-012 threshold, 
 Final installed macOS arm64 wheel validation: 1,080 Python/tool/corpus tests pass on CPython 3.12 and 3.14 outside the source tree with Rust absent from PATH (three conditional skips). The workspace Rust suite passes, as do 25 affected release cache/vector/oracle tests. Formatting, clippy, mypy, ruff, documentation links, wheel layout/size and native dependency checks pass. No new transitive dependency or network crate is linked.
 
 U-014 bounds temporary field encoding to at most 1,024 distinct texts per call and approximately 1 MiB of float output (one row minimum), instead of retaining a corpus-sized encoder matrix and Arc row list. Deduplication/row references remain global and a late failure leaves the index unchanged; earlier cache publication may remain. This controls active inference buffers, not the whole index or RSS. See the [snapshot measurements](performance.md).
+
+U-015 upsert additionally reuses stored vectors for unchanged normalized semantic fields, independently of cache contents or eviction. Removed records disappear from search immediately, but compatible text entries may remain in the bounded cache until eviction; no secure-erasure guarantee is made. See [mutations](mutations.md).

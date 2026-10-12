@@ -112,7 +112,7 @@ class Finder:
     """Local matching. Defaults use lexical hybrid evidence (policy generic-v1).
 
     ``min_score`` ranks candidates, without a calibrated identity decision.
-    ``find`` uses a temporary index. Only ``add`` changes the stored index.
+    ``find`` uses a temporary index. ``add``, ``upsert`` and ``remove`` change the stored index.
     """
 
     def __init__(
@@ -213,6 +213,19 @@ class Finder:
         """Validate and encode a bounded batch, then atomically append it."""
         with self._lock:
             return self._persistent_index().add(records)
+
+    def upsert(self, records: Iterable[object]) -> list[RecordId]:
+        """Atomically replace or insert a bounded batch by typed external ID."""
+        with self._lock:
+            self._native_schema.check_mutation("upsert")
+            return self._persistent_index().upsert(records)
+
+    def remove(self, ids: Iterable[RecordId]) -> list[RecordId]:
+        """Remove active IDs atomically; return IDs absent at batch start."""
+        with self._lock:
+            if self._index is None:
+                return self._native_schema.missing_ids(ids, self._max_records)
+            return self._index.remove(ids)
 
     def find(
         self,
@@ -445,7 +458,13 @@ class Finder:
         """Index counts and separate cache diagnostics; byte values are estimates."""
         with self._lock:
             stats = (
-                {"records": 0, "generation": 0, "index_bytes": 0}
+                {
+                    "records": 0,
+                    "retained_slots": 0,
+                    "tombstones": 0,
+                    "generation": 0,
+                    "index_bytes": 0,
+                }
                 if self._index is None
                 else self._index.stats()
             )

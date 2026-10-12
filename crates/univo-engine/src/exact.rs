@@ -10,7 +10,7 @@ use univo_core::{
 
 use crate::store::{RecordStore, id_text_bytes};
 
-/// An append-only exact index over the records of its own [`RecordStore`].
+/// Verified equality over the active versions of its own [`RecordStore`].
 /// Slots identify records without external IDs.
 #[derive(Debug)]
 pub struct ExactIndex {
@@ -108,6 +108,21 @@ impl ExactIndex {
     /// leaving the index unchanged; see [`RecordStore::append`].
     pub fn add(&mut self, records: Vec<PreparedRecord>) -> Result<Range<usize>> {
         let slots = self.store.append(records)?;
+        self.index_slots(slots.clone())?;
+        Ok(slots)
+    }
+
+    pub(crate) fn upsert(&mut self, records: Vec<PreparedRecord>) -> Result<Range<usize>> {
+        let slots = self.store.upsert(records)?;
+        self.index_slots(slots.clone())?;
+        Ok(slots)
+    }
+
+    pub(crate) fn remove(&mut self, ids: &[RecordId]) -> Result<Vec<RecordId>> {
+        self.store.remove(ids)
+    }
+
+    fn index_slots(&mut self, slots: Range<usize>) -> Result<()> {
         for slot in slots.clone() {
             let record = &self.store.records()[slot];
             let fingerprint = exact_fingerprint(self.store.schema(), record)?;
@@ -116,7 +131,7 @@ impl ExactIndex {
                 .or_default()
                 .insert(slot, record.id());
         }
-        Ok(slots)
+        Ok(())
     }
 
     /// Slots of every record equal to `query` on every field, excluding the
@@ -133,6 +148,9 @@ impl ExactIndex {
         let records = self.store.records();
         let mut slots = Vec::new();
         for slot in bucket.slots.iter().chain(bucket.ids.values()).copied() {
+            if !self.store.is_active(slot) {
+                continue;
+            }
             let record = &records[slot];
             if query.id().is_some() && query.id() == record.id() {
                 continue;
@@ -168,6 +186,9 @@ impl ExactIndex {
     ) -> Result<ExactSearch> {
         let mut result = ExactSearch::default();
         for slot in slots {
+            if !self.store.is_active(slot) {
+                continue;
+            }
             result.candidates_examined += 1;
             let record = &self.store.records()[slot];
             if query.id().is_some() && query.id() == record.id() {

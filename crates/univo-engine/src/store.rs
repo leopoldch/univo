@@ -1,23 +1,23 @@
-//! Append-only storage of the prepared records indexes cover.
+//! Stable slots with typed active IDs and tombstones for obsolete versions.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use univo_core::{Error, PreparedRecord, RecordId, Result, Schema};
 
-/// Prepared records of one schema, by slot, with unique typed IDs and an
-/// explicit record limit. Records are only appended: never reordered,
-/// replaced or removed, so an index built from a store stays valid for the
-/// records it covers. Each store has an identity, which indexes check in
-/// constant time; it is deliberately not `Clone`.
+/// Prepared records in stable slots. Tombstones retain their data until the
+/// owning search index compacts; secondary indexes filter the active mask.
+/// Store identity prevents indexing another store by accident.
 #[derive(Debug)]
 pub struct RecordStore {
     id: u64,
     schema: Schema,
     max_records: usize,
     records: Vec<PreparedRecord>,
-    ids: HashSet<RecordId>,
+    ids: HashMap<RecordId, usize>,
+    active: Vec<bool>,
+    live: usize,
 }
 
 impl RecordStore {
@@ -28,7 +28,9 @@ impl RecordStore {
             schema,
             max_records,
             records: Vec::new(),
-            ids: HashSet::new(),
+            ids: HashMap::new(),
+            active: Vec::new(),
+            live: 0,
         }
     }
 
@@ -56,10 +58,103 @@ impl RecordStore {
         self.records.get(slot)
     }
 
+    pub fn active_len(&self) -> usize {
+        self.live
+    }
+
+    pub fn is_active(&self, slot: usize) -> bool {
+        self.active.get(slot).copied().unwrap_or(false)
+    }
+
+    pub fn active_slots(&self) -> impl Iterator<Item = usize> + '_ {
+        self.active
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, &active)| active.then_some(slot))
+    }
+
+    pub fn contains_id(&self, id: &RecordId) -> bool {
+        self.ids.contains_key(id)
+    }
+
+    pub(crate) fn slot(&self, id: &RecordId) -> Option<usize> {
+        self.ids.get(id).copied()
+    }
+
+    /// Validate replacement IDs and capacity before encoding or publication.
+    pub(crate) fn replacements(&self, records: &[PreparedRecord]) -> Result<Vec<Option<usize>>> {
+        if self.schema.id_field().is_none() {
+            return Err(Error::invalid_option("upsert", "a schema with id_field"));
+        }
+        let mut seen = HashSet::new();
+        let mut slots = Vec::with_capacity(records.len());
+        for (position, record) in records.iter().enumerate() {
+            let locate = |error: Error| error.with_record(position, record.id().cloned());
+            if !record.is_prepared_with(&self.schema) {
+                return Err(locate(Error::schema_mismatch()));
+            }
+            let id = record
+                .id()
+                .ok_or_else(|| locate(Error::invalid_option("upsert", "records with IDs")))?;
+            if !seen.insert(id) {
+                return Err(locate(Error::duplicate_id()));
+            }
+            slots.push(self.slot(id));
+        }
+        let total = self
+            .live
+            .saturating_add(slots.iter().filter(|slot| slot.is_none()).count());
+        if total > self.max_records {
+            return Err(Error::index_capacity(total, self.max_records));
+        }
+        if self.len().saturating_add(records.len()) > u32::MAX as usize {
+            return Err(Error::index_capacity(
+                self.len().saturating_add(records.len()),
+                u32::MAX as usize,
+            ));
+        }
+        Ok(slots)
+    }
+
+    pub(crate) fn upsert(&mut self, records: Vec<PreparedRecord>) -> Result<Range<usize>> {
+        let old = self.replacements(&records)?;
+        for slot in old.into_iter().flatten() {
+            self.remove_slot(slot);
+        }
+        self.append(records)
+    }
+
+    pub(crate) fn remove(&mut self, ids: &[RecordId]) -> Result<Vec<RecordId>> {
+        if self.schema.id_field().is_none() {
+            return Err(Error::invalid_option("remove", "a schema with id_field"));
+        }
+        let missing = ids
+            .iter()
+            .filter(|id| !self.ids.contains_key(*id))
+            .cloned()
+            .collect();
+        for id in ids {
+            if let Some(slot) = self.slot(id) {
+                self.remove_slot(slot);
+            }
+        }
+        Ok(missing)
+    }
+
+    fn remove_slot(&mut self, slot: usize) {
+        self.active[slot] = false;
+        self.live -= 1;
+        if let Some(id) = self.records[slot].id() {
+            self.ids.remove(id);
+        }
+    }
+
     /// Estimated heap bytes of the ID set, string IDs included; the records
     /// themselves are not counted.
     pub fn id_heap_bytes(&self) -> usize {
-        self.ids.capacity() * (size_of::<RecordId>() + 1) + id_text_bytes(self.ids.iter())
+        self.ids.capacity() * (size_of::<RecordId>() + size_of::<usize>() + 1)
+            + id_text_bytes(self.ids.keys())
+            + self.active.capacity()
     }
 
     /// The records, by slot.
@@ -79,8 +174,11 @@ impl RecordStore {
     pub fn append(&mut self, records: Vec<PreparedRecord>) -> Result<Range<usize>> {
         let start = self.records.len();
         let end = start.saturating_add(records.len());
-        if records.len() > self.max_records.saturating_sub(start) {
-            return Err(Error::index_capacity(end, self.max_records));
+        if records.len() > self.max_records.saturating_sub(self.live) {
+            return Err(Error::index_capacity(
+                self.live.saturating_add(records.len()),
+                self.max_records,
+            ));
         }
         let mut batch = HashSet::new();
         for (index, record) in records.iter().enumerate() {
@@ -89,13 +187,18 @@ impl RecordStore {
                 return Err(locate(Error::schema_mismatch()));
             }
             if let Some(id) = record.id()
-                && (self.ids.contains(id) || !batch.insert(id))
+                && (self.ids.contains_key(id) || !batch.insert(id))
             {
                 return Err(locate(Error::duplicate_id()));
             }
         }
-        self.ids
-            .extend(records.iter().filter_map(|record| record.id().cloned()));
+        for (offset, record) in records.iter().enumerate() {
+            if let Some(id) = record.id() {
+                self.ids.insert(id.clone(), start + offset);
+            }
+        }
+        self.active.extend(std::iter::repeat_n(true, records.len()));
+        self.live += records.len();
         self.records.extend(records);
         Ok(start..end)
     }

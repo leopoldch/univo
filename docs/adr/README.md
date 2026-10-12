@@ -21,6 +21,8 @@ Each record captures one decision, the alternatives considered, the evidence, th
 
 | [0013](0013-versioned-snapshots.md) | Explicit versioned snapshots and bounded restore | Accepted (U-014) |
 
+| [0014](0014-id-mutations.md) | Typed ID mutations and amortized compaction | Accepted (U-015) |
+
 ## Template
 
 ```markdown
