@@ -108,11 +108,29 @@ class Report:
     warnings: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class Decision:
+    """Outcome of ``Finder.check_or_add``.
+
+    ``status`` is ``"inserted"`` when no stored record reached ``min_score``,
+    ``"matched"`` when a stored record is equal on every selected field after
+    normalization, and ``"review"`` when records reach ``min_score`` without
+    being equal. ``id`` is the inserted record's ID, ``None`` otherwise.
+    ``report`` holds the matches the decision was based on.
+    """
+
+    status: Literal["inserted", "matched", "review"]
+    id: RecordId | None
+    report: Report
+
+
 class Finder:
     """Local matching. Defaults use lexical hybrid evidence (policy generic-v1).
 
     ``min_score`` ranks candidates, without a calibrated identity decision.
-    ``find`` uses a temporary index. ``add``, ``upsert`` and ``remove`` change the stored index.
+    ``find`` uses a temporary index. ``add``, ``upsert``, ``remove`` and
+    ``check_or_add`` change the stored index. A Finder is safe to share
+    between threads: searches run in parallel, changes one at a time.
     """
 
     def __init__(
@@ -221,27 +239,55 @@ class Finder:
         )
 
     def _persistent_index(self) -> _univo.Index:
-        if self._index is None:
-            self._index = self._new_index()
-        return self._index
+        """The stored index, created on first use. Native calls on it run
+        outside ``self._lock``: the index orders them itself."""
+        with self._lock:
+            if self._index is None:
+                self._index = self._new_index()
+            return self._index
 
     def add(self, records: Iterable[object]) -> list[RecordId]:
         """Validate and encode a bounded batch, then atomically append it."""
-        with self._lock:
-            return self._persistent_index().add(records)
+        return self._persistent_index().add(records)
 
     def upsert(self, records: Iterable[object]) -> list[RecordId]:
         """Atomically replace or insert a bounded batch by typed external ID."""
-        with self._lock:
-            self._native_schema.check_mutation("upsert")
-            return self._persistent_index().upsert(records)
+        self._native_schema.check_mutation("upsert")
+        return self._persistent_index().upsert(records)
 
     def remove(self, ids: Iterable[RecordId]) -> list[RecordId]:
         """Remove active IDs atomically; return IDs absent at batch start."""
         with self._lock:
-            if self._index is None:
-                return self._native_schema.missing_ids(ids, self._max_records)
-            return self._index.remove(ids)
+            index = self._index
+        if index is None:
+            return self._native_schema.missing_ids(ids, self._max_records)
+        return index.remove(ids)
+
+    def check_or_add(
+        self,
+        record: object,
+        *,
+        min_score: float = 0.8,
+        limit: int = 10,
+        max_entries: int | None = None,
+        exhaustive: bool = False,
+    ) -> Decision:
+        """Search for ``record`` and add it only if nothing reaches ``min_score``.
+
+        The search and the insertion are one atomic step for this Finder:
+        concurrent calls in this process never both insert a duplicate. It
+        does not coordinate other processes or an external database, and a
+        bounded search without matches is not a proof that none exist.
+        """
+        min_score = self._validate_options(min_score, limit, max_entries)
+        outcome = self._persistent_index().check_or_add(
+            record, min_score, limit, self._entries(max_entries), exhaustive
+        )
+        return Decision(
+            status=outcome["decision"],
+            id=outcome["id"],
+            report=self._report(outcome["report"], exhaustive),
+        )
 
     def find(
         self,
@@ -256,17 +302,18 @@ class Finder:
         min_score = self._validate_options(min_score, limit, max_entries)
         with self._lock:
             index = self._new_index(exhaustive=exhaustive)
-            budget = self._max_semantic_comparisons if self._ann and not exhaustive else None
-            index.add(records, budget)
-            result = index.find(
-                min_score,
-                limit,
-                self._entries(max_entries),
-                exhaustive,
-                (self._max_exhaustive_pairs, self._max_semantic_comparisons),
-            )
-            result["generation"] = 0 if self._index is None else self._index.stats()["generation"]
-            return self._report(result, exhaustive)
+            stored = self._index
+        budget = self._max_semantic_comparisons if self._ann and not exhaustive else None
+        index.add(records, budget)
+        result = index.find(
+            min_score,
+            limit,
+            self._entries(max_entries),
+            exhaustive,
+            (self._max_exhaustive_pairs, self._max_semantic_comparisons),
+        )
+        result["generation"] = 0 if stored is None else stored.stats()["generation"]
+        return self._report(result, exhaustive)
 
     def search(
         self,
@@ -279,11 +326,10 @@ class Finder:
     ) -> Report:
         """Read-only search; exclude an existing query ID. Never merges data."""
         min_score = self._validate_options(min_score, limit, max_entries)
-        with self._lock:
-            result = self._persistent_index().search(
-                record, min_score, limit, self._entries(max_entries), exhaustive
-            )
-            return self._report(result, exhaustive)
+        result = self._persistent_index().search(
+            record, min_score, limit, self._entries(max_entries), exhaustive
+        )
+        return self._report(result, exhaustive)
 
     @staticmethod
     def _validate_options(min_score: float, limit: int, max_entries: int | None) -> float:
@@ -347,8 +393,8 @@ class Finder:
             raise _univo.invalid_option(
                 "snapshot_metadata", "shorter field paths and model references"
             )
+        index = self._persistent_index()
         with self._lock:
-            index = self._persistent_index()
             schema = None
             if self._schema is not None:
                 schema = {
@@ -388,7 +434,7 @@ class Finder:
                     ann_ef_search=self._ann_ef_search,
                     ann_max_candidates=self._ann_max_candidates,
                 )
-            index.save(os.fspath(path), json.dumps(config, allow_nan=False), max_snapshot_bytes)
+        index.save(os.fspath(path), json.dumps(config, allow_nan=False), max_snapshot_bytes)
 
     @classmethod
     def load(
@@ -490,28 +536,29 @@ class Finder:
     def stats(self) -> dict[str, int]:
         """Index counts and separate cache diagnostics; byte values are estimates."""
         with self._lock:
-            stats = (
-                {
-                    "records": 0,
-                    "retained_slots": 0,
-                    "tombstones": 0,
-                    "generation": 0,
-                    "index_bytes": 0,
-                    "ann_bytes": 0,
-                    "ann_nodes": 0,
-                }
-                if self._index is None
-                else self._index.stats()
-            )
-            stats.update(
-                self._embedding_cache.stats()
-                if self._embedding_cache is not None
-                else {
-                    "embedding_cache_hits": 0,
-                    "embedding_cache_misses": 0,
-                    "embedding_cache_evictions": 0,
-                    "embedding_cache_bytes": 0,
-                    "embedding_cache_entries": 0,
-                }
-            )
-            return stats
+            index, cache = self._index, self._embedding_cache
+        stats = (
+            {
+                "records": 0,
+                "retained_slots": 0,
+                "tombstones": 0,
+                "generation": 0,
+                "index_bytes": 0,
+                "ann_bytes": 0,
+                "ann_nodes": 0,
+            }
+            if index is None
+            else index.stats()
+        )
+        stats.update(
+            cache.stats()
+            if cache is not None
+            else {
+                "embedding_cache_hits": 0,
+                "embedding_cache_misses": 0,
+                "embedding_cache_evictions": 0,
+                "embedding_cache_bytes": 0,
+                "embedding_cache_entries": 0,
+            }
+        )
+        return stats

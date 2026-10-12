@@ -639,6 +639,21 @@ hint: Search an index with the record store it was built from, and update it aft
 code: state.index_out_of_sync (https://github.com/leopoldch/univo/blob/main/docs/errors.md#stateindex_out_of_sync)
 ```
 
+### state.index_poisoned
+
+An index is unusable after an internal failure.
+
+- Kind: `IndexCompatibility` (Python: `univo.IndexCompatibilityError`)
+- Fix: Load the index again from its last snapshot, or rebuild it, and report the failure: a panic interrupted a change to it.
+
+Example:
+
+```text
+the index was left unusable by an internal failure during a change
+hint: Load the index again from its last snapshot, or rebuild it, and report the failure: a panic interrupted a change to it.
+code: state.index_poisoned (https://github.com/leopoldch/univo/blob/main/docs/errors.md#stateindex_poisoned)
+```
+
 ### parameter.threshold
 
 A similarity threshold is outside its valid range.

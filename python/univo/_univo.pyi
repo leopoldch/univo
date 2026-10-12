@@ -77,6 +77,11 @@ class RawReport(TypedDict):
     candidate_truncated: bool
     output_truncated: bool
 
+class RawDecision(TypedDict):
+    decision: Literal["inserted", "matched", "review"]
+    id: str | int | None
+    report: RawReport
+
 class Index:
     def __init__(
         self,
@@ -95,6 +100,9 @@ class Index:
     def search(
         self, input: object, min_score: float, limit: int, max_entries: int, exhaustive: bool
     ) -> RawReport: ...
+    def check_or_add(
+        self, input: object, min_score: float, limit: int, max_entries: int, exhaustive: bool
+    ) -> RawDecision: ...
     def find(
         self,
         min_score: float,

@@ -222,6 +222,9 @@ error_codes! {
     IndexOutOfSync => "state.index_out_of_sync", IndexCompatibility,
         "An index was used with records it does not cover",
         "Search an index with the record store it was built from, and update it after appending records.";
+    IndexPoisoned => "state.index_poisoned", IndexCompatibility,
+        "An index is unusable after an internal failure",
+        "Load the index again from its last snapshot, or rebuild it, and report the failure: a panic interrupted a change to it.";
     InvalidThreshold => "parameter.threshold", InvalidParameter,
         "A similarity threshold is outside its valid range",
         "Pass a threshold greater than 0 and at most 1.";
@@ -768,6 +771,14 @@ impl Error {
         Self::new(ErrorCode::IndexOutOfSync, message)
             .count("indexed", indexed)
             .count("stored", stored)
+    }
+
+    /// A lock guarding an index was poisoned by a panic during a change.
+    pub fn index_poisoned() -> Self {
+        Self::new(
+            ErrorCode::IndexPoisoned,
+            "the index was left unusable by an internal failure during a change".to_owned(),
+        )
     }
 
     pub fn invalid_threshold(threshold: f32) -> Self {

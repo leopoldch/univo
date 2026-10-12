@@ -190,3 +190,5 @@ minimum dense avant encodage/construction du graphe ; le contrôle final
 applique le majorant HNSW après construction. Le budget ne borne pas la
 préparation/résolution/construction. `find(exhaustive=True)` construit seulement
 les lanes complètes, sans graphe ANN temporaire.
+
+U-017 : `check_or_add(record, *, min_score=0.8, limit=10, max_entries=None, exhaustive=False)` renvoie `Decision(status, id, report)` avec `status` parmi `inserted`, `matched` (égalité normalisée vérifiée des champs sélectionnés) et `review` (correspondances au-dessus du seuil sans égalité) ; seul `inserted` ajoute l’enregistrement, et la génération n’avance qu’à l’insertion. Recherche et insertion forment une seule étape sous le verrou exclusif de l’instance ; l’encodage a lieu hors verrou. Un même Finder est partageable entre threads : les lectures (`search`, `find`, `save`, `stats`) s’exécutent en parallèle, les modifications une à la fois. Cette atomicité est locale à une instance dans un processus. Voir [concurrence](../docs/concurrency.md) et [ADR 0016](../docs/adr/0016-local-concurrency-and-check-or-add.md).
