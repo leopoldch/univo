@@ -618,7 +618,7 @@ class Finder:
                 "resolved_model": None if self._model is None else self._model.name,
                 "offline": self._offline,
                 "threads": self._threads,
-                "effective_threads": self._threads if self._native_schema.needs_model else 1,
+                "effective_threads": self._threads,
                 "max_records": self._max_records,
                 "max_exhaustive_pairs": self._max_exhaustive_pairs,
                 "max_semantic_comparisons": self._max_semantic_comparisons,

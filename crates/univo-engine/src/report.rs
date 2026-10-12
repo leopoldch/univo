@@ -24,6 +24,11 @@ impl SearchIndex {
     /// Compares every stored query, keeping each unordered pair once and at
     /// most `options.limit` pairs. The oracle scores all admissible pairs.
     ///
+    /// Queries run in parallel when called inside a Rayon pool, which then
+    /// bounds the threads, and in order otherwise. Each worker keeps its
+    /// best `limit` pairs; the order is total, so the result does not
+    /// depend on the number of threads.
+    ///
     /// # Errors
     /// Returns search option, schema and model errors from the search engine.
     pub fn find(
@@ -38,37 +43,82 @@ impl SearchIndex {
             return Err(univo_core::Error::invalid_threshold(options.min_score));
         }
         self.check_scan(exhaustive, max_pairs, max_semantic_comparisons)?;
-        let mut report = PairReport::default();
-        let mut kept = BinaryHeap::with_capacity(options.limit.min(1024).saturating_add(1));
-        for left in self.store().active_slots() {
-            let result = self.search_pairs(left, options, exhaustive)?;
-            report.total_matches += result.total_matches;
-            report.candidates += result.candidates;
-            report.candidate_truncated |= result.truncated;
-            report.approximate |= result.approximate;
-            for found in result.matches {
-                let candidate = RankedPair {
-                    right_id: self.store().records()[found.slot].id(),
-                    found: PairMatch {
-                        left,
-                        right: found.slot,
-                        comparison: found.comparison,
-                    },
-                };
-                if kept.len() < options.limit {
-                    kept.push(candidate);
-                } else if kept.peek().is_some_and(|worst| candidate < *worst) {
-                    kept.pop();
-                    kept.push(candidate);
-                }
-            }
-        }
-        report.matches = kept
+        let queries: Vec<usize> = self.store().active_slots().collect();
+        let found = crate::fold_queries(
+            queries,
+            || Found::new(options.limit),
+            |mut found, left| {
+                let result = self.search_pairs(left, options, exhaustive)?;
+                found.add(self, left, result);
+                Ok(found)
+            },
+            Found::merge,
+        )?;
+        let mut report = found.report;
+        report.matches = found
+            .kept
             .into_sorted_vec()
             .into_iter()
             .map(|ranked| ranked.found)
             .collect();
         Ok(report)
+    }
+}
+
+/// The counts of a set of queries and their best `limit` pairs.
+struct Found<'a> {
+    report: PairReport,
+    kept: BinaryHeap<RankedPair<'a>>,
+    limit: usize,
+}
+
+impl<'a> Found<'a> {
+    fn new(limit: usize) -> Self {
+        Self {
+            report: PairReport::default(),
+            kept: BinaryHeap::with_capacity(limit.min(1024).saturating_add(1)),
+            limit,
+        }
+    }
+
+    fn add(&mut self, index: &'a SearchIndex, left: usize, result: crate::SearchResult) {
+        self.report.total_matches += result.total_matches;
+        self.report.candidates += result.candidates;
+        self.report.candidate_truncated |= result.truncated;
+        self.report.approximate |= result.approximate;
+        for found in result.matches {
+            self.keep(RankedPair {
+                right_id: index.store().records()[found.slot].id(),
+                found: PairMatch {
+                    left,
+                    right: found.slot,
+                    comparison: found.comparison,
+                },
+            });
+        }
+    }
+
+    fn keep(&mut self, candidate: RankedPair<'a>) {
+        if self.kept.len() < self.limit {
+            self.kept.push(candidate);
+        } else if self.kept.peek().is_some_and(|worst| candidate < *worst) {
+            self.kept.pop();
+            self.kept.push(candidate);
+        }
+    }
+
+    fn merge(mut self, mut other: Self) -> Self {
+        if other.kept.len() > self.kept.len() {
+            std::mem::swap(&mut self.kept, &mut other.kept);
+        }
+        self.report.total_matches += other.report.total_matches;
+        self.report.candidates += other.report.candidates;
+        self.report.candidate_truncated |= other.report.candidate_truncated;
+        self.report.approximate |= other.report.approximate;
+        for candidate in other.kept {
+            self.keep(candidate);
+        }
+        self
     }
 }
 

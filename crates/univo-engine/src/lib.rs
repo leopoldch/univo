@@ -37,4 +37,24 @@ pub use vectors::{FieldVectors, RecordVectors, embed_records, embed_records_cach
 mod report;
 pub use report::{PairMatch, PairReport};
 
+/// Folds the queries of an all-pairs report. From a worker of a Rayon pool
+/// (inside `ThreadPool::install`) they run in parallel on that pool; from
+/// any other thread, in order on it. The caller chooses the threads, and
+/// the global pool is never used implicitly.
+pub(crate) fn fold_queries<A: Send>(
+    queries: Vec<usize>,
+    init: impl Fn() -> A + Sync + Send,
+    fold: impl Fn(A, usize) -> univo_core::Result<A> + Sync + Send,
+    merge: impl Fn(A, A) -> A + Sync + Send,
+) -> univo_core::Result<A> {
+    use rayon::prelude::*;
+    if rayon::current_thread_index().is_none() {
+        return queries.into_iter().try_fold(init(), fold);
+    }
+    queries
+        .into_par_iter()
+        .try_fold(&init, &fold)
+        .try_reduce(&init, |a, b| Ok(merge(a, b)))
+}
+
 pub mod snapshot;
