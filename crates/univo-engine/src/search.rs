@@ -32,6 +32,7 @@ use crate::lexical::LexicalIndex;
 use crate::store::RecordStore;
 use crate::values::ValueIndex;
 use crate::vectors::{RecordVectors, embed_records, is_embedded};
+use crate::{EmbeddingCache, embed_records_cached};
 
 /// Relative margin by which lanes lower the minimum score, so that rounding
 /// in the weighted mean never drops a record that reaches it. Relative, so
@@ -92,6 +93,7 @@ pub struct SearchIndex {
     semantic: Vec<usize>,
     embedder: Option<Arc<dyn Embedder>>,
     vectors: Option<RecordVectors>,
+    cache: Option<Arc<EmbeddingCache>>,
     /// Slots of each partition, in order.
     partitions: HashMap<u64, Vec<u32>>,
 }
@@ -174,7 +176,24 @@ impl SearchIndex {
             embedder,
             vectors,
             partitions: HashMap::new(),
+            cache: None,
         })
+    }
+
+    /// Share a bounded semantic cache across compatible indexes.
+    ///
+    /// # Errors
+    /// Refuses a cache bound to another model.
+    pub fn with_embedding_cache(mut self, cache: Arc<EmbeddingCache>) -> Result<Self> {
+        if self
+            .embedder
+            .as_ref()
+            .is_none_or(|m| m.descriptor() != cache.model())
+        {
+            return Err(Error::model_mismatch("index", &cache.model().name()));
+        }
+        self.cache = Some(cache);
+        Ok(self)
     }
 
     pub fn len(&self) -> usize {
@@ -205,7 +224,12 @@ impl SearchIndex {
     pub fn add(&mut self, records: Vec<PreparedRecord>) -> Result<Range<usize>> {
         let batch = match (&self.embedder, &self.vectors) {
             (Some(model), Some(vectors)) => {
-                let batch = embed_records(self.schema(), &records, model.as_ref())?;
+                let batch = embed_records_cached(
+                    self.schema(),
+                    &records,
+                    model.as_ref(),
+                    self.cache.as_deref(),
+                )?;
                 vectors.check_extend(&batch)?;
                 Some(batch)
             }
@@ -403,7 +427,12 @@ impl SearchIndex {
         let (Some(model), Some(vectors)) = (&self.embedder, &self.vectors) else {
             return Ok(None);
         };
-        let embedded = embed_records(self.schema(), std::slice::from_ref(query), model.as_ref())?;
+        let embedded = embed_records_cached(
+            self.schema(),
+            std::slice::from_ref(query),
+            model.as_ref(),
+            self.cache.as_deref(),
+        )?;
         if embedded.model() != vectors.model() {
             return Err(Error::model_mismatch(
                 &vectors.model().name(),

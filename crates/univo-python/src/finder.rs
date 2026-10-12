@@ -371,13 +371,14 @@ fn match_dict<'py>(
 #[pymethods]
 impl NativeIndex {
     #[new]
-    #[pyo3(signature = (schema, max_records, model=None, threads=1))]
+    #[pyo3(signature = (schema, max_records, model=None, threads=1, cache=None))]
     fn new(
         py: Python<'_>,
         schema: &PySchema,
         max_records: usize,
         model: Option<&Model>,
         threads: usize,
+        cache: Option<&PyEmbeddingCache>,
     ) -> PyResult<Self> {
         let pool = if schema.needs_model() {
             Some(Arc::new(
@@ -395,14 +396,20 @@ impl NativeIndex {
             None
         };
         let embedder = model.map(|m| Arc::clone(&m.embedder) as Arc<dyn univo_embed::Embedder>);
-        py.detach(|| SearchIndex::new(schema.schema.clone(), max_records, embedder))
-            .map(|index| Self {
-                index,
-                max_records,
-                generation: 0,
-                pool,
-            })
-            .map_err(|e| to_py_err(py, &e))
+        py.detach(|| {
+            let index = SearchIndex::new(schema.schema.clone(), max_records, embedder)?;
+            match cache {
+                Some(cache) => index.with_embedding_cache(Arc::clone(&cache.cache)),
+                None => Ok(index),
+            }
+        })
+        .map(|index| Self {
+            index,
+            max_records,
+            generation: 0,
+            pool,
+        })
+        .map_err(|e| to_py_err(py, &e))
     }
     fn add(&mut self, py: Python<'_>, inputs: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyAny>>> {
         let records = batch(
@@ -570,4 +577,38 @@ pub(crate) fn validate_threshold(py: Python<'_>, min_score: f64) -> PyResult<f32
         return Err(to_py_err(py, &Error::invalid_threshold(score)));
     }
     Ok(score)
+}
+
+#[pyclass(name = "EmbeddingCache", module = "univo._univo")]
+pub(crate) struct PyEmbeddingCache {
+    cache: Arc<univo_engine::EmbeddingCache>,
+}
+
+#[pymethods]
+impl PyEmbeddingCache {
+    #[new]
+    fn new(model: &Model, max_bytes: usize) -> Self {
+        use univo_embed::Embedder;
+        Self {
+            cache: Arc::new(univo_engine::EmbeddingCache::new(
+                model.embedder.descriptor().clone(),
+                max_bytes,
+            )),
+        }
+    }
+
+    fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let stats = self.cache.stats().map_err(|e| to_py_err(py, &e))?;
+        let out = PyDict::new(py);
+        for (key, value) in [
+            ("embedding_cache_hits", stats.hits),
+            ("embedding_cache_misses", stats.misses),
+            ("embedding_cache_evictions", stats.evictions),
+            ("embedding_cache_bytes", stats.bytes),
+            ("embedding_cache_entries", stats.entries),
+        ] {
+            out.set_item(key, value)?;
+        }
+        Ok(out)
+    }
 }

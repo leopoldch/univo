@@ -1,0 +1,86 @@
+{
+  "0": {
+    "add_including_local_model_load_ms": [
+      76.214791,
+      59.101833,
+      59.808875,
+      59.036667,
+      59.173
+    ],
+    "search_p95_ms": [
+      0.07163125,
+      0.07201874999999999,
+      0.0733402,
+      0.0725923,
+      0.07208299999999998
+    ],
+    "search_p99_ms": [
+      0.08370983000000001,
+      0.08201209000000001,
+      0.08475332999999999,
+      0.08743016999999999,
+      0.08400042
+    ],
+    "stats_last_repeat": {
+      "records": 1000,
+      "generation": 1,
+      "index_bytes": 1216608,
+      "embedding_cache_hits": 0,
+      "embedding_cache_misses": 0,
+      "embedding_cache_evictions": 0,
+      "embedding_cache_bytes": 0,
+      "embedding_cache_entries": 0
+    }
+  },
+  "4194304": {
+    "add_including_local_model_load_ms": [
+      59.27625,
+      59.738584,
+      59.853375,
+      60.814458,
+      60.714042
+    ],
+    "search_p95_ms": [
+      0.02137915,
+      0.021756249999999998,
+      0.0214191,
+      0.0227101,
+      0.02237705
+    ],
+    "search_p99_ms": [
+      0.02366892,
+      0.02487667,
+      0.024792410000000004,
+      0.03364542,
+      0.034008750000000004
+    ],
+    "stats_last_repeat": {
+      "records": 1000,
+      "generation": 1,
+      "index_bytes": 1216608,
+      "embedding_cache_hits": 1020,
+      "embedding_cache_misses": 1000,
+      "embedding_cache_evictions": 0,
+      "embedding_cache_bytes": 1475218,
+      "embedding_cache_entries": 1000
+    }
+  },
+  "metadata": {
+    "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+    "python": "3.14.7",
+    "threads": 1,
+    "records": 1000,
+    "partitions": 1000,
+    "queries_per_repeat": 1000,
+    "repeats": 5,
+    "model_files_bytes": 30920628,
+    "model_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+    "model_state": "local files in OS cache; fresh Finder per repeat",
+    "query_state": "20 warmups; same selected text, new ID/unselected metadata; no truncation",
+    "process_peak_rss_bytes": 114540544,
+    "cpu": "Apple M2 (8 cores)",
+    "ram_gib": 16,
+    "rust": "1.99.0",
+    "wheel_bytes": 1753501
+  }
+}

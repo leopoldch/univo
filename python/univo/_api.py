@@ -130,6 +130,7 @@ class Finder:
         max_records: int = 100_000,
         max_exhaustive_pairs: int = 1_000_000,
         max_semantic_comparisons: int = 1_000_000,
+        embedding_cache_bytes: int = 4 << 20,
     ) -> None:
         if schema is not None and (fields is not None or id_field is not None):
             raise _univo.invalid_option("schema", "exclusive of fields and id_field")
@@ -152,6 +153,10 @@ class Finder:
             or not 0 <= max_semantic_comparisons <= 2**63 - 1
         ):
             raise _univo.invalid_option("max_semantic_comparisons", "an integer in [0, 2**63 - 1]")
+        if type(embedding_cache_bytes) is not int or not 0 <= embedding_cache_bytes <= 2**63 - 1:
+            raise _univo.invalid_option("embedding_cache_bytes", "an integer in [0, 2**63 - 1]")
+        self._embedding_cache_bytes = embedding_cache_bytes
+        self._embedding_cache: _univo.EmbeddingCache | None = None
         self._max_semantic_comparisons = max_semantic_comparisons
         self._max_exhaustive_pairs = max_exhaustive_pairs
         self._schema = schema
@@ -180,7 +185,20 @@ class Finder:
                 offline=self._offline,
                 cache_dir=self._cache_dir,
             )
-        return _univo.Index(self._native_schema, self._max_records, self._model, self._threads)
+        if (
+            self._native_schema.needs_model
+            and self._embedding_cache_bytes
+            and self._embedding_cache is None
+        ):
+            assert self._model is not None
+            self._embedding_cache = _univo.EmbeddingCache(self._model, self._embedding_cache_bytes)
+        return _univo.Index(
+            self._native_schema,
+            self._max_records,
+            self._model,
+            self._threads,
+            self._embedding_cache,
+        )
 
     def _persistent_index(self) -> _univo.Index:
         if self._index is None:
@@ -290,14 +308,29 @@ class Finder:
                 "max_records": self._max_records,
                 "max_exhaustive_pairs": self._max_exhaustive_pairs,
                 "max_semantic_comparisons": self._max_semantic_comparisons,
+                "embedding_cache_bytes": self._embedding_cache_bytes,
                 "config_fingerprint": self._native_schema.configuration_fingerprint(
                     self._model_ref, self._model
                 ),
             }
 
     def stats(self) -> dict[str, int]:
-        """Counts and estimated index bytes, excluding records and model weights."""
+        """Index counts and separate cache diagnostics; byte values are estimates."""
         with self._lock:
-            if self._index is None:
-                return {"records": 0, "generation": 0, "index_bytes": 0}
-            return self._index.stats()
+            stats = (
+                {"records": 0, "generation": 0, "index_bytes": 0}
+                if self._index is None
+                else self._index.stats()
+            )
+            stats.update(
+                self._embedding_cache.stats()
+                if self._embedding_cache is not None
+                else {
+                    "embedding_cache_hits": 0,
+                    "embedding_cache_misses": 0,
+                    "embedding_cache_evictions": 0,
+                    "embedding_cache_bytes": 0,
+                    "embedding_cache_entries": 0,
+                }
+            )
+            return stats

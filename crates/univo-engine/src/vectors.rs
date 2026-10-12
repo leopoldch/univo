@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use crate::EmbeddingCache;
 use univo_core::{Error, FieldKind, FieldState, PreparedRecord, Result, Schema, TextMode};
 use univo_embed::{Embedder, ModelDescriptor};
 
@@ -185,10 +186,26 @@ pub fn embed_records(
     records: &[PreparedRecord],
     embedder: &dyn Embedder,
 ) -> Result<RecordVectors> {
+    embed_records_cached(schema, records, embedder, None)
+}
+
+/// As [`embed_records`], reusing normalized semantic text embeddings.
+///
+/// # Errors
+/// Also refuses an incompatible cache model, even when every text is cached.
+pub fn embed_records_cached(
+    schema: &Schema,
+    records: &[PreparedRecord],
+    embedder: &dyn Embedder,
+    cache: Option<&EmbeddingCache>,
+) -> Result<RecordVectors> {
     if !records.iter().all(|record| record.is_prepared_with(schema)) {
         return Err(Error::schema_mismatch());
     }
     let model = embedder.descriptor().clone();
+    if let Some(cache) = cache {
+        cache.check_model(&model)?;
+    }
     let dimension = model.dimension;
     let mut fields = Vec::with_capacity(schema.fields().len());
     for index in 0..schema.fields().len() {
@@ -211,26 +228,31 @@ pub fn embed_records(
                 _ => None,
             })
             .collect();
-        let embeddings = embedder.encode_batch(&distinct)?;
-        if embeddings.len() != distinct.len() || embeddings.dimension() != dimension {
-            return Err(Error::corrupt_model(
-                &model.name(),
-                &format!(
-                    "the model returned {} vectors of {} dimensions for {} texts, expected {dimension} dimensions",
-                    embeddings.len(),
-                    embeddings.dimension(),
-                    distinct.len()
-                ),
-            ));
-        }
         let mut vectors = FieldVectors::new(dimension);
-        let mut absent = embeddings.absent().iter().peekable();
         let mut rows = Vec::with_capacity(distinct.len());
-        for position in 0..distinct.len() {
-            if absent.next_if_eq(&&position).is_some() {
-                rows.push(None);
-            } else {
-                rows.push(Some(vectors.add_row(embeddings.row(position))?));
+        if let Some(cache) = cache {
+            for row in cache.encode(&distinct, embedder)? {
+                rows.push(row.map(|row| vectors.add_row(&row)).transpose()?);
+            }
+        } else {
+            let embeddings = embedder.encode_batch(&distinct)?;
+            if embeddings.len() != distinct.len() || embeddings.dimension() != dimension {
+                return Err(Error::corrupt_model(
+                    &model.name(),
+                    &format!(
+                        "the model returned {} vectors of {} dimensions for {} texts, expected {dimension} dimensions",
+                        embeddings.len(),
+                        embeddings.dimension(),
+                        distinct.len()
+                    ),
+                ));
+            }
+            for position in 0..distinct.len() {
+                rows.push(if embeddings.absent().binary_search(&position).is_ok() {
+                    None
+                } else {
+                    Some(vectors.add_row(embeddings.row(position))?)
+                });
             }
         }
         vectors.rows = texts
