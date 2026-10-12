@@ -19,7 +19,10 @@ Until U-016, the Python `Finder` held a reentrant lock around every call, search
 
 - **Lock in Rust.** The native index holds its records and generation in a `RwLock`. Searches, `find`, `save` and `stats` take the shared lock and run in parallel; `add`, `upsert`, `remove` and `check_or_add` take the exclusive lock.
 - **No lock waits on Python.** Locks are only taken with the Python interpreter released, and nothing holding a lock touches Python objects. Results are built as plain Rust data under the lock and converted to Python after it is released.
-- **Encoding outside the lock.** `SearchIndex::encoder()` returns a `QueryEncoder`, holding the schema, model and embedding cache as shared handles, under a brief shared lock. Searches, `add` and `check_or_add` encode with it while holding no lock, then take their lock. The index checks that the embeddings come from its model before using them (`state.model_mismatch`).
+- **Encoding outside the lock.** `SearchIndex::encoder()` returns a `QueryEncoder`, holding the schema, model and embedding cache as shared handles, under a brief shared lock. Searches, `add` and `check_or_add` encode with it while holding no lock, then take their lock. Before using the embeddings, the index checks three things, so a vector is never used for a record or a field it was not computed for:
+  - they come from its schema, which fixes the field layout (`state.schema_mismatch`);
+  - they cover exactly the records given, one for a search or `check_or_add` (`state.schema_mismatch`);
+  - they come from its model (`state.model_mismatch`).
 - **`check_or_add` in the engine.** `SearchIndex::check_or_add` runs in one exclusive borrow:
   1. it compacts if needed, so the decision and the insertion see one layout;
   2. it searches with the precomputed embeddings;

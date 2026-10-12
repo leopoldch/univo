@@ -58,7 +58,7 @@ Snapshots refuse concurrent writers with an operating-system lock ([persistence]
 - **`crates/univo-engine/tests/check_or_add.rs`:**
   - the three decisions;
   - the query encoded once for the search and the insertion;
-  - foreign embeddings and existing IDs leaving the index unchanged;
+  - embeddings of another model, of another schema with the same model, or covering another number of records, and existing IDs, all leaving the index unchanged;
   - work limits reported with the decision;
   - eight threads racing through a `RwLock`, ten rounds, exactly one insertion each.
 - **`tests/python/test_concurrency.py`:**

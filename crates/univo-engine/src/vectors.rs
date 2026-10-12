@@ -111,6 +111,18 @@ pub struct RecordVectors {
 }
 
 impl RecordVectors {
+    /// Whether these embeddings were computed for `records` records of the
+    /// schema with this preparation fingerprint: same field layout, one
+    /// entry per record in every embedded field.
+    pub(crate) fn covers(&self, schema: u64, records: usize) -> bool {
+        self.schema == schema
+            && self
+                .fields
+                .iter()
+                .flatten()
+                .all(|field| field.len() == records)
+    }
+
     pub(crate) fn empty(schema: &Schema, model: ModelDescriptor) -> Self {
         let fields = (0..schema.fields().len())
             .map(|i| is_embedded(schema, i).then(|| FieldVectors::new(model.dimension)))

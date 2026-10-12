@@ -247,3 +247,83 @@ fn racing_threads_insert_a_duplicate_once() {
     }
     assert_eq!(index.read().unwrap().len(), NAMES.len());
 }
+
+#[test]
+fn embeddings_of_another_schema_are_refused() {
+    // Same model, fields in another order: positions do not match.
+    let reversed = Schema::builder()
+        .id_field(path("id"))
+        .text(
+            path("description"),
+            Text {
+                mode: TextMode::Semantic,
+                weight: 0.5,
+                ..Text::default()
+            },
+        )
+        .text(path("name"), Text::default())
+        .build()
+        .unwrap();
+    let embedder = LetterEmbedder::shared("letter");
+    let mut index = index(&embedder);
+    let model: Arc<dyn Embedder> = embedder.clone();
+    let other = SearchIndex::new(reversed.clone(), 10, Some(model)).unwrap();
+    let foreign = other
+        .encoder()
+        .encode(&record(&reversed, 1, "Acme", "cloud hosting"))
+        .unwrap();
+
+    let query = record(&schema(), 1, "Acme", "cloud hosting");
+    let error = index
+        .search_encoded(&query, foreign.as_ref(), options(), false)
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::SchemaMismatch);
+    let error = index
+        .check_or_add(query.clone(), foreign.clone(), options(), false)
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::SchemaMismatch);
+    let error = index.add_encoded(vec![query], foreign).unwrap_err();
+    assert_eq!(error.code(), ErrorCode::SchemaMismatch);
+    assert_eq!(index.len(), 0);
+}
+
+#[test]
+fn embeddings_must_cover_exactly_the_records() {
+    let schema = schema();
+    let embedder = LetterEmbedder::shared("letter");
+    let mut index = index(&embedder);
+    let a = record(&schema, 1, "Acme", "cloud hosting");
+    let b = record(&schema, 2, "Globex", "retail");
+    let both = index
+        .encoder()
+        .encode_batch(&[a.clone(), b.clone()])
+        .unwrap();
+
+    let error = index
+        .add_encoded(vec![a.clone()], both.clone())
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::SchemaMismatch);
+    let error = index
+        .check_or_add(a.clone(), both.clone(), options(), false)
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::SchemaMismatch);
+    let error = index
+        .search_encoded(&a, both.as_ref(), options(), false)
+        .unwrap_err();
+    assert_eq!(error.code(), ErrorCode::SchemaMismatch);
+    assert_eq!(index.len(), 0);
+
+    // With matching batches, a later record keeps its own vector.
+    index.add_encoded(vec![a.clone(), b.clone()], both).unwrap();
+    let c = record(&schema, 3, "Initech", "consulting");
+    let alone = index.encoder().encode(&c).unwrap();
+    index.add_encoded(vec![c.clone()], alone).unwrap();
+    let found = index.search_slot(
+        2,
+        SearchOptions {
+            min_score: 0.99,
+            ..options()
+        },
+    );
+    assert_eq!(found.unwrap().total_matches, 0);
+}

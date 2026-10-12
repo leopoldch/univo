@@ -109,8 +109,10 @@ impl SearchIndex {
     ///
     /// # Errors
     ///
-    /// As [`SearchIndex::search`], and `state.model_mismatch` when the
-    /// embeddings come from another model than the stored ones.
+    /// As [`SearchIndex::search`], `state.schema_mismatch` when the
+    /// embeddings were computed for another schema or another number of
+    /// records than one, and `state.model_mismatch` when they come from
+    /// another model than the stored ones.
     pub fn search_encoded(
         &self,
         query: &PreparedRecord,
@@ -122,7 +124,7 @@ impl SearchIndex {
         if !query.is_prepared_with(self.schema()) {
             return Err(Error::schema_mismatch());
         }
-        self.check_encoded(vectors)?;
+        self.check_encoded(vectors, 1)?;
         let query = Query {
             record: query,
             vectors: vectors.map_or_else(Vec::new, |vectors| vectors.record(0)),
@@ -167,7 +169,7 @@ impl SearchIndex {
         if !record.is_prepared_with(self.schema()) {
             return Err(Error::schema_mismatch());
         }
-        self.check_encoded(vectors.as_ref())?;
+        self.check_encoded(vectors.as_ref(), 1)?;
         // Compaction renumbers slots: it runs before the search, so that the
         // decision and the insertion see the same layout.
         self.compact_if_needed(1)?;
@@ -203,26 +205,38 @@ impl SearchIndex {
     ///
     /// # Errors
     ///
-    /// As [`SearchIndex::add`], and `state.model_mismatch` when the
-    /// embeddings come from another model: on error the index is unchanged.
+    /// As [`SearchIndex::add`], `state.schema_mismatch` when the embeddings
+    /// were computed for another schema or do not cover exactly `records`,
+    /// and `state.model_mismatch` when they come from another model: on
+    /// error the index is unchanged.
     pub fn add_encoded(
         &mut self,
         records: Vec<PreparedRecord>,
         vectors: Option<RecordVectors>,
     ) -> Result<std::ops::Range<usize>> {
-        self.check_encoded(vectors.as_ref())?;
+        self.check_encoded(vectors.as_ref(), records.len())?;
         self.compact_if_needed(records.len())?;
         self.add_preembedded(records, vectors)
     }
 
-    /// Embeddings are present exactly when the index stores some, and come
-    /// from its model.
-    fn check_encoded(&self, vectors: Option<&RecordVectors>) -> Result<()> {
+    /// Embeddings are present exactly when the index stores some, come
+    /// from its model and schema, and cover exactly `records` records: a
+    /// vector is never used for a record or a field it was not computed for.
+    fn check_encoded(&self, vectors: Option<&RecordVectors>, records: usize) -> Result<()> {
         match (&self.vectors, vectors) {
-            (Some(stored), Some(encoded)) if stored.model() != encoded.model() => Err(
-                Error::model_mismatch(&stored.model().name(), &encoded.model().name()),
-            ),
-            (Some(_), Some(_)) | (None, None) => Ok(()),
+            (Some(stored), Some(encoded)) => {
+                if !encoded.covers(self.schema().preparation_fingerprint(), records) {
+                    return Err(Error::schema_mismatch());
+                }
+                if stored.model() != encoded.model() {
+                    return Err(Error::model_mismatch(
+                        &stored.model().name(),
+                        &encoded.model().name(),
+                    ));
+                }
+                Ok(())
+            }
+            (None, None) => Ok(()),
             (Some(stored), None) => Err(Error::model_mismatch(&stored.model().name(), "none")),
             (None, Some(encoded)) => Err(Error::model_mismatch("none", &encoded.model().name())),
         }
