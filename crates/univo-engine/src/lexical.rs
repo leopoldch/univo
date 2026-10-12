@@ -200,6 +200,21 @@ impl LexicalIndex {
         threshold: f32,
         max_entries: usize,
     ) -> Result<LexicalSearch> {
+        self.search_from(store, query, threshold, max_entries, 0)
+    }
+
+    /// [`Self::search`] restricted to slots from `min_slot`: all-pairs
+    /// searches find each pair from its lower slot only. Lower slots are
+    /// still read and counted against `max_entries`, so truncation does not
+    /// depend on `min_slot`; they are only not verified.
+    pub(crate) fn search_from(
+        &self,
+        store: &RecordStore,
+        query: &PreparedRecord,
+        threshold: f32,
+        max_entries: usize,
+        min_slot: usize,
+    ) -> Result<LexicalSearch> {
         if !(threshold > 0.0 && threshold <= 1.0) {
             return Err(Error::invalid_threshold(threshold));
         }
@@ -237,7 +252,10 @@ impl LexicalIndex {
                     continue;
                 }
                 let slot = slot as usize;
-                if self.partitions[slot] != partition || !filter.admits(self.sizes[slot]) {
+                if slot < min_slot
+                    || self.partitions[slot] != partition
+                    || !filter.admits(self.sizes[slot])
+                {
                     continue;
                 }
                 if !store.is_active(slot) {

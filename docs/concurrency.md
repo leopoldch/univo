@@ -11,7 +11,7 @@ A `Finder` can be shared by the threads of one process.
 
 On the reference machine, a lexical `Finder` of 100,000 names serves about 257 searches per second on one thread, 510 on two and 968 on four. Before U-017, a Python lock kept it at 256 whatever the number of threads ([ADR 0016](adr/0016-local-concurrency-and-check-or-add.md)).
 
-`threads` remains the size of the semantic encoding pool; each search itself runs on the calling thread.
+`threads` is the size of the pool that runs semantic encoding and the all-pairs reports `find` and `group` ([ADR 0018](adr/0018-parallel-all-pairs.md)); their results do not depend on it. A single search (`search`, `check_or_add`) runs on the calling thread.
 
 ## check_or_add
 

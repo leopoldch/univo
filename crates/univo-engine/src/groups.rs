@@ -18,6 +18,7 @@
 //! records costs one search, not a million pairs.
 
 use std::collections::HashMap;
+use std::sync::Mutex;
 
 use univo_core::{Error, Result, exact_fingerprint, has_exact_evidence, is_exact_match};
 
@@ -208,6 +209,12 @@ impl SearchIndex {
 
     /// The best score of each pair of nodes reaching the minimum, each
     /// found from its lower node.
+    ///
+    /// Nodes are searched in parallel inside a Rayon pool. Workers
+    /// buffer at most [`EDGE_BUFFER`] pairs before folding them into the
+    /// shared map, which only grows and stops at `max_pairs + 1` pairs: the
+    /// budget fails exactly when more than `max_pairs` distinct pairs
+    /// qualify, with the same count, whatever the threads.
     fn qualifying_pairs(
         &self,
         exact: &Exact,
@@ -219,32 +226,62 @@ impl SearchIndex {
             limit: 0,
             max_entries: options.max_entries,
         };
-        let mut edges: HashMap<(usize, usize), f32> = HashMap::new();
+        let edges: Mutex<HashMap<(usize, usize), f32>> = Mutex::new(HashMap::new());
+        let fold = |buffer: &mut Vec<((usize, usize), f32)>| -> Result<()> {
+            let mut edges = edges.lock().map_err(|_| Error::index_poisoned())?;
+            // Another worker may have exceeded the budget: insert nothing
+            // more, so the reported count does not depend on the schedule.
+            if edges.len() > options.max_pairs {
+                return Err(Error::group_pair_limit(edges.len(), options.max_pairs));
+            }
+            for (pair, score) in buffer.drain(..) {
+                let kept = edges.entry(pair).or_insert(score);
+                *kept = kept.max(score);
+                if edges.len() > options.max_pairs {
+                    return Err(Error::group_pair_limit(edges.len(), options.max_pairs));
+                }
+            }
+            Ok(())
+        };
         let mut nodes: Vec<usize> = exact.sizes.keys().copied().collect();
         nodes.sort_unstable();
-        for from in nodes {
-            // Pairs are folded into edges as they are found, so the budget
-            // bounds memory: no search result keeps its explanations.
-            let result =
-                self.visit_pairs(from, search, options.exhaustive, &mut |slot, score| {
-                    let to = exact.node[slot];
-                    if to == from || to == usize::MAX {
-                        return Ok(());
-                    }
-                    let kept = edges.entry((from.min(to), from.max(to))).or_insert(score);
-                    *kept = kept.max(score);
-                    if edges.len() > options.max_pairs {
-                        return Err(Error::group_pair_limit(edges.len(), options.max_pairs));
-                    }
-                    Ok(())
-                })?;
-            report.candidates += result.candidates;
-            report.truncated |= result.truncated;
-            report.approximate |= result.approximate;
-        }
-        Ok(edges)
+        let counts = crate::fold_queries(
+            nodes,
+            || (0usize, false, false),
+            |(candidates, truncated, approximate), from| {
+                // Pairs are folded into edges as they are found, so the
+                // budget bounds memory: no search result keeps its
+                // explanations.
+                let mut buffer = Vec::new();
+                let result =
+                    self.visit_pairs(from, search, options.exhaustive, &mut |slot, score| {
+                        let to = exact.node[slot];
+                        if to != from && to != usize::MAX {
+                            buffer.push(((from.min(to), from.max(to)), score));
+                            if buffer.len() == EDGE_BUFFER {
+                                fold(&mut buffer)?;
+                            }
+                        }
+                        Ok(())
+                    })?;
+                fold(&mut buffer)?;
+                Ok::<_, Error>((
+                    candidates + result.candidates,
+                    truncated | result.truncated,
+                    approximate | result.approximate,
+                ))
+            },
+            |a, b| (a.0 + b.0, a.1 | b.1, a.2 | b.2),
+        )?;
+        report.candidates += counts.0;
+        report.truncated |= counts.1;
+        report.approximate |= counts.2;
+        edges.into_inner().map_err(|_| Error::index_poisoned())
     }
 }
+
+/// Qualifying pairs a worker holds before taking the shared map's lock.
+const EDGE_BUFFER: usize = 1024;
 
 /// Starts from the exact groups whose members score at least the minimum
 /// together, then joins nodes and groups along the strongest pairs first,

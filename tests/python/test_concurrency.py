@@ -1,7 +1,10 @@
 """check_or_add and concurrent use of one Finder from several threads."""
 
+import pathlib
+import random
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from typing import Literal
 
 import pytest
 from univo import DuplicateIdError, Finder, InvalidParameterError, Schema, Text
@@ -126,3 +129,34 @@ def test_the_documented_example_runs() -> None:
     text = document.read_text(encoding="utf-8")
     example = text.split("```python\n", 1)[1].split("```", 1)[0]
     exec(compile(example, str(document), "exec"), {})
+
+
+@pytest.mark.parametrize("mode", ["lexical", "semantic"])
+def test_find_and_group_give_the_same_result_on_every_thread_budget(
+    mode: Literal["lexical", "semantic"],
+) -> None:
+    tiny = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "models" / "tiny"
+    rng = random.Random(3)
+    records = []
+    for row in range(600):
+        name = list(rng.choice(NAMES))
+        for _ in range(rng.randrange(3)):
+            name[rng.randrange(len(name))] = rng.choice("aex")
+        records.append({"id": row, "name": "".join(name)})
+
+    def run(threads: int) -> tuple[list[tuple[str | int, str | int, float]], int, object]:
+        index = Finder(
+            schema=Schema(fields={"name": Text(mode=mode)}, id_field="id"),
+            model_path=tiny if mode == "semantic" else None,
+            offline=True,
+            threads=threads,
+        )
+        assert index.config()["effective_threads"] == threads
+        report = index.find(records, min_score=0.6, limit=500)
+        pairs = [(m.left_id, m.right_id, m.score) for m in report.matches]
+        groups = index.group(records, min_score=0.6)
+        return pairs, report.total_matches, (groups.exact, groups.groups)
+
+    expected = run(1)
+    assert expected[1] > 500
+    assert run(4) == expected

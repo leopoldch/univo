@@ -684,7 +684,13 @@ impl SearchIndex {
         candidates.extend(exact);
 
         for index in &self.lexical {
-            let found = index.search(self.store(), query.record, threshold, options.max_entries)?;
+            let found = index.search_from(
+                self.store(),
+                query.record,
+                threshold,
+                options.max_entries,
+                query.min_slot,
+            )?;
             result.truncated |= found.truncated;
             result.lanes.lexical += found.matches.len();
             candidates.extend(found.matches.iter().map(|found| found.slot));
@@ -718,7 +724,10 @@ impl SearchIndex {
                 let found = within(
                     field_vectors,
                     query_vector,
+                    // Partitions list slots in increasing order: all-pairs
+                    // queries scan only the records after them.
                     partition
+                        [partition.partition_point(|&slot| (slot as usize) < query.min_slot)..]
                         .iter()
                         .map(|&slot| slot as usize)
                         .filter(|&slot| self.store().is_active(slot)),

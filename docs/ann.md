@@ -91,7 +91,7 @@ Le backend est `fast-hnsw` 1.0.1, M=16, efConstruction=200, pruning
 sur huit lanes. Le score final utilise le cosinus du cœur. Les vecteurs
 validés sont unitaires. Aucune instruction CPU particulière, code unsafe
 Univo, worker pool supplémentaire ou persistance de la dépendance n'est requis.
-La recherche et le scoring sont séquentiels ; `threads` borne l'inférence.
+Une recherche isolée est séquentielle ; `threads` borne l'inférence et les requêtes parallèles de `find` et `group` ([ADR 0018](adr/0018-parallel-all-pairs.md)). La construction des graphes reste séquentielle.
 
 Le graphe copie les vecteurs distincts et stocke liens, hashes et slots.
 `stats().ann_nodes` compte les vecteurs distincts, tombstones compris ;

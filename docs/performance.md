@@ -275,3 +275,26 @@ network audit pass. Local macOS arm64 wheel 1.789 MiB versus 1.762 MiB
 U-015; 115 linked crate names versus 112. GitHub Actions jobs did not start
 because account payments/spending limits block execution: no cross-platform
 CI success is claimed. No model change, release or merge.
+
+## Parallel all-pairs reports (ADR 0018)
+
+[Script](../benchmarks/comparison/scale.py), [raw results](../benchmarks/performance/all-pairs-macos-arm64.jsonl), U-003 protocol: synthetic company names in one partition, one record in ten a near-duplicate with a typo, `min_score=0.8`, pairs turned into removals by SemHash's rule inside the timed section. Apple M2 (4 performance and 4 efficiency cores), 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, release build, potion-base-8M at `bf8b0566` in OS cache, one run per line, one process at a time. Wall time includes model loading; CPU time covers deduplication on every thread.
+
+| Records | Configuration | Before (U-003) | 1 thread | 8 threads | CPU, 8 threads | Peak RSS, 8 threads |
+| --- | --- | --- | --- | --- | --- | --- |
+| 10,000 | lexical | 2.3 s | 1.1 s | **0.23 s** | 1.5 s | 43 MiB |
+| 10,000 | semantic, exact | 2.6 s | 1.4 s | **0.36 s** | 2.1 s | 132 MiB |
+| 10,000 | semantic, HNSW | 6.4 s | | 4.2 s | 8.4 s | 149 MiB |
+| 30,000 | lexical | 18.8 s | 9.7 s | **1.9 s** | 12.7 s | 76 MiB |
+| 30,000 | semantic, exact | 23.0 s | 11.7 s | **4.1 s** | 27.7 s | 179 MiB |
+| 30,000 | semantic, HNSW | 39.7 s | | 20.4 s | 58.7 s | 231 MiB |
+| 100,000 | lexical | 281 s | 124 s | **24.4 s** | 174 s | 182 MiB |
+| 100,000 | semantic, exact | 251 s | 126 s | **66.5 s** | 485 s | 314 MiB |
+| 100,000 | semantic, HNSW | 220 s | | 113 s | 343 s | 518 MiB |
+
+Every configuration removes the same records as before. For reference, SemHash 0.5.0 takes 1.0 s, 2.5 s and 14 s on the same data with every core ([U-003](../benchmarks/comparison/README.md)).
+
+- **Half the comparisons.** An all-pairs query now scans only the records after it, in the lexical verification and the dense semantic scan: one thread is about twice as fast.
+- **Threads.** Lexical reports scale to 5.1× on 8 threads at 100,000 records. Dense semantic reports stop at 1.9× there: each query streams every later vector from memory, up to 100 MB at 100,000 records, so memory bandwidth, not arithmetic, bounds them from about 4 threads. Comparing blocks of queries with each vector read is the next step.
+- **HNSW** stays slower than the exhaustive scan up to 30,000 records; its graph is still built on one thread.
+- **Small calls.** With `threads=1`, a lexical index creates no pool: `find` of 20 records takes 483 µs against 510 µs before, and `group` 83 µs against 85 µs (median of five runs of 2,000 calls). With `threads=4`, creating the index's pool adds about 25 µs to `find` and 50 µs to `group`.

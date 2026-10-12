@@ -97,6 +97,9 @@ def main(argv: list[str] | None = None) -> int:
         default="hnsw",
         help="Univo semantic retrieval: explicit HNSW or exhaustive dense search",
     )
+    parser.add_argument(
+        "--threads", type=int, default=1, help="Univo thread budget; SemHash uses every core"
+    )
     arguments = parser.parse_args(argv)
     texts = names(arguments.records)
 
@@ -124,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
             max_records=arguments.records,
             retrieval=arguments.retrieval if semantic else "exact",
             max_semantic_comparisons=2**62,
+            threads=arguments.threads,
         )
         # Loads the model, which Univo resolves on first use.
         finder.find([{"row": 0, "text": "warm-up"}])
@@ -142,6 +146,7 @@ def main(argv: list[str] | None = None) -> int:
                 "tool": arguments.tool,
                 "retrieval": arguments.retrieval if arguments.tool == "univo-semantic" else None,
                 "records": arguments.records,
+                "threads": None if arguments.tool == "semhash" else arguments.threads,
                 "setup_seconds": round(loaded - start, 3),
                 "dedupe_seconds": round(end - loaded, 3),
                 "total_seconds": round(end - start, 3),

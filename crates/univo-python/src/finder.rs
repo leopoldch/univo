@@ -566,11 +566,15 @@ impl NativeIndex {
         cache: Option<&PyEmbeddingCache>,
         ann: Option<(usize, usize)>,
     ) -> univo_core::Result<(SearchIndex, Option<Arc<rayon::ThreadPool>>)> {
+        // Encoding and all-pairs reports run on this pool, so `threads`
+        // bounds them; single searches run on the calling thread. Without a
+        // model, one thread needs no pool: reports then run on the caller.
+        // Encoding always needs one, or the tokenizer would use every core.
         let needs_model = schema
             .fields()
             .iter()
             .any(|f| matches!(f.kind, FieldKind::Text(t) if t.mode == TextMode::Semantic));
-        let pool = if needs_model {
+        let pool = if needs_model || threads > 1 {
             Some(Arc::new(
                 rayon::ThreadPoolBuilder::new()
                     .num_threads(threads)

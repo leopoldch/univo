@@ -10,6 +10,7 @@ authors.workspace = true
 
 [dependencies]
 fast-hnsw = "=1.0.1"
+rayon = "1.12.0"
 univo-core.workspace = true
 univo-embed.workspace = true
 serde = { version = "1.0.229", default-features = false, features = ["derive", "std"] }
