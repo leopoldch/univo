@@ -1,0 +1,8 @@
+{"tool": "semhash", "records": 10000, "setup_seconds": 0.204, "dedupe_seconds": 0.705, "removed": 399, "peak_rss_mib": 162.7, "python": "3.12.14", "machine": "arm64"}
+{"tool": "semhash", "records": 30000, "setup_seconds": 0.21, "dedupe_seconds": 2.507, "removed": 1229, "peak_rss_mib": 283.4, "python": "3.12.14", "machine": "arm64", "cpu_seconds": 12.95, "wall_seconds": 2.87}
+{"tool": "semhash", "records": 100000, "setup_seconds": 0.21, "dedupe_seconds": 14.033, "removed": 4198, "peak_rss_mib": 644.5, "python": "3.12.14", "machine": "arm64"}
+{"tool": "univo-semantic", "records": 10000, "setup_seconds": 0.005, "dedupe_seconds": 6.474, "removed": 868, "peak_rss_mib": 144.7, "python": "3.14.7", "machine": "arm64"}
+{"tool": "univo-semantic", "records": 30000, "setup_seconds": 0.005, "dedupe_seconds": 43.225, "removed": 3181, "peak_rss_mib": 221.3, "python": "3.14.7", "machine": "arm64", "cpu_seconds": 43.33, "wall_seconds": 43.35}
+{"tool": "univo-lexical", "records": 10000, "setup_seconds": 0.005, "dedupe_seconds": 2.107, "removed": 957, "peak_rss_mib": 41.3, "python": "3.14.7", "machine": "arm64"}
+{"tool": "univo-lexical", "records": 30000, "setup_seconds": 0.005, "dedupe_seconds": 18.759, "removed": 3026, "peak_rss_mib": 74.9, "python": "3.14.7", "machine": "arm64"}
+{"tool": "univo-semantic", "records": 100000, "setup_seconds": 0.006, "dedupe_seconds": 228.738, "removed": 14372, "peak_rss_mib": 505.0, "python": "3.14.7", "machine": "arm64", "cpu_seconds": 229.0, "wall_seconds": 229.03}

@@ -44,6 +44,7 @@ The Amazon/Amiazon pair is returned as a candidate. Default hybrid fields use le
 - [Search](docs/search.md)
 - [Concurrency and check_or_add](docs/concurrency.md)
 - [Groups](docs/groups.md)
+- [Comparison with SemHash](benchmarks/comparison/README.md)
 
 ## Design priorities
 

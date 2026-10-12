@@ -62,7 +62,7 @@ Exemples exécutables : liste de noms ; organisations ; configuration avec envir
 - [ ] API et cœur Rust partagent les mêmes politiques et tests de référence.
 - [ ] Aucune suppression DB ni fusion automatique implicite.
 - [ ] Documentation de la portée locale de check_or_add.
-- [ ] Rapport de différenciation comparé à SemHash et aux baselines lexicales.
+- [x] Rapport de différenciation comparé à SemHash et aux baselines lexicales ([U-003](../benchmarks/comparison/README.md)).
 
 U-016 ajoute `fast-hnsw=1.0.1` au moteur ; aucune dépendance Python ou
 bibliothèque native C/C++, aucun client réseau. Sept versions de packages

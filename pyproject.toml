@@ -63,6 +63,7 @@ module = [
     "model2vec.*",
     "numpy.*",
     "pyarrow.*",
+    "semhash.*",
     "sentence_transformers.*",
     "torch.*",
 ]
