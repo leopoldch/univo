@@ -2,9 +2,15 @@
 
 One record in ten repeats an earlier name with a typo. Each tool runs with
 its documented defaults in its own process: SemHash 0.9 with its usearch
-index; Univo 0.8, lexical (exact retrieval) or semantic with explicit HNSW
+index; Univo 0.8, lexical, or semantic with exact (dense) or HNSW
 retrieval. Univo returns pairs; the same greedy rule as SemHash turns them
 into removals, inside the timed section.
+
+The same steps are timed for every tool: `setup_seconds` loads the model
+(Univo through a one-record warm-up, since it loads it lazily),
+`dedupe_seconds` deduplicates, and `total_seconds` is both. CPU seconds
+(user and system, every thread) are measured over the deduplication, so
+that a tool using several cores shows it.
 """
 
 from __future__ import annotations
@@ -68,6 +74,11 @@ def names(count: int) -> list[str]:
     return out
 
 
+def cpu_seconds() -> float:
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    return usage.ru_utime + usage.ru_stime
+
+
 def peak_rss_mib() -> float:
     peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     return peak / (1 << 20) if sys.platform == "darwin" else peak / (1 << 10)
@@ -80,6 +91,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--records", type=int, required=True)
     parser.add_argument("--model-path")
+    parser.add_argument(
+        "--retrieval",
+        choices=("hnsw", "exact"),
+        default="hnsw",
+        help="Univo semantic retrieval: explicit HNSW or exhaustive dense search",
+    )
     arguments = parser.parse_args(argv)
     texts = names(arguments.records)
 
@@ -89,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
         from semhash import SemHash
 
         model = StaticModel.from_pretrained(arguments.model_path)
-        loaded = time.perf_counter()
+        loaded, cpu = time.perf_counter(), cpu_seconds()
         result = SemHash.from_records(
             [{"text": text} for text in texts], columns=["text"], model=model
         ).self_deduplicate(threshold=0.9)
@@ -105,25 +122,30 @@ def main(argv: list[str] | None = None) -> int:
             model_path=arguments.model_path if semantic else None,
             offline=True,
             max_records=arguments.records,
-            retrieval="hnsw" if semantic else "exact",
+            retrieval=arguments.retrieval if semantic else "exact",
             max_semantic_comparisons=2**62,
         )
-        loaded = time.perf_counter()
+        # Loads the model, which Univo resolves on first use.
+        finder.find([{"row": 0, "text": "warm-up"}])
+        loaded, cpu = time.perf_counter(), cpu_seconds()
         report = finder.find(
             [{"row": row, "text": text} for row, text in enumerate(texts)],
             min_score=0.8,
             limit=2**32 - 1,
         )
         pairs = [(int(m.left_id), int(m.right_id), m.score) for m in report.matches]
-        removed = len(greedy(len(texts), pairs, 0.8))
+        removed = len(greedy(texts, pairs, 0.8))
     end = time.perf_counter()
     print(
         json.dumps(
             {
                 "tool": arguments.tool,
+                "retrieval": arguments.retrieval if arguments.tool == "univo-semantic" else None,
                 "records": arguments.records,
                 "setup_seconds": round(loaded - start, 3),
                 "dedupe_seconds": round(end - loaded, 3),
+                "total_seconds": round(end - start, 3),
+                "dedupe_cpu_seconds": round(cpu_seconds() - cpu, 3),
                 "removed": removed,
                 "peak_rss_mib": round(peak_rss_mib(), 1),
                 "python": platform.python_version(),

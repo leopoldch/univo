@@ -2,9 +2,10 @@
 
 Each tool deduplicates the organization names of the ROR name-alias
 benchmark (U-012), one split at a time: records sharing a ROR ID are
-duplicates. Every tool is held to SemHash's own decision rule: in input
-order, a record is removed when an earlier kept record reaches the
-threshold, and it points to the most similar one. The threshold is chosen
+duplicates. Every tool is held to SemHash's own decision rule (`greedy`):
+identical texts form one group, and in order of first occurrence a group
+is removed when an earlier selected group reaches the threshold, pointing
+to the most similar one. The threshold is chosen
 on validation with the U-012 rule (highest recall at precision >= 98% with
 at least 20 correct removals, higher threshold on ties) and then applied
 once to test.
@@ -56,24 +57,41 @@ def load_splits(path: Path) -> dict[str, list[Record]]:
     return splits
 
 
-def greedy(size: int, pairs: Iterable[tuple[int, int, float]], threshold: float) -> list[Removal]:
-    """SemHash's selection: in input order, a record is removed when an
-    earlier kept record reaches `threshold`, pointing to the most similar
-    one (lowest position on ties)."""
-    earlier: dict[int, list[tuple[int, float]]] = defaultdict(list)
+def greedy(
+    texts: Sequence[str], pairs: Iterable[tuple[int, int, float]], threshold: float
+) -> list[Removal]:
+    """SemHash 0.5.0's selection. Records with identical text form one group,
+    ordered by first occurrence. In that order, a group is removed when an
+    earlier selected group reaches `threshold`, pointing to the most similar
+    one (earliest on ties); otherwise it is selected. A removed group's
+    records all point to the chosen group's first record; a selected group's
+    other copies point to its own first record."""
+    group_of: dict[str, int] = {}
+    members: list[list[int]] = []
+    for row, text in enumerate(texts):
+        if text not in group_of:
+            group_of[text] = len(members)
+            members.append([])
+        members[group_of[text]].append(row)
+    best: dict[tuple[int, int], float] = {}
     for left, right, score in pairs:
-        if score >= threshold:
-            first, second = min(left, right), max(left, right)
-            earlier[second].append((first, score))
-    kept = [False] * size
-    removals = []
-    for row in range(size):
-        matches = [(score, -other) for other, score in earlier[row] if kept[other]]
+        a, b = group_of[texts[left]], group_of[texts[right]]
+        if a != b and score >= threshold:
+            key = (min(a, b), max(a, b))
+            best[key] = max(score, best.get(key, score))
+    earlier: dict[int, list[tuple[int, float]]] = defaultdict(list)
+    for (first, second), score in best.items():
+        earlier[second].append((first, score))
+    selected = [False] * len(members)
+    removals: list[Removal] = []
+    for group, rows in enumerate(members):
+        matches = [(score, -other) for other, score in earlier[group] if selected[other]]
         if matches:
-            _, other = max(matches)
-            removals.append((row, -other))
+            _, canonical = max(matches)
+            removals.extend((row, members[-canonical][0]) for row in rows)
         else:
-            kept[row] = True
+            selected[group] = True
+            removals.extend((row, rows[0]) for row in rows[1:])
     return removals
 
 
@@ -133,7 +151,8 @@ def univo_removals(
     ]
     if mode == "univo-exact":
         pairs = [(left, right, 1.0) for left, right, _ in pairs]
-    return {threshold: greedy(len(records), pairs, threshold) for threshold in THRESHOLDS}
+    texts = [text for _, _, text in records]
+    return {threshold: greedy(texts, pairs, threshold) for threshold in THRESHOLDS}
 
 
 def semhash_removals(records: Sequence[Record], model_path: str) -> dict[float, list[Removal]]:

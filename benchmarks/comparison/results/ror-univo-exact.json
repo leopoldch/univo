@@ -8,10 +8,10 @@
   "test": null,
   "best_validation_f1_threshold": 1.0,
   "seconds": {
-    "validation": 0.7214709589607082,
-    "test": 0.7243819159921259
+    "validation": 0.739264041010756,
+    "test": 0.7411642090301029
   },
-  "peak_rss_mib": 41.671875,
+  "peak_rss_mib": 42.28125,
   "python": "3.14.7",
   "machine": "arm64",
   "curves": {
