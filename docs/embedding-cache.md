@@ -26,7 +26,7 @@ A cache from another model, tokenizer, configuration, dimension or backend is re
 
 ## Eviction and memory
 
-Eviction is FIFO by successful insertion; hits do not refresh the queue. This keeps hit lookup constant-time without another ordering tree or dependency. Re-encoding after eviction is expected. Oversized entries are not admitted, and their text keys are not copied into the cache.
+Eviction is FIFO by successful insertion; hits do not refresh the queue. This keeps hit lookup constant-time without another ordering tree or dependency. Re-encoding after eviction is expected. Admission first checks whether an entry fits an empty cache, including its containers. Their minimum allocation estimate is measured once from standard-library capacities. An impossible entry leaves existing entries and eviction counters untouched; its text key is not copied into the cache.
 
 `embedding_cache_bytes` bounds a conservative **retained allocation estimate**: text bytes, vector bytes, 64 bytes per entry for Arc headers/alignment, hash-table capacity/control-byte allowance and FIFO backing capacity. Hash-table allocation high-water capacity is tracked because deletion can lower reported capacity without freeing storage. Admission evicts until the estimate fits; if necessary empty containers are released. The estimate excludes fixed cache/model-descriptor metadata, persistent index vectors, active batch/query buffers and allocator-specific overhead. It is not a process RSS or peak-allocation cap; container resizing and in-flight rows can temporarily exceed the retained estimate.
 

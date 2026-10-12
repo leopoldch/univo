@@ -31,6 +31,7 @@ struct State {
     order: VecDeque<Arc<str>>,
     payload_bytes: usize,
     table_capacity: usize,
+    minimum_container_bytes: usize,
     hits: usize,
     misses: usize,
     evictions: usize,
@@ -48,6 +49,19 @@ impl State {
             + self.order.capacity() * size_of::<Arc<str>>()
     }
 
+    fn minimum_container_bytes(&mut self) -> usize {
+        if self.minimum_container_bytes == 0 {
+            // Probe once, using actual standard-library capacities rather
+            // than assuming a particular HashMap/VecDeque growth policy.
+            let mut empty = Self::default();
+            empty.entries.reserve(1);
+            empty.table_capacity = empty.entries.capacity();
+            empty.order.reserve(1);
+            self.minimum_container_bytes = empty.bytes();
+        }
+        self.minimum_container_bytes
+    }
+
     fn evict(&mut self) {
         if let Some(key) = self.order.pop_front()
             && let Some(entry) = self.entries.remove(&key)
@@ -63,6 +77,9 @@ impl State {
             .saturating_add(row.as_ref().map_or(0, |v| v.len() * 4))
             .saturating_add(64);
         if bytes > max_bytes || self.entries.contains_key(text) {
+            return;
+        }
+        if bytes.saturating_add(self.minimum_container_bytes()) > max_bytes {
             return;
         }
         self.entries.reserve(1);
@@ -179,8 +196,9 @@ impl EmbeddingCache {
             ));
         }
         let mut state = self.state()?;
+        let mut absent = encoded.absent().iter().peekable();
         for (index, (text, position)) in missing.iter().zip(positions).enumerate() {
-            let row = if encoded.absent().binary_search(&index).is_ok() {
+            let row = if absent.next_if_eq(&&index).is_some() {
                 None
             } else {
                 Some(Arc::from(encoded.row(index)))

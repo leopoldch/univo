@@ -247,8 +247,9 @@ pub fn embed_records_cached(
                     ),
                 ));
             }
+            let mut absent = embeddings.absent().iter().peekable();
             for position in 0..distinct.len() {
-                rows.push(if embeddings.absent().binary_search(&position).is_ok() {
+                rows.push(if absent.next_if_eq(&&position).is_some() {
                     None
                 } else {
                     Some(vectors.add_row(embeddings.row(position))?)

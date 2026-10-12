@@ -50,7 +50,7 @@ impl Embedder for Counting {
             texts
                 .iter()
                 .flat_map(|text| {
-                    if *text == "unknown" {
+                    if text.starts_with("unknown") {
                         [0.0, 0.0]
                     } else {
                         [1.0, 0.0]
@@ -221,4 +221,72 @@ fn concurrent_warm_readers_reuse_vectors_without_encoding() {
     });
     assert_eq!(model.texts.lock().unwrap().len(), 1);
     assert_eq!(cache.stats().unwrap().hits, 160);
+}
+
+#[test]
+fn an_entry_that_cannot_fit_an_empty_cache_preserves_hot_entries() {
+    let model = Counting::new();
+    let schema = schema();
+    let cache = EmbeddingCache::new(model.descriptor().clone(), 512);
+    let warm = [record(&schema, "a")];
+    embed_records_cached(&schema, &warm, &model, Some(&cache)).unwrap();
+    let before = cache.stats().unwrap();
+    // Payload exactly fits the budget, but its containers cannot fit.
+    let oversized = "x".repeat(440);
+    embed_records_cached(
+        &schema,
+        &[record(&schema, &oversized)],
+        &model,
+        Some(&cache),
+    )
+    .unwrap();
+    let rejected = cache.stats().unwrap();
+    assert_eq!(rejected.entries, before.entries);
+    assert_eq!(rejected.bytes, before.bytes);
+    assert_eq!(rejected.evictions, before.evictions);
+    embed_records_cached(&schema, &warm, &model, Some(&cache)).unwrap();
+    assert_eq!(cache.stats().unwrap().hits, before.hits + 1);
+    assert_eq!(*model.texts.lock().unwrap(), ["a", &oversized]);
+}
+
+#[test]
+fn cached_and_uncached_absent_positions_keep_interleaved_rows() {
+    let model = Counting::new();
+    let schema = schema();
+    let cache = EmbeddingCache::new(model.descriptor().clone(), 4096);
+    let records: Vec<_> = ["unknown-0", "a", "unknown-1", "b", "unknown-2"]
+        .into_iter()
+        .map(|text| record(&schema, text))
+        .collect();
+    let plain = embed_records(&schema, &records, &model).unwrap();
+    let cached = embed_records_cached(&schema, &records, &model, Some(&cache)).unwrap();
+    assert_eq!(plain, cached);
+    for slot in [0, 2, 4] {
+        assert!(plain.field(0).unwrap().get(slot).is_none());
+    }
+    for slot in [1, 3] {
+        assert_eq!(
+            plain.field(0).unwrap().get(slot),
+            Some([1.0, 0.0].as_slice())
+        );
+    }
+}
+
+#[test]
+fn an_entry_at_the_empty_cache_boundary_can_replace_an_old_entry() {
+    let model = Counting::new();
+    let schema = schema();
+    let budget = 512;
+    let cache = EmbeddingCache::new(model.descriptor().clone(), budget);
+    embed_records_cached(&schema, &[record(&schema, "a")], &model, Some(&cache)).unwrap();
+    // "a" occupies one text byte; replace it with exactly the available
+    // text length, retaining the same vector and container allocation.
+    let text = "x".repeat(budget - cache.stats().unwrap().bytes + 1);
+    embed_records_cached(&schema, &[record(&schema, &text)], &model, Some(&cache)).unwrap();
+    let stats = cache.stats().unwrap();
+    assert_eq!(stats.bytes, budget);
+    assert_eq!(stats.entries, 1);
+    assert_eq!(stats.evictions, 1);
+    embed_records_cached(&schema, &[record(&schema, &text)], &model, Some(&cache)).unwrap();
+    assert_eq!(cache.stats().unwrap().hits, 1);
 }
