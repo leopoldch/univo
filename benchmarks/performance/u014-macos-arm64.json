@@ -1,0 +1,355 @@
+{
+  "before_buffer_bound_100k": {
+    "samples": {
+      "add_including_local_model_load_ms": [
+        4143.690917,
+        4079.139541,
+        4065.914625,
+        4066.477042,
+        4078.8215
+      ],
+      "save_ms": [
+        538.229792,
+        535.091959,
+        500.871084,
+        511.918875,
+        581.157
+      ],
+      "load_ms": [
+        618.277542,
+        610.336834,
+        605.150042,
+        601.405292,
+        611.105917
+      ]
+    },
+    "median_ms": {
+      "add_including_local_model_load_ms": 4078.8215,
+      "save_ms": 535.091959,
+      "load_ms": 610.336834
+    },
+    "snapshot_generation_bytes": 135991037,
+    "last_stats_after_queries": {
+      "records": 100000,
+      "generation": 1,
+      "index_bytes": 214501568,
+      "embedding_cache_hits": 0,
+      "embedding_cache_misses": 10,
+      "embedding_cache_evictions": 0,
+      "embedding_cache_bytes": 14504,
+      "embedding_cache_entries": 10
+    },
+    "metadata": {
+      "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+      "python": "3.14.7",
+      "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+      "cpu_and_ram": [
+        "Apple M2",
+        "17179869184"
+      ],
+      "threads": 1,
+      "records": 100000,
+      "partitions": 100,
+      "repeats": 5,
+      "name_length": 20,
+      "description_words": 32,
+      "model_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "dimension": 256,
+      "model_bytes": 30920628,
+      "state": "warm OS cache, fresh Finder per cycle; original released before load",
+      "process_peak_rss_bytes": 1139802112,
+      "rss_scope": "entire process: generated Python records, model, lanes and vectors",
+      "storage": "local filesystem, system temporary directory; no network or cold-disk test"
+    }
+  },
+  "single_cycle_100k": {
+    "samples": {
+      "add_including_local_model_load_ms": [
+        4177.234833
+      ],
+      "save_ms": [
+        513.082583
+      ],
+      "load_ms": [
+        628.031166
+      ]
+    },
+    "cumulative_peak_rss_by_phase_bytes": [
+      {
+        "after_add": 570261504,
+        "after_load": 659046400
+      }
+    ],
+    "median_ms": {
+      "add_including_local_model_load_ms": 4177.234833,
+      "save_ms": 513.082583,
+      "load_ms": 628.031166
+    },
+    "snapshot_generation_bytes": 135991037,
+    "last_stats_after_queries": {
+      "records": 100000,
+      "generation": 1,
+      "index_bytes": 214501568,
+      "embedding_cache_hits": 0,
+      "embedding_cache_misses": 10,
+      "embedding_cache_evictions": 0,
+      "embedding_cache_bytes": 14504,
+      "embedding_cache_entries": 10
+    },
+    "metadata": {
+      "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+      "python": "3.14.7",
+      "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+      "cpu_and_ram": [
+        "Apple M2",
+        "17179869184"
+      ],
+      "threads": 1,
+      "records": 100000,
+      "partitions": 100,
+      "repeats": 1,
+      "name_length": 20,
+      "description_words": 32,
+      "model_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "dimension": 256,
+      "model_bytes": 30920628,
+      "state": "warm OS cache, fresh Finder per cycle; original released before load",
+      "process_peak_rss_bytes": 659701760,
+      "rss_scope": "entire process: generated Python records, model, lanes and vectors",
+      "storage": "local filesystem, system temporary directory; no network or cold-disk test"
+    }
+  },
+  "1k": {
+    "samples": {
+      "add_including_local_model_load_ms": [
+        85.226292,
+        60.001458,
+        59.008834,
+        60.902208,
+        60.307291
+      ],
+      "save_ms": [
+        46.1965,
+        23.856166,
+        21.81825,
+        25.466166,
+        23.889458
+      ],
+      "load_ms": [
+        24.1255,
+        30.012834,
+        26.64425,
+        23.740041,
+        24.032875
+      ]
+    },
+    "cumulative_peak_rss_by_phase_bytes": [
+      {
+        "after_add": 114376704,
+        "after_load": 114982912
+      },
+      {
+        "after_add": 115048448,
+        "after_load": 115064832
+      },
+      {
+        "after_add": 115097600,
+        "after_load": 115113984
+      },
+      {
+        "after_add": 115146752,
+        "after_load": 115146752
+      },
+      {
+        "after_add": 115179520,
+        "after_load": 115212288
+      }
+    ],
+    "median_ms": {
+      "add_including_local_model_load_ms": 60.307291,
+      "save_ms": 23.889458,
+      "load_ms": 24.1255
+    },
+    "snapshot_generation_bytes": 1360029,
+    "last_stats_after_queries": {
+      "records": 1000,
+      "generation": 1,
+      "index_bytes": 2757120,
+      "embedding_cache_hits": 0,
+      "embedding_cache_misses": 10,
+      "embedding_cache_evictions": 0,
+      "embedding_cache_bytes": 14504,
+      "embedding_cache_entries": 10
+    },
+    "metadata": {
+      "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+      "python": "3.14.7",
+      "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+      "cpu_and_ram": [
+        "Apple M2",
+        "17179869184"
+      ],
+      "threads": 1,
+      "records": 1000,
+      "partitions": 100,
+      "repeats": 5,
+      "name_length": 20,
+      "description_words": 32,
+      "model_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "dimension": 256,
+      "model_bytes": 30920628,
+      "state": "warm OS cache, fresh Finder per cycle; original released before load",
+      "process_peak_rss_bytes": 115785728,
+      "rss_scope": "entire process: generated Python records, model, lanes and vectors",
+      "storage": "local filesystem, system temporary directory; no network or cold-disk test"
+    }
+  },
+  "10k": {
+    "samples": {
+      "add_including_local_model_load_ms": [
+        438.477667,
+        427.727041,
+        426.398333,
+        434.601584,
+        433.972709
+      ],
+      "save_ms": [
+        81.247333,
+        76.5905,
+        72.638334,
+        69.206209,
+        69.230083
+      ],
+      "load_ms": [
+        79.283917,
+        76.328416,
+        74.832208,
+        74.606917,
+        74.482208
+      ]
+    },
+    "cumulative_peak_rss_by_phase_bytes": [
+      {
+        "after_add": 165363712,
+        "after_load": 169639936
+      },
+      {
+        "after_add": 170557440,
+        "after_load": 180682752
+      },
+      {
+        "after_add": 181403648,
+        "after_load": 191528960
+      },
+      {
+        "after_add": 192233472,
+        "after_load": 202375168
+      },
+      {
+        "after_add": 205422592,
+        "after_load": 213188608
+      }
+    ],
+    "median_ms": {
+      "add_including_local_model_load_ms": 433.972709,
+      "save_ms": 72.638334,
+      "load_ms": 74.832208
+    },
+    "snapshot_generation_bytes": 13591033,
+    "last_stats_after_queries": {
+      "records": 10000,
+      "generation": 1,
+      "index_bytes": 24665920,
+      "embedding_cache_hits": 0,
+      "embedding_cache_misses": 10,
+      "embedding_cache_evictions": 0,
+      "embedding_cache_bytes": 14504,
+      "embedding_cache_entries": 10
+    },
+    "metadata": {
+      "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+      "python": "3.14.7",
+      "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+      "cpu_and_ram": [
+        "Apple M2",
+        "17179869184"
+      ],
+      "threads": 1,
+      "records": 10000,
+      "partitions": 100,
+      "repeats": 5,
+      "name_length": 20,
+      "description_words": 32,
+      "model_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "dimension": 256,
+      "model_bytes": 30920628,
+      "state": "warm OS cache, fresh Finder per cycle; original released before load",
+      "process_peak_rss_bytes": 213762048,
+      "rss_scope": "entire process: generated Python records, model, lanes and vectors",
+      "storage": "local filesystem, system temporary directory; no network or cold-disk test"
+    }
+  },
+  "100k": {
+    "samples": {
+      "add_including_local_model_load_ms": [
+        4066.746083,
+        4066.533333,
+        4072.510167,
+        4066.772667,
+        4065.435583
+      ],
+      "save_ms": [
+        521.771459,
+        510.740208,
+        507.949916,
+        505.983333,
+        553.32925
+      ],
+      "load_ms": [
+        611.273667,
+        613.105833,
+        598.264333,
+        599.674917,
+        603.741375
+      ]
+    },
+    "median_ms": {
+      "add_including_local_model_load_ms": 4066.746083,
+      "save_ms": 510.740208,
+      "load_ms": 603.741375
+    },
+    "snapshot_generation_bytes": 135991037,
+    "last_stats_after_queries": {
+      "records": 100000,
+      "generation": 1,
+      "index_bytes": 214501568,
+      "embedding_cache_hits": 0,
+      "embedding_cache_misses": 10,
+      "embedding_cache_evictions": 0,
+      "embedding_cache_bytes": 14504,
+      "embedding_cache_entries": 10
+    },
+    "metadata": {
+      "platform": "macOS-27.0.1-arm64-arm-64bit-Mach-O",
+      "python": "3.14.7",
+      "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+      "cpu_and_ram": [
+        "Apple M2",
+        "17179869184"
+      ],
+      "threads": 1,
+      "records": 100000,
+      "partitions": 100,
+      "repeats": 5,
+      "name_length": 20,
+      "description_words": 32,
+      "model_revision": "bf8b056651a2c21b8d2565580b8569da283cab23",
+      "dimension": 256,
+      "model_bytes": 30920628,
+      "state": "warm OS cache, fresh Finder per cycle; original released before load",
+      "process_peak_rss_bytes": 1007517696,
+      "rss_scope": "entire process: generated Python records, model, lanes and vectors",
+      "storage": "local filesystem, system temporary directory; no network or cold-disk test"
+    }
+  }
+}

@@ -129,6 +129,10 @@ fn examples() -> Vec<Error> {
         .unwrap();
 
     vec![
+        Error::snapshot_invalid("checksum mismatch"),
+        Error::snapshot_io(&std::io::Error::from(std::io::ErrorKind::PermissionDenied)),
+        Error::snapshot_locked(),
+        Error::snapshot_limit(),
         Error::semantic_comparison_limit(1_000_001, 1_000_000),
         Error::pair_limit(1_000_001, 1_000_000),
         Error::invalid_option("mode", "lexical, semantic or hybrid"),

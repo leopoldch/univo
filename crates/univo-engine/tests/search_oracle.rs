@@ -453,9 +453,9 @@ fn the_smallest_minimum_scores_still_equal_the_oracle() {
 #[test]
 fn a_model_that_changes_leaves_the_index_unchanged() {
     let schema = semantic_only();
-    // The descriptor changes after the index embeds its empty set and the
-    // first batch.
-    let mut index = SearchIndex::new(schema.clone(), 10, Some(FixedEmbedder::shared(2))).unwrap();
+    // The descriptor changes after the first encoded batch. Constructing
+    // an empty index no longer invokes inference.
+    let mut index = SearchIndex::new(schema.clone(), 10, Some(FixedEmbedder::shared(1))).unwrap();
     index.add(vec![text_record(&schema, 1, "a")]).unwrap();
     let error = index.add(vec![text_record(&schema, 2, "b")]).unwrap_err();
     assert_eq!(error.code(), ErrorCode::ModelMismatch);

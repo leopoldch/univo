@@ -19,6 +19,8 @@ Each record captures one decision, the alternatives considered, the evidence, th
 
 | [0012](0012-bounded-embedding-cache.md) | Bounded semantic embedding cache | Accepted (U-013) |
 
+| [0013](0013-versioned-snapshots.md) | Explicit versioned snapshots and bounded restore | Accepted (U-014) |
+
 ## Template
 
 ```markdown

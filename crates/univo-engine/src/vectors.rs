@@ -13,10 +13,10 @@ use univo_embed::{Embedder, ModelDescriptor};
 /// is missing or has no token the model knows, has none.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldVectors {
-    dimension: usize,
-    data: Vec<f32>,
+    pub(crate) dimension: usize,
+    pub(crate) data: Vec<f32>,
     /// Row of each record in `data`, or `None`.
-    rows: Vec<Option<u32>>,
+    pub(crate) rows: Vec<Option<u32>>,
 }
 
 impl FieldVectors {
@@ -64,17 +64,30 @@ impl FieldVectors {
 
 /// Distinct embeddings one field can hold.
 const MAX_ROWS: usize = u32::MAX as usize;
+/// About 1 MiB of transient float data, with at most 1,024 texts per call.
+const MAX_BATCH_VALUES: usize = 256 * 1024;
 
 /// Embeddings of every embedded field of a set of records, indexed by the
 /// schema's field order, with the schema and the model that produced them.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecordVectors {
-    schema: u64,
-    model: ModelDescriptor,
-    fields: Vec<Option<FieldVectors>>,
+    pub(crate) schema: u64,
+    pub(crate) model: ModelDescriptor,
+    pub(crate) fields: Vec<Option<FieldVectors>>,
 }
 
 impl RecordVectors {
+    pub(crate) fn empty(schema: &Schema, model: ModelDescriptor) -> Self {
+        let fields = (0..schema.fields().len())
+            .map(|i| is_embedded(schema, i).then(|| FieldVectors::new(model.dimension)))
+            .collect();
+        Self {
+            schema: schema.preparation_fingerprint(),
+            model,
+            fields,
+        }
+    }
+
     /// The model that produced these embeddings.
     pub fn model(&self) -> &ModelDescriptor {
         &self.model
@@ -207,6 +220,13 @@ pub fn embed_records_cached(
         cache.check_model(&model)?;
     }
     let dimension = model.dimension;
+    if dimension == 0 {
+        return Err(Error::corrupt_model(
+            &model.name(),
+            "zero embedding dimension",
+        ));
+    }
+    let batch_rows = (MAX_BATCH_VALUES / dimension).clamp(1, 1024);
     let mut fields = Vec::with_capacity(schema.fields().len());
     for index in 0..schema.fields().len() {
         if !is_embedded(schema, index) {
@@ -230,30 +250,40 @@ pub fn embed_records_cached(
             .collect();
         let mut vectors = FieldVectors::new(dimension);
         let mut rows = Vec::with_capacity(distinct.len());
-        if let Some(cache) = cache {
-            for row in cache.encode(&distinct, embedder)? {
-                rows.push(row.map(|row| vectors.add_row(&row)).transpose()?);
-            }
-        } else {
-            let embeddings = embedder.encode_batch(&distinct)?;
-            if embeddings.len() != distinct.len() || embeddings.dimension() != dimension {
-                return Err(Error::corrupt_model(
+        // Bound temporary encoder matrices and Arc rows, including cold cache
+        // misses. Only the final contiguous field buffer grows with the corpus.
+        for chunk in distinct.chunks(batch_rows) {
+            if embedder.descriptor() != &model {
+                return Err(Error::model_mismatch(
                     &model.name(),
-                    &format!(
-                        "the model returned {} vectors of {} dimensions for {} texts, expected {dimension} dimensions",
-                        embeddings.len(),
-                        embeddings.dimension(),
-                        distinct.len()
-                    ),
+                    &embedder.descriptor().name(),
                 ));
             }
-            let mut absent = embeddings.absent().iter().peekable();
-            for position in 0..distinct.len() {
-                rows.push(if absent.next_if_eq(&&position).is_some() {
-                    None
-                } else {
-                    Some(vectors.add_row(embeddings.row(position))?)
-                });
+            if let Some(cache) = cache {
+                for row in cache.encode(chunk, embedder)? {
+                    rows.push(row.map(|row| vectors.add_row(&row)).transpose()?);
+                }
+            } else {
+                let embeddings = embedder.encode_batch(chunk)?;
+                if embeddings.len() != chunk.len() || embeddings.dimension() != dimension {
+                    return Err(Error::corrupt_model(
+                        &model.name(),
+                        &format!(
+                            "the model returned {} vectors of {} dimensions for {} texts, expected {dimension} dimensions",
+                            embeddings.len(),
+                            embeddings.dimension(),
+                            chunk.len()
+                        ),
+                    ));
+                }
+                let mut absent = embeddings.absent().iter().peekable();
+                for position in 0..chunk.len() {
+                    rows.push(if absent.next_if_eq(&&position).is_some() {
+                        None
+                    } else {
+                        Some(vectors.add_row(embeddings.row(position))?)
+                    });
+                }
             }
         }
         vectors.rows = texts

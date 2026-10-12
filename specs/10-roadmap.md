@@ -106,3 +106,5 @@ Les images/audio, l’équivalence de programmes et la résolution distribuée d
 8. Ajouter persistance et mutations, puis ANN uniquement quand le volume le justifie.
 
 Le premier résultat à rechercher n’est pas « une API qui retourne des voisins ». C’est un exemple métier reproductible où Univo détecte les bonnes paires, explique les contradictions et reste simple à installer.
+
+U-014 status: implemented. Explicit bounded snapshots preserve typed selected normalized data, explanations, insertion order, generation and compact vectors; secondary indexes are rebuilt without stored-record inference. OS locks reject another writer; stable generations survive injected errors and abrupt process exits at publication boundaries. Local filesystem and platform durability limits, retained generations and strict offline pinned-model behavior are documented in the [persistence contract](../docs/persistence.md) and [ADR 0013](../docs/adr/0013-versioned-snapshots.md). Upsert/remove and ANN remain separate tasks.

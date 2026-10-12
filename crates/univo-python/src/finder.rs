@@ -418,12 +418,20 @@ impl NativeIndex {
             inputs,
             self.max_records - self.index.len(),
         )?;
+        let next_generation = if records.is_empty() {
+            self.generation
+        } else {
+            self.generation.checked_add(1).ok_or_else(|| {
+                to_py_err(
+                    py,
+                    &Error::snapshot_invalid("index generation exhausted; rebuild the index"),
+                )
+            })?
+        };
         let slots = py
             .detach(|| run(self.pool.as_deref(), || self.index.add(records)))
             .map_err(|e| to_py_err(py, &e))?;
-        if !slots.is_empty() {
-            self.generation += 1;
-        }
+        self.generation = next_generation;
         slots
             .map(|slot| id(py, &self.index.store().records()[slot], slot))
             .collect()
@@ -520,6 +528,26 @@ impl NativeIndex {
             self.index.len(),
         )
     }
+    #[allow(clippy::needless_pass_by_value)] // PyO3 extracts an owned path.
+    fn save(
+        &self,
+        py: Python<'_>,
+        path: std::path::PathBuf,
+        configuration: &str,
+        max_bytes: u64,
+    ) -> PyResult<()> {
+        if configuration.len() > 1 << 20 {
+            return Err(to_py_err(
+                py,
+                &Error::snapshot_invalid("metadata is too large"),
+            ));
+        }
+        let config = serde_json::from_str(configuration)
+            .map_err(|_| to_py_err(py, &Error::snapshot_invalid("configuration structure")))?;
+        py.detach(|| self.index.save(&path, self.generation, config, max_bytes))
+            .map_err(|e| to_py_err(py, &e))
+    }
+
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let out = PyDict::new(py);
         out.set_item("records", self.index.len())?;
@@ -610,5 +638,61 @@ impl PyEmbeddingCache {
             out.set_item(key, value)?;
         }
         Ok(out)
+    }
+}
+
+/// Keeps an opened generation stable between configuration and data loading.
+#[derive(Debug)]
+#[pyclass(name = "Snapshot", module = "univo._univo")]
+pub(crate) struct PySnapshot {
+    snapshot: Option<univo_engine::snapshot::Snapshot>,
+}
+
+#[pymethods]
+impl PySnapshot {
+    #[new]
+    #[allow(clippy::needless_pass_by_value)] // PyO3 extracts an owned path.
+    fn new(py: Python<'_>, path: std::path::PathBuf, max_bytes: u64) -> PyResult<Self> {
+        py.detach(|| univo_engine::snapshot::Snapshot::open(&path, max_bytes))
+            .map(|snapshot| Self {
+                snapshot: Some(snapshot),
+            })
+            .map_err(|e| to_py_err(py, &e))
+    }
+    #[getter]
+    fn configuration(&self, py: Python<'_>) -> PyResult<String> {
+        self.snapshot
+            .as_ref()
+            .map(|s| s.configuration().to_string())
+            .ok_or_else(|| to_py_err(py, &Error::snapshot_invalid("snapshot already consumed")))
+    }
+    fn check_capacity(&self, py: Python<'_>, max_records: usize) -> PyResult<()> {
+        self.snapshot
+            .as_ref()
+            .ok_or_else(|| to_py_err(py, &Error::snapshot_invalid("snapshot already consumed")))?
+            .check_capacity(max_records)
+            .map_err(|e| to_py_err(py, &e))
+    }
+    #[pyo3(signature = (schema, max_records, model=None, threads=1, cache=None))]
+    fn restore(
+        &mut self,
+        py: Python<'_>,
+        schema: &PySchema,
+        max_records: usize,
+        model: Option<&Model>,
+        threads: usize,
+        cache: Option<&PyEmbeddingCache>,
+    ) -> PyResult<NativeIndex> {
+        let snapshot = self
+            .snapshot
+            .take()
+            .ok_or_else(|| to_py_err(py, &Error::snapshot_invalid("snapshot already consumed")))?;
+        let generation = snapshot.generation();
+        let mut index = NativeIndex::new(py, schema, max_records, model, threads, cache)?;
+        index.index = py
+            .detach(|| snapshot.restore(index.index))
+            .map_err(|e| to_py_err(py, &e))?;
+        index.generation = generation;
+        Ok(index)
     }
 }

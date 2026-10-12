@@ -1335,7 +1335,9 @@ dependencies = [
 name = "univo-engine"
 version = "0.0.0"
 dependencies = [
+ "serde",
  "serde_json",
+ "sha2",
  "toml",
  "univo-core",
  "univo-embed",
@@ -1347,6 +1349,7 @@ version = "0.0.0"
 dependencies = [
  "pyo3",
  "rayon",
+ "serde_json",
  "univo-core",
  "univo-embed",
  "univo-engine",

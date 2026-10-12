@@ -31,3 +31,5 @@ pub use vectors::{FieldVectors, RecordVectors, embed_records, embed_records_cach
 
 mod report;
 pub use report::{PairMatch, PairReport};
+
+pub mod snapshot;

@@ -18,6 +18,7 @@ fn _univo(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<finder::PySchema>()?;
     module.add_class::<finder::NativeIndex>()?;
     module.add_class::<finder::PyEmbeddingCache>()?;
+    module.add_class::<finder::PySnapshot>()?;
     module.add_function(wrap_pyfunction!(finder::validate_model, module)?)?;
     module.add_function(wrap_pyfunction!(finder::invalid_option, module)?)?;
     module.add_function(wrap_pyfunction!(finder::validate_threshold, module)?)?;
