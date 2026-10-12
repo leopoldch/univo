@@ -34,6 +34,8 @@ normalisé est inchangé, même avec le cache désactivé ou après load. Cela i
 les résultats sans tokens connus. Les autres champs modifiés ne déclenchent
 pas cet encodage. Les explications utilisent les nouvelles étapes de
 normalisation, même lorsque le texte normalisé et le vecteur sont identiques.
+La compatibilité du modèle et du schéma est contrôlée avant la copie des
+vecteurs existants, puis la capacité est vérifiée avec les lignes réutilisées.
 
 Une génération augmente une seule fois par `add` ou `upsert` non vide réussi,
 et par `remove` qui supprime au moins un ID actif. Upsert identique compte comme

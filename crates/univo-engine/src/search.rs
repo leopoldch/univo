@@ -273,6 +273,9 @@ impl SearchIndex {
                         })
                     },
                 )?;
+                // Check compatibility before copying; reuse can add rows, so
+                // capacity must also be checked afterward.
+                previous.check_extend(&batch)?;
                 batch.reuse(previous, &old, &records, self.store())?;
                 previous.check_extend(&batch)?;
                 Some(batch)

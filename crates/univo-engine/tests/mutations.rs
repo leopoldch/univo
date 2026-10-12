@@ -353,3 +353,62 @@ fn semantic_report_budgets_slots_walked_after_removal() {
     assert!(index.find(options(0.1), false, 0, 2).is_err());
     assert_eq!(index.find(options(0.1), false, 0, 6).unwrap().matches, []);
 }
+
+#[test]
+fn changed_dimension_is_rejected_before_reusing_unchanged_vectors_without_cache() {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    struct ChangingDimension {
+        descriptors: [ModelDescriptor; 2],
+        changed: AtomicBool,
+        calls: AtomicUsize,
+    }
+    impl Embedder for ChangingDimension {
+        fn descriptor(&self) -> &ModelDescriptor {
+            &self.descriptors[usize::from(self.changed.load(Ordering::Relaxed))]
+        }
+        fn encode_batch(&self, texts: &[&str]) -> univo_core::Result<Embeddings> {
+            self.calls.fetch_add(1, Ordering::Relaxed);
+            let dimension = self.descriptor().dimension;
+            let data = texts
+                .iter()
+                .flat_map(|_| {
+                    let mut row = vec![0.0; dimension];
+                    row[0] = 1.0;
+                    row
+                })
+                .collect();
+            Embeddings::new("test", data, dimension)
+        }
+    }
+
+    let first = Counting::new().descriptor.clone();
+    let mut second = first.clone();
+    second.dimension = 3;
+    let model = Arc::new(ChangingDimension {
+        descriptors: [first, second],
+        changed: AtomicBool::new(false),
+        calls: AtomicUsize::new(0),
+    });
+    let schema = schema();
+    // No embedding cache: unchanged fields reuse the index's stored vectors.
+    let mut index = SearchIndex::new(schema.clone(), 2, Some(model.clone())).unwrap();
+    let previous = vec![
+        record(&schema, 1, "a", "old", "hello", "prod"),
+        record(&schema, 2, "a", "old", "hello", "prod"),
+    ];
+    index.add(previous.clone()).unwrap();
+    let before = index.search_slot(0, options(0.1)).unwrap();
+    let bytes = index.heap_bytes();
+    let calls = model.calls.load(Ordering::Relaxed);
+    model.changed.store(true, Ordering::Relaxed);
+
+    let error = index.upsert(previous.clone()).unwrap_err();
+    assert_eq!(error.code(), univo_core::ErrorCode::ModelMismatch);
+    assert_eq!(model.calls.load(Ordering::Relaxed), calls);
+    assert_eq!(index.store().records(), previous);
+    assert_eq!(index.len(), 2);
+    assert_eq!(index.store().active_slots().collect::<Vec<_>>(), [0, 1]);
+    assert_eq!(index.heap_bytes(), bytes);
+    assert_eq!(index.search_slot(0, options(0.1)).unwrap(), before);
+}
