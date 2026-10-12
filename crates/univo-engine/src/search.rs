@@ -247,6 +247,35 @@ impl SearchIndex {
         self.exact.store()
     }
 
+    /// Reject an oversized temporary ANN report before encoding/graph building.
+    /// The final find guard also counts actual graph levels and adaptive retries.
+    ///
+    /// # Errors
+    /// Requires an empty index and refuses the minimum semantic comparison bound.
+    pub fn check_find_batch(&self, records: &[PreparedRecord], budget: usize) -> Result<()> {
+        if self.ann_options.is_none() || self.semantic.is_empty() {
+            return Ok(());
+        }
+        if !self.store().is_empty() {
+            return Err(Error::invalid_option("find_batch", "an empty index"));
+        }
+        let mut partitions = HashMap::<u64, usize>::new();
+        for record in records {
+            *partitions.entry(partition_fingerprint(record)).or_default() += 1;
+        }
+        let comparisons = partitions.values().fold(0usize, |total, count| {
+            total.saturating_add(
+                count
+                    .saturating_mul(*count)
+                    .saturating_mul(self.semantic.len()),
+            )
+        });
+        if comparisons > budget {
+            return Err(Error::semantic_comparison_limit(comparisons, budget));
+        }
+        Ok(())
+    }
+
     /// Embeds and appends `records`, returning their slots. The batch is
     /// embedded and every check is made before anything is stored: on error
     /// the index is unchanged.

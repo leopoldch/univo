@@ -183,3 +183,95 @@ Ruff, mypy, fmt, clippy and documentation links pass. The final wheel is 1.762 M
 with the same 112 linked packages and no network crate; no dependencies or model
 files were added. Cross-platform execution remains native CI's responsibility;
 no release or merge is performed by this implementation.
+
+## U-016 explicit HNSW
+
+[Protocol and vector recall](../benchmarks/spikes/u016/README.md),
+[script](../benchmarks/performance/python_ann.py) and
+[raw samples](../benchmarks/performance/u016-macos-arm64.json). Release abi3
+wheel, Apple M2 / 16 GiB RAM, macOS 27.0.1, Python 3.14.7, Rust 1.99.0.
+Pinned local potion-base-8M (29.49 MiB, dimension 256), no downloads,
+embedding cache disabled. Synthetic ID/tenant/20-character name/32-word
+description, fixed seed and threshold 0.9. Query changes one name character
+and ID, keeps the semantic description. One warmup and 1,000 complete queries
+per process, five fresh processes per configuration. Threads bound encoding;
+ANN and scoring stay sequential. These measurements are workload-specific,
+not a calibrated business profile or a universal retrieval guarantee.
+
+Each table cell is the median across five processes; brackets give min–max
+p95. p99 is published as the median of per-process p99 and is exploratory
+with 1,000 samples. Timed add includes model loading and graph construction.
+RSS is handled separately because snapshot reconstruction is optional.
+Local test/build activity occurred during parts of graph construction;
+the full release suite ran between processes with the benchmark paused.
+No query benchmark ran concurrently with that release suite. The temporary-find
+admission guard was tightened during this measurement campaign; it is not
+used by the persistent add/search workload reported here.
+
+| Records | Threads | Retrieval | Add median (ms) | Search p95 median [min–max] (ms) | Search p99 median (ms) |
+| --- | --- | --- | --- | --- | --- |
+| 1,000 | 1 | exact | 64.12 | 0.110 [0.107–0.114] | 0.128 |
+| 1,000 | 1 | hnsw | 64.23 | 0.108 [0.103–0.110] | 0.125 |
+| 1,000 | 4 | exact | 42.30 | 0.117 [0.116–0.118] | 0.131 |
+| 1,000 | 4 | hnsw | 42.76 | 0.118 [0.117–0.120] | 0.131 |
+| 10,000 | 1 | exact | 450.53 | 0.358 [0.356–0.362] | 0.394 |
+| 10,000 | 1 | hnsw | 5,722.32 | 0.576 [0.544–0.710] | 0.789 |
+| 10,000 | 4 | exact | 234.84 | 0.373 [0.361–0.377] | 0.432 |
+| 10,000 | 4 | hnsw | 5,581.95 | 0.579 [0.555–0.627] | 0.790 |
+| 100,000 | 1 | exact | 4,265.24 | 3.146 [3.100–3.573] | 3.594 |
+| 100,000 | 1 | hnsw | 118,149.96 | 2.600 [2.410–3.112] | 3.112 |
+| 100,000 | 4 | exact | 2,069.15 | 3.133 [3.078–3.140] | 3.582 |
+| 100,000 | 4 | hnsw | 116,082.46 | 2.626 [2.516–2.781] | 3.128 |
+
+At 1k no graph is allocated. At 10k the dense scan is faster; 10k is
+only the small-partition safeguard, not a proven optimal crossover.
+The dense default remains unchanged and `auto` is deferred.
+
+The standard 100-tenant workload at 100k has only 1k records per partition,
+so even an explicitly requested HNSW profile allocates no graph:
+
+| Threads | Retrieval | Add median (ms) | Search p95 median [min–max] (ms) | Search p99 median (ms) |
+| --- | --- | --- | --- | --- |
+| 1 | exact | 4,405.58 | 0.275 [0.266–0.292] | 0.419 |
+| 1 | hnsw | 4,416.03 | 0.282 [0.270–0.295] | 0.459 |
+| 4 | exact | 2,185.62 | 0.285 [0.274–0.307] | 0.413 |
+| 4 | hnsw | 2,186.30 | 0.285 [0.281–0.308] | 0.474 |
+
+All 80,000 queries retain their known positive and return no other records
+on this fixture; all 800 exhaustive audit queries agree. The lexical lane
+can independently recover the positive, so this result does not prove
+vector candidate recall or repair the failed U-012 quality gates.
+Vector recall is separately measured on held-out ROR names: strict
+recall@10 99.9951% at ef512, five processes with 2,048 queries each.
+That background contains only 8,707 vectors: neither that test nor this
+one-positive hybrid fixture proves 99% vector recall at 100k.
+
+Whole-process maximum RSS at 100k, **one partition**, grouped by phase scope:
+
+| Threads | Retrieval | Without snapshot (MiB, repetitions) | With snapshot/load (MiB, repetitions) |
+| --- | --- | --- | --- |
+| 1 | exact | — | 670.4, 5 |
+| 1 | hnsw | 573.4, 3 | 887.5, 2 |
+| 4 | exact | 412.1, 5 | — |
+| 4 | hnsw | 576.3, 5 | — |
+
+RSS includes Python inputs, selected records, model, vectors, lanes, graph
+copies and allocator high-water effects. With load, both old and restored
+Finder coexist. These scopes are not interchangeable; none is an isolated
+incremental engine RSS gate. The 512 MiB target remains unchanged/open.
+Graph retained-byte statistics are rough estimates, not a memory ceiling.
+
+HNSW save/load were sampled 2 times at 100k, one thread: median save 539.22 ms, load including graph reconstruction 122.01 s. This is a phase-cost observation, not a five-repetition p95. Smaller snapshots falling below 10k restore the dense fallback; approximate retrieval can change without a generation change.
+
+At 100k one-thread HNSW, 100 unchanged-vector upserts take median 0.680 ms and 100 removals 0.031 ms. Compaction still reconstructs the full graph and can be expensive; no mutation-latency guarantee follows.
+
+Validation: 219 Rust tests in debug; the full release workspace passes
+227 tests including all nine performance budgets and real-model tests.
+After adding preliminary admission, all six ANN integration tests pass
+in release. Installed-wheel suites pass 1,121 Python tests plus one
+conditional skip on each of CPython 3.12/3.14, installed outside the source
+tree with Rust absent from PATH. Clippy, fmt, Ruff, mypy, links and native
+network audit pass. Local macOS arm64 wheel 1.789 MiB versus 1.762 MiB
+U-015; 115 linked crate names versus 112. GitHub Actions jobs did not start
+because account payments/spending limits block execution: no cross-platform
+CI success is claimed. No model change, release or merge.

@@ -209,7 +209,7 @@ class Finder:
             assert self._model is not None
             self._embedding_cache = _univo.EmbeddingCache(self._model, self._embedding_cache_bytes)
 
-    def _new_index(self) -> _univo.Index:
+    def _new_index(self, *, exhaustive: bool = False) -> _univo.Index:
         self._resolve_model()
         return _univo.Index(
             self._native_schema,
@@ -217,7 +217,7 @@ class Finder:
             self._model,
             self._threads,
             self._embedding_cache,
-            self._ann,
+            None if exhaustive else self._ann,
         )
 
     def _persistent_index(self) -> _univo.Index:
@@ -255,8 +255,9 @@ class Finder:
         """Report unordered pairs from a temporary dataset, without storing it."""
         min_score = self._validate_options(min_score, limit, max_entries)
         with self._lock:
-            index = self._new_index()
-            index.add(records)
+            index = self._new_index(exhaustive=exhaustive)
+            budget = self._max_semantic_comparisons if self._ann and not exhaustive else None
+            index.add(records, budget)
             result = index.find(
                 min_score,
                 limit,

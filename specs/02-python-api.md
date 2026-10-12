@@ -184,3 +184,9 @@ restent `bounded`, l'oracle `exhaustive=True` ignore ANN. Config/fingerprint,
 stats `ann_bytes`/`ann_nodes` et snapshot exposent l'identité du profil. Le budget
 sémantique find couvre aussi un majorant ANN des niveaux et retries ; aucun
 contournement du garde-fou par `limit`. Voir le [contrat ANN](../docs/ann.md).
+
+Pour le profil ANN temporaire, un premier contrôle par partitions refuse le
+minimum dense avant encodage/construction du graphe ; le contrôle final
+applique le majorant HNSW après construction. Le budget ne borne pas la
+préparation/résolution/construction. `find(exhaustive=True)` construit seulement
+les lanes complètes, sans graphe ANN temporaire.

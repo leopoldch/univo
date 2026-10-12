@@ -316,3 +316,21 @@ fn ann_options_are_validated_and_default_indexes_remain_exact() {
     );
     assert!(index.with_ann(AnnOptions::default()).is_err());
 }
+
+#[test]
+fn refused_ann_find_batches_do_not_encode_or_construct_graphs() {
+    let schema = schema();
+    let model = Model::new();
+    let index = SearchIndex::new(schema.clone(), 10_000, Some(model.clone()))
+        .unwrap()
+        .with_ann(AnnOptions::default())
+        .unwrap();
+    let records: Vec<_> = (0..10_000)
+        .map(|id| record(&schema, id, "a", 0, id, None))
+        .collect();
+    assert!(index.check_find_batch(&records, 1_000_000).is_err());
+    assert!(index.check_find_batch(&records, 100_000_000).is_ok());
+    assert_eq!(model.calls.load(Ordering::Relaxed), 0);
+    assert_eq!(index.ann_nodes(), 0);
+    assert!(index.is_empty());
+}

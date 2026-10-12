@@ -493,7 +493,13 @@ impl NativeIndex {
         })
         .map_err(|e| to_py_err(py, &e))
     }
-    fn add(&mut self, py: Python<'_>, inputs: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyAny>>> {
+    #[pyo3(signature = (inputs, semantic_budget=None))]
+    fn add(
+        &mut self,
+        py: Python<'_>,
+        inputs: &Bound<'_, PyAny>,
+        semantic_budget: Option<usize>,
+    ) -> PyResult<Vec<Py<PyAny>>> {
         let records = batch(
             py,
             self.index.schema(),
@@ -502,7 +508,12 @@ impl NativeIndex {
         )?;
         let next_generation = self.next_generation(py, !records.is_empty())?;
         let slots = py
-            .detach(|| run(self.pool.as_deref(), || self.index.add(records)))
+            .detach(|| {
+                if let Some(budget) = semantic_budget {
+                    self.index.check_find_batch(&records, budget)?;
+                }
+                run(self.pool.as_deref(), || self.index.add(records))
+            })
             .map_err(|e| to_py_err(py, &e))?;
         self.generation = next_generation;
         slots

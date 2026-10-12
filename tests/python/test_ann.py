@@ -7,7 +7,16 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from univo import Exact, Finder, IndexCompatibilityError, InvalidParameterError, Schema, Text
+from univo import (
+    Exact,
+    Finder,
+    IndexCompatibilityError,
+    InvalidParameterError,
+    ResourceLimitError,
+    Schema,
+    Text,
+    _univo,
+)
 
 TINY = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "models" / "tiny"
 
@@ -124,3 +133,31 @@ def test_invalid_ann_options_fail_before_model_resolution(options: dict[str, Any
         pytest.raises(InvalidParameterError),
     ):
         finder(**options)
+
+
+def test_ann_find_budget_is_refused_before_temporary_graph_building() -> None:
+    index = finder(retrieval="hnsw", max_semantic_comparisons=1_000_000)
+    with pytest.raises(ResourceLimitError) as failure:
+        index.find(records(), limit=1)
+    assert failure.value.code == "limit.semantic_comparisons"
+    assert index.stats()["records"] == index.stats()["ann_nodes"] == 0
+    assert index.stats()["embedding_cache_misses"] == index.stats()["embedding_cache_entries"] == 0
+
+
+def test_temporary_exhaustive_oracle_never_builds_an_ann_graph() -> None:
+    index = finder(retrieval="hnsw")
+    created: list[_univo.Index] = []
+    factory = index._new_index
+
+    def capture(*, exhaustive: bool = False) -> _univo.Index:
+        temporary = factory(exhaustive=exhaustive)
+        created.append(temporary)
+        return temporary
+
+    with (
+        patch.object(index, "_new_index", side_effect=capture),
+        pytest.raises(ResourceLimitError) as failure,
+    ):
+        index.find(records(), exhaustive=True, limit=1)
+    assert failure.value.code == "limit.pair_count"
+    assert created[0].stats()["ann_nodes"] == created[0].stats()["ann_bytes"] == 0

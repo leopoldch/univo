@@ -29,7 +29,10 @@ workloads, pas un profil automatique optimal. Dédupliquer les vecteurs
 avant clipping. Garder l'union exacte/lexicale et le reranking Rust.
 Paramètres initiaux efSearch=512, plafond de 1024 records par lane.
 Les doubles demandes jusqu'au plafond sont explicites ; leur coût entre
-dans le majorant `max_semantic_comparisons` de find.
+dans le majorant `max_semantic_comparisons` de find. Un contrôle préalable
+du minimum dense refuse les lots hors budget avant encodage et construction ;
+le contrôle final conserve le majorant complet. Le find temporaire exhaustif
+ne construit aucun graphe ANN.
 
 Ne pas utiliser le format persistant/mmap de la dépendance : snapshots
 Univo validés, vecteurs conservés, identité ANN versionnée dans le manifest,

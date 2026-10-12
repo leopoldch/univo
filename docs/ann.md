@@ -49,6 +49,11 @@ La génération, l'empreinte de configuration, les paramètres et l'identité
 versionnée du backend rendent le profil observable.
 
 Le garde-fou `find(max_semantic_comparisons=...)` demeure obligatoire.
+Un contrôle préalable par partitions refuse le minimum dense (queries ×
+slots × champs semantic) avant encodage et construction ANN ; le contrôle
+final ajoute les niveaux et retries observés après construction. Ce budget
+ne plafonne pas le coût de résolution/préparation/construction des index.
+Un find temporaire exhaustif ne construit aucun graphe ANN.
 Il compte conservativement les queries actives × les entrées du parcours
 complet ou un majorant HNSW couvrant tous les nœuds, niveaux, vérifications
 cosinus et retries adaptatifs. Le maximum avec les slots retenus préserve
