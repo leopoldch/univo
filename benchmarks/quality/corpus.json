@@ -1,0 +1,103 @@
+{
+  "protocol": "ror-alias-v1",
+  "source": "https://zenodo.org/records/23187250",
+  "archive_url": "https://zenodo.org/records/23187250/files/v2.14-2026-10-06-ror-data.zip?download=1",
+  "license": "CC0-1.0 (names and ROR identifiers only; no GeoNames location data)",
+  "archive_md5": "e16a5ceb8ff06f1a274dbd9288fe0159",
+  "pairs_sha256": "7f4c38bf853ece4ef54f156ae515ebda8955f9b9ed7dcfaa61b53d7c2ce41a58",
+  "entities": 4000,
+  "splits": {
+    "train": {
+      "pairs": 7937,
+      "positive": 4283,
+      "negative": 3654,
+      "entities": 2436,
+      "languages": {
+        "mixed": 1779,
+        "en": 2853,
+        "unknown": 2781,
+        "it": 21,
+        "fr": 143,
+        "de": 33,
+        "pt": 77,
+        "nl": 12,
+        "hi": 1,
+        "id": 86,
+        "es": 114,
+        "ca": 5,
+        "da": 2,
+        "bs": 2,
+        "tr": 7,
+        "ga": 1,
+        "ms": 6,
+        "ro": 3,
+        "hr": 1,
+        "is": 1,
+        "sv": 2,
+        "no": 1,
+        "vi": 4,
+        "hu": 2
+      }
+    },
+    "validation": {
+      "pairs": 2521,
+      "positive": 1348,
+      "negative": 1173,
+      "entities": 782,
+      "languages": {
+        "unknown": 774,
+        "en": 926,
+        "mixed": 644,
+        "es": 36,
+        "pt": 26,
+        "fr": 47,
+        "nl": 1,
+        "de": 11,
+        "it": 4,
+        "da": 1,
+        "fi": 1,
+        "id": 32,
+        "hr": 2,
+        "sr": 2,
+        "hi": 1,
+        "ms": 11,
+        "tr": 1,
+        "sv": 1
+      }
+    },
+    "test": {
+      "pairs": 2514,
+      "positive": 1341,
+      "negative": 1173,
+      "entities": 782,
+      "languages": {
+        "en": 810,
+        "unknown": 925,
+        "mixed": 619,
+        "fr": 51,
+        "az": 1,
+        "de": 25,
+        "pt": 32,
+        "es": 20,
+        "ca": 3,
+        "it": 4,
+        "is": 1,
+        "id": 20,
+        "nl": 1,
+        "vi": 1,
+        "tr": 1
+      }
+    }
+  },
+  "hardware": {
+    "cpu": "Apple M2 (8 cores)",
+    "ram_gib": 16,
+    "os": "macOS 27.0.1",
+    "rust": "1.99.0",
+    "python": "3.14.7",
+    "build": "portable CPU release macOS arm64 wheel from merged U-011; no engine changes",
+    "threads": 1,
+    "state": "files cached by OS; fresh process per model; strict offline; no query embedding cache"
+  },
+  "archive_sha256": "555b38a4b586759de1fa278b0e751433a13dd541f375097db53b186cfcdc768a"
+}

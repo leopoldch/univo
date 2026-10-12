@@ -64,3 +64,7 @@ Exécuter import/load/search avec réseau interdit et modèle préchargé. Teste
 Sur PR : format Rust, clippy, tests unitaires, pytest, type checking de l’API, corpus critique, build wheel pilote, audit dépendances/licences. Nightly : fuzzing borné, qualité complète, plateforme élargie. Release : toutes les wheels, tests hors ligne, benchmarks dédiés, artefacts source et notices.
 
 Éviter des tests qui répètent simplement les mêmes formules que l’implémentation ; privilégier oracles indépendants et invariants métier.
+
+## U-012 : premier benchmark implémenté
+
+Le [benchmark ROR name-alias](../benchmarks/quality/README.md) sépare 4 000 entités par hash et génère les négatifs dans leur split. Train reste réservé ; le seuil vient de validation uniquement, puis est figé sur test. Le corpus critique ne sert jamais à choisir le seuil. L’évaluateur utilise le Finder installé, donc le scoring Rust, et conserve les paires sans score dans les dénominateurs. Les objectifs ci-dessus restent inchangés : ils échouent sur ce benchmark. Aucune calibration du défaut ni publication alpha n’en découle. Le rappel candidats sur paires isolées ne remplace pas une mesure de retrieval à grande échelle ; l’annotation double des cas ambigus et la comparaison SemHash restent à réaliser. Le protocole et les compromis sont consignés dans l’[ADR 0011](../docs/adr/0011-offline-quality-calibration.md).
