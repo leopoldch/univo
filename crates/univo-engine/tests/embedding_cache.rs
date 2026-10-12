@@ -9,6 +9,7 @@ struct Counting {
     model: ModelDescriptor,
     texts: Mutex<Vec<String>>,
     fail: bool,
+    batches: Mutex<Vec<usize>>,
 }
 impl Counting {
     fn new() -> Self {
@@ -27,6 +28,7 @@ impl Counting {
             },
             texts: Mutex::new(Vec::new()),
             fail: false,
+            batches: Mutex::new(Vec::new()),
         }
     }
 }
@@ -35,11 +37,12 @@ impl Embedder for Counting {
         &self.model
     }
     fn encode_batch(&self, texts: &[&str]) -> univo_core::Result<Embeddings> {
+        self.batches.lock().unwrap().push(texts.len());
         self.texts
             .lock()
             .unwrap()
             .extend(texts.iter().map(|t| (*t).to_owned()));
-        if self.fail {
+        if self.fail || texts.contains(&"fail") {
             return Err(univo_core::Error::corrupt_model(
                 "test",
                 "simulated failure",
@@ -289,4 +292,90 @@ fn an_entry_at_the_empty_cache_boundary_can_replace_an_old_entry() {
     assert_eq!(stats.evictions, 1);
     embed_records_cached(&schema, &[record(&schema, &text)], &model, Some(&cache)).unwrap();
     assert_eq!(cache.stats().unwrap().hits, 1);
+}
+
+#[test]
+fn encoder_buffers_are_chunked_with_identical_rows_and_warm_reuse() {
+    let schema = schema();
+    let plain_model = Counting::new();
+    let cached_model = Counting::new();
+    let cache = EmbeddingCache::new(cached_model.model.clone(), 1 << 20);
+    let mut records: Vec<_> = (0..2049)
+        .map(|i| {
+            record(
+                &schema,
+                &format!(
+                    "{} {i}",
+                    if i == 1023 || i == 1024 {
+                        "unknown"
+                    } else {
+                        "known"
+                    }
+                ),
+            )
+        })
+        .collect();
+    records.push(records[0].clone());
+    let plain = embed_records(&schema, &records, &plain_model).unwrap();
+    let cold = embed_records_cached(&schema, &records, &cached_model, Some(&cache)).unwrap();
+    let warm = embed_records_cached(&schema, &records, &cached_model, Some(&cache)).unwrap();
+    assert_eq!(plain, cold);
+    assert_eq!(cold, warm);
+    assert_eq!(*plain_model.batches.lock().unwrap(), [1024, 1024, 1]);
+    assert_eq!(*cached_model.batches.lock().unwrap(), [1024, 1024, 1]);
+    let field = warm.field(0).unwrap();
+    assert!(field.get(1023).is_none());
+    assert!(field.get(1024).is_none());
+    assert_eq!(field.get(0), field.get(2049));
+}
+
+#[test]
+fn later_encoding_failure_does_not_partially_add_records() {
+    let schema = schema();
+    let model = Arc::new(Counting::new());
+    let cache = Arc::new(EmbeddingCache::new(model.model.clone(), 1 << 20));
+    let mut index = SearchIndex::new(schema.clone(), 3000, Some(model.clone()))
+        .unwrap()
+        .with_embedding_cache(cache.clone())
+        .unwrap();
+    let mut records: Vec<_> = (0..2048)
+        .map(|i| record(&schema, &format!("known {i}")))
+        .collect();
+    records.push(record(&schema, "fail"));
+    assert!(index.add(records).is_err());
+    assert_eq!(index.len(), 0);
+    assert_eq!(cache.stats().unwrap().entries, 2048);
+}
+
+#[test]
+fn real_model_chunked_rows_equal_a_whole_backend_batch() {
+    let Some(directory) = std::env::var_os("UNIVO_TEST_MODEL_DIR") else {
+        return;
+    };
+    let model =
+        univo_embed::StaticEmbedder::load_directory(std::path::Path::new(&directory)).unwrap();
+    let schema = schema();
+    let inputs: Vec<_> = (0..2050)
+        .map(|i| {
+            if i % 341 == 0 {
+                String::new()
+            } else {
+                format!(
+                    "local duplicate detection with selected text and semantic evidence item {i}"
+                )
+            }
+        })
+        .collect();
+    let texts: Vec<_> = inputs.iter().map(String::as_str).collect();
+    let direct = model.encode_batch(&texts).unwrap();
+    let records: Vec<_> = texts.iter().map(|text| record(&schema, text)).collect();
+    let chunked = embed_records(&schema, &records, &model).unwrap();
+    let field = chunked.field(0).unwrap();
+    for i in 0..texts.len() {
+        if direct.absent().binary_search(&i).is_ok() {
+            assert!(field.get(i).is_none());
+        } else {
+            assert_eq!(field.get(i).unwrap(), direct.row(i));
+        }
+    }
 }

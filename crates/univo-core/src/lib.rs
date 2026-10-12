@@ -14,6 +14,7 @@ mod path;
 mod prepare;
 mod schema;
 mod semantic;
+pub mod snapshot;
 mod value;
 
 pub use compare::{

@@ -31,7 +31,7 @@ use crate::exact::ExactIndex;
 use crate::lexical::LexicalIndex;
 use crate::store::RecordStore;
 use crate::values::ValueIndex;
-use crate::vectors::{RecordVectors, embed_records, is_embedded};
+use crate::vectors::{RecordVectors, is_embedded};
 use crate::{EmbeddingCache, embed_records_cached};
 
 /// Relative margin by which lanes lower the minimum score, so that rounding
@@ -92,7 +92,7 @@ pub struct SearchIndex {
     /// Semantic fields, by schema index.
     semantic: Vec<usize>,
     embedder: Option<Arc<dyn Embedder>>,
-    vectors: Option<RecordVectors>,
+    pub(crate) vectors: Option<RecordVectors>,
     cache: Option<Arc<EmbeddingCache>>,
     /// Slots of each partition, in order.
     partitions: HashMap<u64, Vec<u32>>,
@@ -162,10 +162,20 @@ impl SearchIndex {
                 FieldKind::Text(_) => {}
             }
         }
+        if let Some(model) = &embedder
+            && !semantic.is_empty()
+            && model.descriptor().dimension == 0
+        {
+            return Err(Error::corrupt_model(
+                &model.descriptor().name(),
+                "zero embedding dimension",
+            ));
+        }
         let vectors = match &embedder {
-            Some(model) if !semantic.is_empty() => {
-                Some(embed_records(exact.schema(), &[], model.as_ref())?)
-            }
+            Some(model) if !semantic.is_empty() => Some(RecordVectors::empty(
+                exact.schema(),
+                model.descriptor().clone(),
+            )),
             _ => None,
         };
         Ok(Self {
@@ -223,23 +233,39 @@ impl SearchIndex {
     /// model of the stored embeddings.
     pub fn add(&mut self, records: Vec<PreparedRecord>) -> Result<Range<usize>> {
         let batch = match (&self.embedder, &self.vectors) {
-            (Some(model), Some(vectors)) => {
+            (Some(model), Some(_)) => {
                 let batch = embed_records_cached(
                     self.schema(),
                     &records,
                     model.as_ref(),
                     self.cache.as_deref(),
                 )?;
-                vectors.check_extend(&batch)?;
                 Some(batch)
             }
             _ => None,
         };
+        self.add_preembedded(records, batch)
+    }
+
+    pub(crate) fn add_preembedded(
+        &mut self,
+        records: Vec<PreparedRecord>,
+        batch: Option<RecordVectors>,
+    ) -> Result<Range<usize>> {
+        match (&self.vectors, &batch) {
+            (Some(vectors), Some(batch)) => vectors.check_extend(batch)?,
+            (None, None) => {}
+            _ => return Err(Error::schema_mismatch()),
+        }
         // Every check is done: from here on nothing can fail but the store's
         // own validation, which changes nothing when it fails.
         let slots = self.exact.add(records)?;
         if let (Some(vectors), Some(batch)) = (&mut self.vectors, batch) {
-            vectors.extend(batch)?;
+            if slots.start == 0 {
+                *vectors = batch;
+            } else {
+                vectors.extend(batch)?;
+            }
         }
         let store = self.exact.store();
         for index in &mut self.lexical {

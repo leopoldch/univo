@@ -83,6 +83,6 @@ finder = Finder(
 
 `model_path` accepts a filesystem path explicitly and is exclusive of `model`. `model="org/name"` is always a hub repository, never guessed to be a relative directory. `hub_url` and `cache_dir` retain the U-009 semantics. `Finder(model="minishlab/potion-multilingual-128M")` accepts the reference, but only an explicit semantic field uses it; the current model resolver also enforces its download-size limit. This task does not change the 100 MiB default-model budget or select a multilingual replacement.
 
-Persistence, upsert/remove, embedding reuse across operations, calibrated thresholds and ANN remain later roadmap tasks.
+[Explicit snapshots](persistence.md) and [bounded embedding reuse](embedding-cache.md) are implemented. `finder.save(path)` publishes the persistent index; `Finder.load(path, offline=True)` verifies and restores it without reencoding saved vectors. Upsert/remove, calibrated production thresholds and ANN remain later roadmap tasks.
 
 The first [offline quality benchmark](../benchmarks/quality/README.md) does not meet the precision/recall gates on organization-name aliases. Its validation thresholds are experimental measurements, not supported production profiles. The default score is still uncalibrated.

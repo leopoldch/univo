@@ -85,3 +85,52 @@ The corrected macOS arm64 wheel is 1.663 MiB compressed, with no dependency chan
 Median of five search p95 values: 0.0721 ms with cache disabled, 0.0218 ms with the default 4 MiB cache. Median full add including local model load is 59.2 ms without cache and 59.9 ms with cache; this small difference is within measurement noise. The cache retains 1,000 entries in 1,475,218 accounted bytes, with 1,000 misses, 1,020 hits and zero evictions in the final repeat. All queries return the expected record without truncation.
 
 This workload isolates semantic-text reuse rather than large-partition retrieval. It does not imply that cache hits accelerate every 100k search by the same ratio or improve quality. Process peak RSS across both settings/repeat lifetimes is recorded in the raw file; cache bytes are a conservative retained estimate, not an isolated RSS delta or peak bound. The measured compressed wheel is approximately 1.672 MiB; no dependency is added. The real-model U-012 threshold, held-out/group metrics, candidate/oracle results and critical regression measurements remain exactly equal. See the [cache contract](embedding-cache.md).
+
+## Explicit snapshots (U-014)
+
+[Reproduction script](../benchmarks/performance/python_snapshots.py),
+[raw measurements](../benchmarks/performance/u014-macos-arm64.json). On
+2026-10-12: Apple M2, 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0,
+AC power, portable CPU release wheel installed outside the repository. Local
+system temporary storage, OS-cache warm files, one thread, five fresh Finder
+cycles per size in a fresh process. Synthetic seed 14: integer ID, 100 tenants,
+random 20-character lexical name and 32-word semantic description. Default
+potion-base-8M at pinned revision bf8b056651a2c21b8d2565580b8569da283cab23,
+dimension 256, three model files totaling 29.49 MiB. Input generation is outside
+timers. Add includes local model load/conversion/inference; save includes flush,
+sync and verification; load includes local model verification/load, decoding,
+validation and all secondary-index rebuilding. The original Finder is released
+before load. Ten complete reports per cycle remain exactly equal after restore.
+No network, cold-disk, power-interruption or universal latency claim.
+
+| Records | Median full add | Median save | Median load | Generation size | Whole-process peak RSS, five cycles |
+| --- | --- | --- | --- | --- | --- |
+| 1,000 | 60.3 ms | 23.9 ms | 24.1 ms | 1.30 MiB | 110.4 MiB |
+| 10,000 | 434.0 ms | 72.6 ms | 74.8 ms | 12.96 MiB | 203.9 MiB |
+| 100,000 | 4,066.7 ms | 510.7 ms | 603.7 ms | 129.69 MiB | 960.8 MiB |
+
+The spike first measured 1,087.0 MiB at 100k over five cycles. Bounding temporary
+encoding/cache buffers to at most 1,024 texts and approximately 1 MiB of float
+output reduces that peak by 126 MiB without changing vectors. The raw file keeps
+both measurements. A separate single-cycle 100k process reaches 543.8 MiB after
+add and 628.5 MiB after load (629.1 MiB by process end); these are cumulative
+high-water marks, not isolated live allocations. Repeated in-process lifetimes
+can increase high-water RSS even when the original Finder is released; freeing
+objects does not promise that the allocator returns all pages to the OS.
+
+These whole-process figures include Python-generated inputs, the model, records,
+lanes, buffers and allocator effects. They do not validate the proposed 512 MiB
+**incremental engine** memory target; no isolated RSS-delta gate is claimed and
+that target remains unchanged/open. Large partitioned lexical indexes, exact
+postings and allocation lifetimes still need profiling before a resource-budget
+release claim. `index_bytes` is a retained estimate, not a peak RSS measurement.
+The snapshot byte limit similarly does not enforce a process RAM cap.
+
+The macOS arm64 compressed wheel is 1.742 MiB (112 linked packages, no new
+transitive/native dependency). Installed-wheel tests pass 1,095 tests on each of
+CPython 3.12 and 3.14 outside the source tree with Rust absent from PATH; one
+conditional skip each. Rust codec/property tests and affected engine suites pass
+in release, including abrupt process exits at twelve boundaries and a real-model
+whole-batch versus chunked-row oracle. The [persistence contract](persistence.md)
+documents Windows directory-sync and retained-generation limitations. Other
+platform results await native CI; no release is published by U-014.

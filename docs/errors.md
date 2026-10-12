@@ -39,6 +39,66 @@ The text of an error has three lines: the message, prefixed with the record posi
 Generated from the Rust core by `crates/univo-core/tests/error_catalog.rs`; each example is produced by a real call.
 
 <!-- catalog:start -->
+### state.snapshot_invalid
+
+A snapshot is incomplete, corrupt or incompatible.
+
+- Kind: `IndexCompatibility` (Python: `univo.IndexCompatibilityError`)
+- Fix: Restore a complete compatible snapshot or rebuild the index from the source records.
+
+Example:
+
+```text
+snapshot rejected: checksum mismatch
+hint: Restore a complete compatible snapshot or rebuild the index from the source records.
+code: state.snapshot_invalid (https://github.com/leopoldch/univo/blob/main/docs/errors.md#statesnapshot_invalid)
+```
+
+### state.snapshot_io
+
+A snapshot operation could not complete.
+
+- Kind: `IndexCompatibility` (Python: `univo.IndexCompatibilityError`)
+- Fix: Check local storage permissions and free space, then retry the operation.
+
+Example:
+
+```text
+snapshot I/O failed: permission denied
+hint: Check local storage permissions and free space, then retry the operation.
+code: state.snapshot_io (https://github.com/leopoldch/univo/blob/main/docs/errors.md#statesnapshot_io)
+```
+
+### state.snapshot_locked
+
+Another writer holds the snapshot lock.
+
+- Kind: `IndexCompatibility` (Python: `univo.IndexCompatibilityError`)
+- Fix: Wait for the other writer to finish before saving to this path.
+
+Example:
+
+```text
+another snapshot writer holds this path
+hint: Wait for the other writer to finish before saving to this path.
+code: state.snapshot_locked (https://github.com/leopoldch/univo/blob/main/docs/errors.md#statesnapshot_locked)
+```
+
+### limit.snapshot_bytes
+
+A snapshot exceeds its declared byte budget.
+
+- Kind: `ResourceLimit` (Python: `univo.ResourceLimitError`)
+- Fix: Use a smaller index or explicitly raise max_snapshot_bytes.
+
+Example:
+
+```text
+snapshot exceeds max_snapshot_bytes
+hint: Use a smaller index or explicitly raise max_snapshot_bytes.
+code: limit.snapshot_bytes (https://github.com/leopoldch/univo/blob/main/docs/errors.md#limitsnapshot_bytes)
+```
+
 ### limit.semantic_comparisons
 
 A semantic candidate report exceeds its scan budget.

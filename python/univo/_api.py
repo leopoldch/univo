@@ -161,6 +161,7 @@ class Finder:
         self._max_exhaustive_pairs = max_exhaustive_pairs
         self._schema = schema
         self._native_schema = _univo.Schema() if schema is None else schema._native
+        self._resolved_ref: str | None = None
         self._model_ref = "default" if model is None else model
         if model_path is not None:
             path = os.fspath(model_path)
@@ -175,12 +176,12 @@ class Finder:
         self._index: _univo.Index | None = None
         self._lock = threading.RLock()
 
-    def _new_index(self) -> _univo.Index:
+    def _resolve_model(self) -> None:
         if self._native_schema.needs_model and self._model is None:
             from univo.models import _load
 
             self._model = _load(
-                self._model_ref,
+                self._resolved_ref or self._model_ref,
                 hub_url=self._hub_url,
                 offline=self._offline,
                 cache_dir=self._cache_dir,
@@ -192,6 +193,9 @@ class Finder:
         ):
             assert self._model is not None
             self._embedding_cache = _univo.EmbeddingCache(self._model, self._embedding_cache_bytes)
+
+    def _new_index(self) -> _univo.Index:
+        self._resolve_model()
         return _univo.Index(
             self._native_schema,
             self._max_records,
@@ -283,6 +287,129 @@ class Finder:
             output_truncated=result["output_truncated"],
             warnings=tuple(warnings),
         )
+
+    @staticmethod
+    def _snapshot_budget(value: int) -> None:
+        if type(value) is not int or not 0 < value <= 2**63 - 1:
+            raise _univo.invalid_option("max_snapshot_bytes", "an integer in [1, 2**63 - 1]")
+
+    def save(self, path: str | os.PathLike[str], *, max_snapshot_bytes: int = 512 << 20) -> None:
+        """Publish a complete local snapshot; concurrent writers are refused."""
+        import json
+        from dataclasses import asdict
+
+        self._snapshot_budget(max_snapshot_bytes)
+        # Reject giant schema/reference strings before JSON copies or model I/O.
+        metadata_chars = len(self._model_ref)
+        if self._schema is not None:
+            metadata_chars += 128 * len(self._schema.fields)
+            for field_path in self._schema.fields:
+                metadata_chars += len(field_path)
+            metadata_chars += sum(len(path) for path in self._schema.partition_by)
+            metadata_chars += len(self._schema.id_field or "")
+        if metadata_chars > 1 << 20:
+            raise _univo.invalid_option(
+                "snapshot_metadata", "shorter field paths and model references"
+            )
+        with self._lock:
+            index = self._persistent_index()
+            schema = None
+            if self._schema is not None:
+                schema = {
+                    "fields": [
+                        {
+                            "path": path,
+                            "kind": "text" if isinstance(options, Text) else "exact",
+                            "options": asdict(options),
+                        }
+                        for path, options in self._schema.fields.items()
+                    ],
+                    "id_field": self._schema.id_field,
+                    "partition_by": list(self._schema.partition_by),
+                    "max_fields": self._schema.max_fields,
+                    "max_depth": self._schema.max_depth,
+                    "max_selected_bytes": self._schema.max_selected_bytes,
+                }
+            resolved = None
+            if self._model is not None:
+                resolved = (
+                    f"{self._model.repository}@{self._model.revision}"
+                    if self._model.repository is not None
+                    else os.fspath(self._model.path)
+                )
+            config = {
+                "schema": schema,
+                "model": self._model_ref,
+                "resolved_model": resolved,
+                "max_records": self._max_records,
+                "max_exhaustive_pairs": self._max_exhaustive_pairs,
+                "max_semantic_comparisons": self._max_semantic_comparisons,
+                "embedding_cache_bytes": self._embedding_cache_bytes,
+            }
+            index.save(os.fspath(path), json.dumps(config, allow_nan=False), max_snapshot_bytes)
+
+    @classmethod
+    def load(
+        cls,
+        path: str | os.PathLike[str],
+        *,
+        offline: bool = False,
+        cache_dir: str | os.PathLike[str] | None = None,
+        hub_url: str | None = None,
+        threads: int = 1,
+        max_snapshot_bytes: int = 512 << 20,
+        max_records: int = 100_000,
+    ) -> Finder:
+        """Restore selected fields and vectors; verify the pinned local model.
+
+        Semantic snapshots require compatible model files, cached when offline.
+        This explicit call may load a model. It never reencodes saved records.
+        """
+        import json
+
+        cls._snapshot_budget(max_snapshot_bytes)
+        if type(max_records) is not int or not 0 < max_records <= 2**32 - 1:
+            raise _univo.invalid_option("max_records", "an integer in [1, 2**32 - 1]")
+        snapshot = _univo.Snapshot(os.fspath(path), max_snapshot_bytes)
+        config = json.loads(snapshot.configuration)
+        try:
+            saved_schema = config.pop("schema")
+            resolved = config.pop("resolved_model")
+            schema = None
+            if saved_schema is not None:
+                fields = {}
+                for item in saved_schema.pop("fields"):
+                    kind = item["kind"]
+                    if kind not in ("text", "exact") or item["path"] in fields:
+                        raise ValueError("invalid fields")
+                    fields[item["path"]] = (Text if kind == "text" else Exact)(**item["options"])
+                schema = Schema(fields=fields, **saved_schema)
+            finder = cls(
+                schema=schema,
+                offline=offline,
+                cache_dir=cache_dir,
+                hub_url=hub_url,
+                threads=threads,
+                **config,
+            )
+            if resolved is not None and not isinstance(resolved, str):
+                raise ValueError("invalid model reference")
+            finder._max_records = min(finder._max_records, max_records)
+            finder._resolved_ref = resolved
+        except (KeyError, TypeError, ValueError, AttributeError):
+            raise _univo.invalid_option("snapshot", "a supported Finder configuration") from None
+        if finder._native_schema.needs_model and resolved is None:
+            raise _univo.invalid_option("snapshot", "a pinned semantic model")
+        snapshot.check_capacity(finder._max_records)
+        finder._resolve_model()
+        finder._index = snapshot.restore(
+            finder._native_schema,
+            finder._max_records,
+            finder._model,
+            threads,
+            finder._embedding_cache,
+        )
+        return finder
 
     def config(self) -> dict[str, object]:
         """Resolved schema and versions; model revision appears after lazy loading."""

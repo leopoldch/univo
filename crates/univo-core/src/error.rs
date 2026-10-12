@@ -102,6 +102,18 @@ macro_rules! error_codes {
 }
 
 error_codes! {
+    SnapshotInvalid => "state.snapshot_invalid", IndexCompatibility,
+        "A snapshot is incomplete, corrupt or incompatible",
+        "Restore a complete compatible snapshot or rebuild the index from the source records.";
+    SnapshotIo => "state.snapshot_io", IndexCompatibility,
+        "A snapshot operation could not complete",
+        "Check local storage permissions and free space, then retry the operation.";
+    SnapshotLocked => "state.snapshot_locked", IndexCompatibility,
+        "Another writer holds the snapshot lock",
+        "Wait for the other writer to finish before saving to this path.";
+    SnapshotLimit => "limit.snapshot_bytes", ResourceLimit,
+        "A snapshot exceeds its declared byte budget",
+        "Use a smaller index or explicitly raise max_snapshot_bytes.";
     SemanticComparisonLimit => "limit.semantic_comparisons", ResourceLimit,
         "A semantic candidate report exceeds its scan budget",
         "Partition the records or explicitly raise max_semantic_comparisons.";
@@ -294,6 +306,30 @@ struct Inner {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 impl Error {
+    pub fn snapshot_invalid(reason: &str) -> Self {
+        Self::new(
+            ErrorCode::SnapshotInvalid,
+            format!("snapshot rejected: {reason}"),
+        )
+    }
+    pub fn snapshot_io(error: &std::io::Error) -> Self {
+        Self::new(
+            ErrorCode::SnapshotIo,
+            format!("snapshot I/O failed: {error}"),
+        )
+    }
+    pub fn snapshot_locked() -> Self {
+        Self::new(
+            ErrorCode::SnapshotLocked,
+            "another snapshot writer holds this path".into(),
+        )
+    }
+    pub fn snapshot_limit() -> Self {
+        Self::new(
+            ErrorCode::SnapshotLimit,
+            "snapshot exceeds max_snapshot_bytes".into(),
+        )
+    }
     pub fn semantic_comparison_limit(requested: usize, limit: usize) -> Self {
         Self::new(ErrorCode::SemanticComparisonLimit,
             format!("semantic candidate report requires at most {requested} vector entries, above the limit of {limit}"))
