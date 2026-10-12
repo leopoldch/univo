@@ -68,3 +68,11 @@ Sur PR : format Rust, clippy, tests unitaires, pytest, type checking de l’API,
 ## U-012 : premier benchmark implémenté
 
 Le [benchmark ROR name-alias](../benchmarks/quality/README.md) sépare 4 000 entités par hash et génère les négatifs dans leur split. Train reste réservé ; le seuil vient de validation uniquement, puis est figé sur test. Le corpus critique ne sert jamais à choisir le seuil. L’évaluateur utilise le Finder installé, donc le scoring Rust, et conserve les paires sans score dans les dénominateurs. Les objectifs ci-dessus restent inchangés : ils échouent sur ce benchmark. Aucune calibration du défaut ni publication alpha n’en découle. Le rappel candidats sur paires isolées ne remplace pas une mesure de retrieval à grande échelle ; l’annotation double des cas ambigus et la comparaison SemHash restent à réaliser. Le protocole et les compromis sont consignés dans l’[ADR 0011](../docs/adr/0011-offline-quality-calibration.md).
+
+U-016 sépare recall@10 Euclidien strict sur noms ROR held-out et rappel
+final d'un fixture synthétique hybride à positive connue. Les paramètres
+sont figés avant le test ; aucune correction silencieuse des ties. Tests
+de collisions de partitions/vecteurs, IDs supprimés, upsert/compaction,
+manifest incompatible, reconstruction sans inférence et oracle conservé.
+Ces mesures ne réparent pas les gates métier U-012 ni ne valident un
+profil universel. [Résultats ANN](../benchmarks/spikes/u016/README.md).

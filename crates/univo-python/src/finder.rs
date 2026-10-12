@@ -131,12 +131,21 @@ impl PySchema {
             .collect()
     }
 
-    #[pyo3(signature = (model_ref, model=None))]
-    fn configuration_fingerprint(&self, model_ref: &str, model: Option<&Model>) -> String {
+    #[pyo3(signature = (model_ref, model=None, ann=None))]
+    fn configuration_fingerprint(
+        &self,
+        model_ref: &str,
+        model: Option<&Model>,
+        ann: Option<(usize, usize)>,
+    ) -> String {
         let mut hash = std::collections::hash_map::DefaultHasher::new();
         format!("{:?}:{}", self.schema, univo_core::SCORING_VERSION).hash(&mut hash);
         univo_engine::SEARCH_VERSION.hash(&mut hash);
         model_ref.hash(&mut hash);
+        if let Some(options) = ann {
+            univo_engine::ann::BACKEND.hash(&mut hash);
+            options.hash(&mut hash);
+        }
         if let Some(model) = model {
             use univo_embed::Embedder;
             format!("{:?}", model.embedder.descriptor()).hash(&mut hash);
@@ -436,7 +445,7 @@ fn match_dict<'py>(
 #[pymethods]
 impl NativeIndex {
     #[new]
-    #[pyo3(signature = (schema, max_records, model=None, threads=1, cache=None))]
+    #[pyo3(signature = (schema, max_records, model=None, threads=1, cache=None, ann=None))]
     fn new(
         py: Python<'_>,
         schema: &PySchema,
@@ -444,6 +453,7 @@ impl NativeIndex {
         model: Option<&Model>,
         threads: usize,
         cache: Option<&PyEmbeddingCache>,
+        ann: Option<(usize, usize)>,
     ) -> PyResult<Self> {
         let pool = if schema.needs_model() {
             Some(Arc::new(
@@ -463,8 +473,15 @@ impl NativeIndex {
         let embedder = model.map(|m| Arc::clone(&m.embedder) as Arc<dyn univo_embed::Embedder>);
         py.detach(|| {
             let index = SearchIndex::new(schema.schema.clone(), max_records, embedder)?;
-            match cache {
-                Some(cache) => index.with_embedding_cache(Arc::clone(&cache.cache)),
+            let index = match cache {
+                Some(cache) => index.with_embedding_cache(Arc::clone(&cache.cache))?,
+                None => index,
+            };
+            match ann {
+                Some((ef_search, max_candidates)) => index.with_ann(univo_engine::AnnOptions {
+                    ef_search,
+                    max_candidates,
+                }),
                 None => Ok(index),
             }
         })
@@ -558,7 +575,7 @@ impl NativeIndex {
             &matches,
             result.total_matches,
             result.candidates,
-            result.truncated,
+            (result.truncated, result.approximate),
             1,
         )
     }
@@ -604,7 +621,7 @@ impl NativeIndex {
             &matches,
             result.total_matches,
             result.candidates,
-            result.candidate_truncated,
+            (result.candidate_truncated, result.approximate),
             self.index.len(),
         )
     }
@@ -635,6 +652,8 @@ impl NativeIndex {
         out.set_item("tombstones", self.index.store().len() - self.index.len())?;
         out.set_item("generation", self.generation)?;
         out.set_item("index_bytes", self.index.heap_bytes())?;
+        out.set_item("ann_bytes", self.index.ann_bytes())?;
+        out.set_item("ann_nodes", self.index.ann_nodes())?;
         Ok(out)
     }
 }
@@ -657,7 +676,7 @@ impl NativeIndex {
         matches: &Bound<'py, PyList>,
         total: usize,
         candidates: usize,
-        truncated: bool,
+        (truncated, approximate): (bool, bool),
         processed: usize,
     ) -> PyResult<Bound<'py, PyDict>> {
         let out = PyDict::new(py);
@@ -665,6 +684,7 @@ impl NativeIndex {
         out.set_item("total_matches", total)?;
         out.set_item("candidates", candidates)?;
         out.set_item("candidate_truncated", truncated)?;
+        out.set_item("approximate", approximate)?;
         out.set_item("output_truncated", total > matches.len())?;
         out.set_item("processed", processed)?;
         out.set_item("generation", self.generation)?;
@@ -767,7 +787,8 @@ impl PySnapshot {
             .check_capacity(max_records)
             .map_err(|e| to_py_err(py, &e))
     }
-    #[pyo3(signature = (schema, max_records, model=None, threads=1, cache=None))]
+    #[pyo3(signature = (schema, max_records, model=None, threads=1, cache=None, ann=None))]
+    #[allow(clippy::too_many_arguments)] // PyO3 mirrors index construction.
     fn restore(
         &mut self,
         py: Python<'_>,
@@ -776,13 +797,14 @@ impl PySnapshot {
         model: Option<&Model>,
         threads: usize,
         cache: Option<&PyEmbeddingCache>,
+        ann: Option<(usize, usize)>,
     ) -> PyResult<NativeIndex> {
         let snapshot = self
             .snapshot
             .take()
             .ok_or_else(|| to_py_err(py, &Error::snapshot_invalid("snapshot already consumed")))?;
         let generation = snapshot.generation();
-        let mut index = NativeIndex::new(py, schema, max_records, model, threads, cache)?;
+        let mut index = NativeIndex::new(py, schema, max_records, model, threads, cache, ann)?;
         index.index = py
             .detach(|| snapshot.restore(index.index))
             .map_err(|e| to_py_err(py, &e))?;

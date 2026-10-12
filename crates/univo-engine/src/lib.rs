@@ -10,6 +10,8 @@
 //! - [`dense`]: exhaustive nearest-neighbour search over those embeddings,
 //!   the reference for any approximate index.
 
+pub mod ann;
+pub use ann::AnnOptions;
 pub mod dense;
 pub mod embedding_cache;
 pub mod exact;

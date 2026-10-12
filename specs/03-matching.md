@@ -118,3 +118,12 @@ Groupes optionnels, après stabilisation des paires :
 - regroupement conservateur : ajout seulement si toutes les paires nécessaires satisfont la politique, avec ordre stable et limite de taille ; documenter la dépendance possible à l’ordre de construction et le coût O(g²).
 
 Pas de fusion métier automatique en 1.0. Une future fonction `plan_merge` doit conserver la provenance par champ, exposer les conflits, choisir un représentant de façon déterministe et produire un plan réversible. Ne pas utiliser union-find sur toutes les paires similaires comme une preuve d’identité.
+
+U-016 implémente HNSW explicite par champ semantic et partition typée avec
+`fast-hnsw` épinglé, pruning Heuristic et distance Euclidienne portable ;
+cosinus, exact/lexical, vetoes et scoring restent dans le cœur. Vérification
+des partitions avant traversée, slots inactifs/ID exclus avant plafond.
+Fallback complet sous 10 000 slots retenus, sans promettre un crossover
+optimal ni ajouter `auto`. Approximation observable indépendamment de
+saturation, oracle conservé. [ADR 0015](../docs/adr/0015-explicit-partition-ann.md)
+et [mesures](../benchmarks/spikes/u016/README.md).

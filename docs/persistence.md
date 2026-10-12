@@ -132,3 +132,12 @@ this version, never the sole proof of compatibility.
 ## Mutations et vue active
 
 U-015 snapshots contain only active records and referenced vector rows, preserving external typed IDs and the logical generation. Row remapping streams the original float buffers; no full matrix copy is needed for save. Format v1 remains unchanged and old snapshots remain readable. Load drops in-memory tombstones and supports further upsert/remove without reencoding unchanged semantic fields. Older saved generations can still contain records removed afterward; no automatic disk erasure is promised. See [mutations](mutations.md).
+
+## U-016 ANN metadata
+
+The v1 manifest optionally stores `ann` with the complete versioned routing
+identity. Dense snapshots omit it. Readers unaware of this property reject
+ANN snapshots; current readers retain compatibility with earlier dense
+snapshots. Graphs are rebuilt from verified vectors after checking the requested
+identity, without inference. Approximate results can change after reconstruction,
+while exhaustive results and logical generation stay intact. See [ANN](ann.md).

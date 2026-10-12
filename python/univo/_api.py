@@ -102,7 +102,7 @@ class Report:
     candidates: int
     generation: int
     config_fingerprint: str
-    search_profile: Literal["exhaustive", "bounded"]
+    search_profile: Literal["exhaustive", "bounded", "approximate"]
     candidate_truncated: bool
     output_truncated: bool
     warnings: tuple[str, ...]
@@ -131,6 +131,9 @@ class Finder:
         max_exhaustive_pairs: int = 1_000_000,
         max_semantic_comparisons: int = 1_000_000,
         embedding_cache_bytes: int = 4 << 20,
+        retrieval: Literal["exact", "hnsw"] = "exact",
+        ann_ef_search: int = 512,
+        ann_max_candidates: int = 1024,
     ) -> None:
         if schema is not None and (fields is not None or id_field is not None):
             raise _univo.invalid_option("schema", "exclusive of fields and id_field")
@@ -155,6 +158,18 @@ class Finder:
             raise _univo.invalid_option("max_semantic_comparisons", "an integer in [0, 2**63 - 1]")
         if type(embedding_cache_bytes) is not int or not 0 <= embedding_cache_bytes <= 2**63 - 1:
             raise _univo.invalid_option("embedding_cache_bytes", "an integer in [0, 2**63 - 1]")
+        if not isinstance(retrieval, str) or retrieval not in ("exact", "hnsw"):
+            raise _univo.invalid_option("retrieval", "exact or hnsw")
+        for name, value, maximum in (
+            ("ann_ef_search", ann_ef_search, 8192),
+            ("ann_max_candidates", ann_max_candidates, 100_000),
+        ):
+            if type(value) is not int or not 1 <= value <= maximum:
+                raise _univo.invalid_option(name, f"an integer in [1, {maximum}]")
+        self._retrieval = retrieval
+        self._ann_ef_search = ann_ef_search
+        self._ann_max_candidates = ann_max_candidates
+        self._ann = (ann_ef_search, ann_max_candidates) if retrieval == "hnsw" else None
         self._embedding_cache_bytes = embedding_cache_bytes
         self._embedding_cache: _univo.EmbeddingCache | None = None
         self._max_semantic_comparisons = max_semantic_comparisons
@@ -202,6 +217,7 @@ class Finder:
             self._model,
             self._threads,
             self._embedding_cache,
+            self._ann,
         )
 
     def _persistent_index(self) -> _univo.Index:
@@ -282,6 +298,10 @@ class Finder:
 
     def _report(self, result: _univo.RawReport, exhaustive: bool) -> Report:
         warnings = []
+        if result["approximate"]:
+            warnings.append(
+                "HNSW approximate retrieval; matches may be missing even without saturation."
+            )
         if result["candidate_truncated"]:
             warnings.append("Candidate work limit reached; matches may be missing.")
         if result["output_truncated"]:
@@ -293,9 +313,11 @@ class Finder:
             candidates=result["candidates"],
             generation=result["generation"],
             config_fingerprint=self._native_schema.configuration_fingerprint(
-                self._model_ref, self._model
+                self._model_ref, self._model, self._ann
             ),
-            search_profile="exhaustive" if exhaustive else "bounded",
+            search_profile="exhaustive"
+            if exhaustive
+            else ("approximate" if result["approximate"] else "bounded"),
             candidate_truncated=result["candidate_truncated"],
             output_truncated=result["output_truncated"],
             warnings=tuple(warnings),
@@ -359,6 +381,12 @@ class Finder:
                 "max_semantic_comparisons": self._max_semantic_comparisons,
                 "embedding_cache_bytes": self._embedding_cache_bytes,
             }
+            if self._ann is not None:
+                config.update(
+                    retrieval=self._retrieval,
+                    ann_ef_search=self._ann_ef_search,
+                    ann_max_candidates=self._ann_max_candidates,
+                )
             index.save(os.fspath(path), json.dumps(config, allow_nan=False), max_snapshot_bytes)
 
     @classmethod
@@ -421,6 +449,7 @@ class Finder:
             finder._model,
             threads,
             finder._embedding_cache,
+            finder._ann,
         )
         return finder
 
@@ -449,8 +478,11 @@ class Finder:
                 "max_exhaustive_pairs": self._max_exhaustive_pairs,
                 "max_semantic_comparisons": self._max_semantic_comparisons,
                 "embedding_cache_bytes": self._embedding_cache_bytes,
+                "retrieval": self._retrieval,
+                "ann_ef_search": self._ann_ef_search,
+                "ann_max_candidates": self._ann_max_candidates,
                 "config_fingerprint": self._native_schema.configuration_fingerprint(
-                    self._model_ref, self._model
+                    self._model_ref, self._model, self._ann
                 ),
             }
 
@@ -464,6 +496,8 @@ class Finder:
                     "tombstones": 0,
                     "generation": 0,
                     "index_bytes": 0,
+                    "ann_bytes": 0,
+                    "ann_nodes": 0,
                 }
                 if self._index is None
                 else self._index.stats()

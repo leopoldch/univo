@@ -175,3 +175,12 @@ U-013 adds `Finder(embedding_cache_bytes=4 << 20)`, with zero disabling retentio
 U-014 implements `save(path, max_snapshot_bytes=512 << 20)` and `Finder.load(path, offline=False, cache_dir=None, hub_url=None, threads=1, max_snapshot_bytes=512 << 20, max_records=100_000)`. The record cap is the smaller of the load limit and saved capacity. Schema, selected normalized values, typed IDs, explanations, generation and compact f32 matrices are preserved; secondary lanes are rebuilt without inference. The byte budget applies to one generation, not retained generations or RSS. Model resolution is pinned to the saved source/revision/files; semantic offline load requires that model locally. See the [persistence contract](../docs/persistence.md) and [ADR 0013](../docs/adr/0013-versioned-snapshots.md) for publication, resource limits and platform durability. U-015 implements the mutation methods in the examples, as specified in the [mutation contract](../docs/mutations.md).
 
 U-015 : `upsert(records)` renvoie les IDs remplacés/insérés dans l’ordre du lot ; `remove(ids)` renvoie les IDs absents au début du lot. Les deux exigent un `id_field`. Lots limités à `max_records` éléments, capacité active, publication atomique, génération incrémentée une fois par add/upsert non vide ou suppression effective. Les champs sémantiques normalisés inchangés réutilisent leurs vecteurs sans cache. Tombstones filtrés dans toutes les lanes, compaction périodique sans inférence ; `stats()` expose `retained_slots` et `tombstones`. Snapshots v1 de la vue active, sans tombstones persistés. Voir [ADR 0014](../docs/adr/0014-id-mutations.md).
+
+U-016 ajoute `retrieval="exact"|"hnsw"` (défaut exact), `ann_ef_search=512`
+et `ann_max_candidates=1024`. Entiers bornés, validation avant modèle ;
+`auto` reste différé. Dès qu'un graphe est utilisé, le rapport porte
+`approximate` et un avertissement même sans saturation. Les petites partitions
+restent `bounded`, l'oracle `exhaustive=True` ignore ANN. Config/fingerprint,
+stats `ann_bytes`/`ann_nodes` et snapshot exposent l'identité du profil. Le budget
+sémantique find couvre aussi un majorant ANN des niveaux et retries ; aucun
+contournement du garde-fou par `limit`. Voir le [contrat ANN](../docs/ann.md).

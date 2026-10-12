@@ -82,11 +82,15 @@ pub struct SearchResult {
     pub lanes: LaneCounts,
     /// A lane reached its work limit: matches may be missing.
     pub truncated: bool,
+    /// An HNSW lane was used; absence of saturation does not imply completeness.
+    pub approximate: bool,
 }
 
 /// Records with their candidate lanes, appended in batches.
 pub struct SearchIndex {
     exact: ExactIndex,
+    pub(crate) ann_options: Option<crate::AnnOptions>,
+    ann: crate::ann::AnnIndex,
     lexical: Vec<LexicalIndex>,
     values: Vec<ValueIndex>,
     /// Semantic fields, by schema index.
@@ -180,6 +184,8 @@ impl SearchIndex {
         };
         Ok(Self {
             exact,
+            ann_options: None,
+            ann: crate::ann::AnnIndex::default(),
             lexical,
             values,
             semantic,
@@ -204,6 +210,25 @@ impl SearchIndex {
         }
         self.cache = Some(cache);
         Ok(self)
+    }
+
+    /// Opt into HNSW routing before insertion; the exact oracle stays available.
+    /// # Errors
+    /// Refuses invalid budgets and a non-empty index.
+    pub fn with_ann(mut self, options: crate::AnnOptions) -> Result<Self> {
+        options.validate()?;
+        if !self.store().is_empty() {
+            return Err(Error::invalid_option("ann", "an empty index"));
+        }
+        self.ann_options = Some(options);
+        Ok(self)
+    }
+
+    pub fn ann_bytes(&self) -> usize {
+        self.ann.heap_bytes()
+    }
+    pub fn ann_nodes(&self) -> usize {
+        self.ann.nodes()
     }
 
     pub fn len(&self) -> usize {
@@ -327,6 +352,7 @@ impl SearchIndex {
             self.embedder.clone(),
         )?;
         fresh.cache.clone_from(&self.cache);
+        fresh.ann_options = self.ann_options;
         fresh.add_preembedded(records, vectors)?;
         *self = fresh;
         Ok(())
@@ -345,6 +371,7 @@ impl SearchIndex {
 
     fn update_lanes(&mut self, slots: Range<usize>) -> Result<()> {
         let store = self.exact.store();
+        let added = slots.clone();
         for index in &mut self.lexical {
             index.update(store)?;
         }
@@ -357,6 +384,11 @@ impl SearchIndex {
                 .entry(partition)
                 .or_default()
                 .push(u32::try_from(slot).unwrap_or(u32::MAX));
+        }
+        if self.ann_options.is_some()
+            && let Some(vectors) = &self.vectors
+        {
+            self.ann.update(store, vectors, &self.partitions, added);
         }
         Ok(())
     }
@@ -383,6 +415,7 @@ impl SearchIndex {
     /// excluding the records and the model.
     pub fn heap_bytes(&self) -> usize {
         self.exact.heap_bytes()
+            + self.ann_bytes()
             + self
                 .lexical
                 .iter()
@@ -501,21 +534,29 @@ impl SearchIndex {
             .fold(0, usize::saturating_add)
     }
 
-    /// Conservative count of dense semantic lane entries for all queries.
-    /// Includes both directions, self entries and retained tombstones walked
-    /// by active queries, for every semantic field.
+    /// Conservative semantic comparison bound for all active queries.
+    /// Dense scans include tombstones; ANN also accounts for levels/retries.
     pub(crate) fn semantic_scan_count(&self) -> usize {
         self.partitions
-            .values()
-            .map(|slots| {
-                let count = slots
+            .iter()
+            .map(|(&partition, slots)| {
+                let queries = slots
                     .iter()
                     .filter(|&&slot| self.store().is_active(slot as usize))
                     .count();
-                count.saturating_mul(slots.len())
+                let per_query = self
+                    .semantic
+                    .iter()
+                    .map(|&field| {
+                        self.ann_options.map_or(slots.len(), |options| {
+                            self.ann
+                                .comparison_bound(field, partition, slots.len(), options)
+                        })
+                    })
+                    .fold(0, usize::saturating_add);
+                queries.saturating_mul(per_query)
             })
             .fold(0, usize::saturating_add)
-            .saturating_mul(self.semantic.len())
     }
 
     pub(crate) fn search_pairs(
@@ -613,6 +654,22 @@ impl SearchIndex {
                 ) else {
                     continue;
                 };
+                if let Some(options) = self.ann_options
+                    && let Some((slots, saturated)) = self.ann.candidates(
+                        self.store(),
+                        (query.record, query_vector),
+                        field,
+                        threshold,
+                        options,
+                        (query.slot, query.min_slot),
+                    )
+                {
+                    result.approximate = true;
+                    result.truncated |= saturated;
+                    result.lanes.semantic += slots.len();
+                    candidates.extend(slots);
+                    continue;
+                }
                 let found = within(
                     field_vectors,
                     query_vector,

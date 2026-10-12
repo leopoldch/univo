@@ -63,3 +63,11 @@ Exemples exécutables : liste de noms ; organisations ; configuration avec envir
 - [ ] Aucune suppression DB ni fusion automatique implicite.
 - [ ] Documentation de la portée locale de check_or_add.
 - [ ] Rapport de différenciation comparé à SemHash et aux baselines lexicales.
+
+U-016 ajoute `fast-hnsw=1.0.1` au moteur ; aucune dépendance Python ou
+bibliothèque native C/C++, aucun client réseau. Sept versions de packages
+supplémentaires, 115 noms liés contre 112. Wheel macOS arm64 : 1,789 Mio
+contre 1,762 Mio U-015. Licence MIT déclarée par Cargo/README, notices à
+traiter avec les autres dépendances en U-019 ; la petite distribution locale
+ne remplace pas les validations des six plateformes CI.
+[Registre](../docs/dependencies.md), [ADR 0015](../docs/adr/0015-explicit-partition-ann.md).

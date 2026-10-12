@@ -110,3 +110,12 @@ Le premier résultat à rechercher n’est pas « une API qui retourne des voisi
 U-014 status: implemented. Explicit bounded snapshots preserve typed selected normalized data, explanations, insertion order, generation and compact vectors; secondary indexes are rebuilt without stored-record inference. OS locks reject another writer; stable generations survive injected errors and abrupt process exits at publication boundaries. Local filesystem and platform durability limits, retained generations and strict offline pinned-model behavior are documented in the [persistence contract](../docs/persistence.md) and [ADR 0013](../docs/adr/0013-versioned-snapshots.md). ANN remains a separate task.
 
 U-015 status: implemented. Typed-ID upsert/remove validate and stage bounded batches before publication; unchanged semantic fields reuse stored vectors independently of cache. Every lane masks obsolete slots, and amortized compaction bounds retained versions without inference. Active-only snapshots preserve generation and support further mutations. Differential mutation/oracle tests, failed multi-record encoding and installed-wheel generation/concurrency tests cover coherence ([contract](../docs/mutations.md), [ADR 0014](../docs/adr/0014-id-mutations.md), [measurements](../docs/performance.md)). Compaction latency/RSS and retained historical snapshots are explicit; the 512 MiB incremental memory target remains open. ANN and local check_or_add remain U-016/U-017.
+
+U-016 status: experimental explicit HNSW implemented; U-010/U-015 prerequisites
+merged. Default dense retrieval and exhaustive oracle retained. Partition-scoped
+graphs, observable approximation/saturation, mutations and compatible snapshots
+are covered. Backend screening, held-out vector recall and installed-wheel
+measurements are recorded in [ANN](../docs/ann.md) and
+[ADR 0015](../docs/adr/0015-explicit-partition-ann.md). No automatic profile,
+quality calibration, release or completion of the 512 MiB memory gate is claimed.
+Local check_or_add remains U-017.

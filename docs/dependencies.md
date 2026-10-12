@@ -20,7 +20,7 @@ Every dependency is recorded here with its purpose, enabled features, license, f
 
 `univo-embed` ([ADR 0008](adr/0008-model-download-and-inference-backend.md)) is linked into the Python extension since U-009: the macOS arm64 wheel grows from 0.15 MiB to 1.43 MiB (extension of 3.2 MB stripped). Downloads use Python's standard library (`urllib`), imported only when a download starts, so the package still has no runtime Python dependency. Its 108 linked packages are listed by `cargo tree -p univo-embed -e normal`; their licenses are permissive (MIT, Apache-2.0, BSD-2-Clause, Unlicense, Zlib, BSL-1.0 and Unicode-3.0 options), and their notices ship with the wheels in U-019. `tokenizers` runs batches on Rayon's global thread pool.
 
-`univo-engine` depends on the local `univo-core` and `univo-embed` crates (MIT, no additional features); it embeds records through the `Embedder` trait. Its indexes use standard-library collections and the core's fingerprint and dot-product code. Beyond those of `univo-embed`, it adds no third-party or native dependency, and U-011 links it into the Python wheel. The wheel-size effect is recorded in [performance](performance.md).
+`univo-engine` depends on the local `univo-core` and `univo-embed` crates (MIT, no additional features); it embeds records through the `Embedder` trait. Its indexes use standard-library collections and the core's fingerprint and dot-product code. Through U-015 it adds no third-party or native dependency beyond `univo-embed`; U-011 links it into the Python wheel. U-016 adds the HNSW dependency described below. The wheel-size effect is recorded in [performance](performance.md).
 
 ## Development only
 
@@ -46,3 +46,27 @@ U-012 quality tooling uses only the Python standard library and the installed Un
 U-013 adds no dependency or enabled feature. Embedding memoization uses Rust standard-library HashMap/VecDeque, immutable Arc rows and a Mutex, entirely in univo-engine. Python holds only the native cache handle; no Python cache, external runtime, disk cache or bundled model is added.
 
 U-014 reuses `serde` 1.0.229 (derive/std, MIT OR Apache-2.0), `serde_json` 1.0.151 (default, MIT OR Apache-2.0) and `sha2` 0.11.0 (default features disabled, MIT OR Apache-2.0) directly in `univo-engine`; the binding also directly uses `serde_json` for bounded configuration conversion. These packages/features were already linked via `univo-embed`: no new transitive/native package, network client or Python runtime dependency. The core record codec uses only std; OS locks, synchronization and publication use std filesystem APIs. The macOS arm64 compressed wheel measures 1.742 MiB (versus the reviewed U-013 wheel's 1.673 MiB); 112 linked packages remain. Other platform wheel effects are checked in CI, not inferred from this local measurement.
+
+## U-016 runtime addition
+
+`fast-hnsw =1.0.1` (MIT declared in Cargo/README, no LICENSE file in the
+crate archive) implements optional HNSW routing. Default features; direct
+mandatory dependencies `memmap2` 0.9.11 (MIT OR Apache-2.0), `rand` 0.8.8
+(MIT OR Apache-2.0, default plus small_rng). Univo does not use its mmap or
+graph persistence APIs. No native C/C++ runtime, network client or worker pool
+is introduced. Construction and search use safe Univo code and portable CPUs.
+
+Seven newly locked versions: fast-hnsw 1.0.1, memmap2 0.9.11, rand 0.8.8,
+rand_chacha 0.3.1, rand_core 0.6.4, getrandom 0.2.17 (MIT OR Apache-2.0),
+and target-specific wasi 0.11.1+wasi-snapshot-preview1 (MIT OR Apache-2.0).
+Some names already occur at other versions; the native network audit reports
+115 linked crate names versus 112 before. The mandatory code is compiled
+into all wheels, while graph allocations are opt-in. macOS arm64 compressed
+wheel 1.789 MiB versus 1.762 MiB U-015, approximately +1.5%; no Python runtime
+dependency or separate downloaded runtime. Cross-platform CI verifies the
+other advertised wheels. Notices remain part of U-019.
+
+The standalone spike additionally uses hnsw_rs 0.3.5 (MIT OR Apache-2.0,
+default features disabled) as a reference; it is not a production dependency.
+See [ADR 0015](adr/0015-explicit-partition-ann.md) for maturity risks, alternatives
+and evidence. Model footprint and default budget do not change.
