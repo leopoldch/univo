@@ -658,12 +658,25 @@ impl SearchIndex {
     }
 
     fn search_candidates(&self, query: &Query<'_>, options: SearchOptions) -> Result<SearchResult> {
+        let mut result = SearchResult::default();
+        let candidates = self.candidates(query, options, &mut result)?;
+        self.score(query, candidates.into_iter(), options, &mut result)?;
+        Ok(result)
+    }
+
+    /// The distinct slots the lanes propose for `query`, recording their
+    /// counts, truncation and approximation in `result`.
+    fn candidates(
+        &self,
+        query: &Query<'_>,
+        options: SearchOptions,
+        result: &mut SearchResult,
+    ) -> Result<Vec<usize>> {
         check_options(options)?;
         if !query.record.is_prepared_with(self.schema()) {
             return Err(Error::schema_mismatch());
         }
         let threshold = options.min_score * (1.0 - ROUNDING_MARGIN);
-        let mut result = SearchResult::default();
         let mut candidates: Vec<usize> = Vec::new();
 
         let exact = self.exact.matching_slots(query.record)?;
@@ -734,8 +747,67 @@ impl SearchIndex {
 
         candidates.sort_unstable();
         candidates.dedup();
-        self.score(query, candidates.into_iter(), options, &mut result)?;
-        Ok(result)
+        Ok(candidates)
+    }
+
+    /// What `slot` is against the query. Records equal to the query
+    /// without a score, such as unknown semantic texts, score as exact
+    /// (ADR 0010).
+    fn qualifying(&self, query: &Query<'_>, slot: usize) -> Result<Candidate> {
+        if !self.store().is_active(slot) || slot < query.min_slot || Some(slot) == query.slot {
+            return Ok(Candidate::Excluded);
+        }
+        let record = &self.store().records()[slot];
+        if query.record.id().is_some() && query.record.id() == record.id() {
+            return Ok(Candidate::Excluded);
+        }
+        let vectors = self
+            .vectors
+            .as_ref()
+            .map_or_else(Vec::new, |vectors| vectors.record(slot));
+        let Some(mut comparison) = compare_with_vectors(
+            self.schema(),
+            query.record,
+            &query.vectors,
+            record,
+            &vectors,
+        )?
+        else {
+            return Ok(Candidate::NoMatch);
+        };
+        if comparison.score.is_none() && is_exact_match(self.schema(), query.record, record)? {
+            exact_evidence(self.schema(), query.record, &mut comparison);
+        }
+        Ok(match comparison.score {
+            Some(score) if !comparison.vetoed => Candidate::Scored(score, comparison),
+            _ => Candidate::NoMatch,
+        })
+    }
+
+    /// Scores `slots`, each given once, against the query, and hands each
+    /// match to `visit` without keeping it.
+    fn score_each(
+        &self,
+        query: &Query<'_>,
+        slots: impl Iterator<Item = usize>,
+        min_score: f32,
+        result: &mut SearchResult,
+        visit: &mut dyn FnMut(usize, f32, Comparison) -> Result<()>,
+    ) -> Result<()> {
+        for slot in slots {
+            match self.qualifying(query, slot)? {
+                Candidate::Excluded => {}
+                Candidate::NoMatch => result.candidates += 1,
+                Candidate::Scored(score, comparison) => {
+                    result.candidates += 1;
+                    if score >= min_score {
+                        result.total_matches += 1;
+                        visit(slot, score, comparison)?;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Scores `slots`, each given once, against the query. Every match is
@@ -752,51 +824,26 @@ impl SearchIndex {
         let records = self.store().records();
         let mut kept: BinaryHeap<Ranked<'_>> =
             BinaryHeap::with_capacity(options.limit.min(1024).saturating_add(1));
-        for slot in slots {
-            if !self.store().is_active(slot) || slot < query.min_slot || Some(slot) == query.slot {
-                continue;
-            }
-            let record = &records[slot];
-            if query.record.id().is_some() && query.record.id() == record.id() {
-                continue;
-            }
-            result.candidates += 1;
-            let vectors = self
-                .vectors
-                .as_ref()
-                .map_or_else(Vec::new, |vectors| vectors.record(slot));
-            let Some(mut comparison) = compare_with_vectors(
-                self.schema(),
-                query.record,
-                &query.vectors,
-                record,
-                &vectors,
-            )?
-            else {
-                continue;
-            };
-            if comparison.score.is_none() && is_exact_match(self.schema(), query.record, record)? {
-                exact_evidence(self.schema(), query.record, &mut comparison);
-            }
-            let Some(score) = comparison.score.filter(|score| *score >= options.min_score) else {
-                continue;
-            };
-            if comparison.vetoed {
-                continue;
-            }
-            result.total_matches += 1;
-            let candidate = Ranked {
-                score,
-                id: record.id(),
-                found: SearchMatch { slot, comparison },
-            };
-            if kept.len() < options.limit {
-                kept.push(candidate);
-            } else if kept.peek().is_some_and(|worst| candidate < *worst) {
-                kept.pop();
-                kept.push(candidate);
-            }
-        }
+        self.score_each(
+            query,
+            slots,
+            options.min_score,
+            result,
+            &mut |slot, score, comparison| {
+                let candidate = Ranked {
+                    score,
+                    id: records[slot].id(),
+                    found: SearchMatch { slot, comparison },
+                };
+                if kept.len() < options.limit {
+                    kept.push(candidate);
+                } else if kept.peek().is_some_and(|worst| candidate < *worst) {
+                    kept.pop();
+                    kept.push(candidate);
+                }
+                Ok(())
+            },
+        )?;
         result.matches = kept
             .into_sorted_vec()
             .into_iter()
@@ -804,6 +851,58 @@ impl SearchIndex {
             .collect();
         Ok(())
     }
+
+    /// Hands each match of the stored record at `slot` with a higher slot to
+    /// `visit`, without keeping explanations: what all-pairs reports need
+    /// when their own budget, not a limit, bounds memory. The returned
+    /// result holds the counts and flags, without matches.
+    pub(crate) fn visit_pairs(
+        &self,
+        slot: usize,
+        options: SearchOptions,
+        exhaustive: bool,
+        visit: &mut dyn FnMut(usize, f32) -> Result<()>,
+    ) -> Result<SearchResult> {
+        check_options(options)?;
+        let mut query = self.stored_query(slot)?;
+        query.min_slot = slot + 1;
+        let mut result = SearchResult::default();
+        let slots = if exhaustive {
+            self.partition(query.record)
+                .iter()
+                .map(|&slot| slot as usize)
+                .collect()
+        } else {
+            self.candidates(&query, options, &mut result)?
+        };
+        self.score_each(
+            &query,
+            slots.into_iter(),
+            options.min_score,
+            &mut result,
+            &mut |slot, score, _| visit(slot, score),
+        )?;
+        Ok(result)
+    }
+
+    /// The score of stored records `left` and `right` as search scores
+    /// them, or `None` when they cannot match: no score, or a veto.
+    pub(crate) fn pair_score(&self, left: usize, right: usize) -> Result<Option<f32>> {
+        let query = self.stored_query(left)?;
+        Ok(match self.qualifying(&query, right)? {
+            Candidate::Scored(score, _) => Some(score),
+            Candidate::Excluded | Candidate::NoMatch => None,
+        })
+    }
+}
+
+/// A candidate seen from a query.
+enum Candidate {
+    /// Not admissible: inactive, the query itself or its typed ID.
+    Excluded,
+    /// Compared, but it cannot match: no score, or a veto.
+    NoMatch,
+    Scored(f32, Comparison),
 }
 
 /// A kept match. The greatest is the worst: lowest score, then highest

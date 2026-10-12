@@ -27,13 +27,13 @@ assert [group.members for group in groups.groups] == [(1, 2, 3)]
 | `exact` | Records equal on every selected field after normalization (Unicode form, case, hostname dot, key order) | Equality is transitive |
 | `groups` | Conservative groups: every pair of members reaches `min_score` without a veto, at most `max_group_size` records | No pair inside a group is assumed: each one was scored |
 
-An exact group is also a conservative group, since all its pairs score 1. Partitions and vetoes apply as everywhere: records of different partitions, or contradicting on a discriminant field, are never grouped.
+An exact group is also a conservative group when its members, which all score alike, reach `min_score` together. Their score is computed, not assumed: two identical semantic vectors can have a cosine just below 1, so at `min_score=1` such a group stays an exact group only, as `find` would refuse the pair. Partitions and vetoes apply as everywhere: records of different partitions, or contradicting on a discriminant field, are never grouped.
 
 Each `Group` holds its `members`, in input order, and `min_score`, the lowest score among its pairs.
 
 ## How conservative groups are built
 
-1. **Exact groups are formed first.** Records with the same normalized fields score alike against any other record, so each exact group then counts as a single node. A thousand identical records cost one search, not half a million pairs.
+1. **Exact groups are formed first.** Records with the same normalized fields score alike against any other record, so each exact group then counts as a single node. A thousand identical records cost one search, not half a million pairs. Records without exact evidence (blank or missing selected values) are never exact matches; they are left alone at once, without scanning the other blank records.
 2. **Qualifying pairs are collected:** pairs between nodes that reach `min_score` without a veto, through the same search as `find`.
 3. **Pairs are taken by descending score, then input position.** Two nodes or groups are joined only if *every* pair across them qualifies and the result stays within `max_group_size`.
 
@@ -45,7 +45,7 @@ Consequences, to know before relying on groups:
 
 ## Limits and report
 
-- `max_pairs` bounds the qualifying pairs held in memory. Above it, `ResourceLimitError` (`limit.group_pairs`) is raised. Raise `min_score`, partition the records, or raise the limit.
+- `max_pairs` bounds the qualifying pairs held in memory: pairs are folded into the pair graph as each search finds them, without keeping explanations, so memory stays within the budget and the error comes as soon as it is exceeded. Above it, `ResourceLimitError` (`limit.group_pairs`) is raised. Raise `min_score`, partition the records, or raise the limit.
 - The scan budgets of `find` apply before any scoring: `max_exhaustive_pairs` with `exhaustive=True`, and `max_semantic_comparisons` for semantic candidates with `retrieval="hnsw"`.
 - `search_profile`, `candidate_truncated` and `warnings` say whether the underlying search was exhaustive, bounded or approximate. With a bounded or approximate search, a missing pair keeps records apart, so groups are only ever *smaller*, never wrongly joined.
 - `qualifying_pairs`, `split_pairs`, `candidates` and `processed` describe the work done.
@@ -71,7 +71,9 @@ Both grow faster than linearly in one partition, because every record is searche
   - a clique grouped whole, then split by the size limit;
   - vetoed pairs never grouped;
   - an exact group joining as one node;
-  - pair and threshold limits.
+  - pair and threshold limits;
+  - 30,000 blank records grouped, and searched with `find`, in linear time (a quadratic scan of their exact bucket took over 260 s);
+  - an exact group of semantic records whose identical vectors score 0.99999994: not a conservative group at `min_score=1`, a group below it.
 - **Random data, three seeds and three thresholds, checked with `compare` itself:**
   - every pair inside a conservative group qualifies and is not vetoed;
   - groups are disjoint and within the size limit;

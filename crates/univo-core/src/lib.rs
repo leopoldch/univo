@@ -23,8 +23,8 @@ pub use compare::{
 };
 pub use error::{Detail, Error, ErrorCode, ErrorKind, RecordLocation, Result};
 pub use exact::{
-    ExactMatch, exact_fingerprint, exact_match, is_exact_match, partition_fingerprint,
-    value_fingerprint,
+    ExactMatch, exact_fingerprint, exact_match, has_exact_evidence, is_exact_match,
+    partition_fingerprint, value_fingerprint,
 };
 pub use lexical::{MAX_EDIT_CHARS, edit_similarity, jaccard, positional_trigrams, trigrams};
 pub use normalize::{

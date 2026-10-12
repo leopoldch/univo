@@ -262,3 +262,116 @@ fn groups_satisfy_their_contract_on_random_data() {
         }
     }
 }
+
+#[test]
+fn records_without_evidence_are_grouped_in_linear_time() {
+    // Blank strings share one exact fingerprint but are never exact
+    // matches: scanning their bucket for each one would be quadratic.
+    let schema = Schema::strings();
+    let records: Vec<PreparedRecord> = (0..30_000)
+        .map(|_| prepare(&schema, &Value::Str(String::new())).unwrap())
+        .collect();
+    let mut index = SearchIndex::new(schema, 30_000, None).unwrap();
+    index.add(records).unwrap();
+    let start = std::time::Instant::now();
+    let report = index.groups(options(0.8)).unwrap();
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+    assert_eq!(report.exact, Vec::<Vec<usize>>::new());
+    assert_eq!(report.groups, []);
+}
+
+/// Every text maps to [1/√2, 1/√2]: identical vectors whose cosine is
+/// 0.99999994 in f32, not 1.
+struct Diagonal(univo_embed::ModelDescriptor);
+
+impl univo_embed::Embedder for Diagonal {
+    fn descriptor(&self) -> &univo_embed::ModelDescriptor {
+        &self.0
+    }
+
+    fn encode_batch(&self, texts: &[&str]) -> univo_core::Result<univo_embed::Embeddings> {
+        let half = std::f32::consts::FRAC_1_SQRT_2;
+        let data = texts.iter().flat_map(|_| [half, half]).collect();
+        univo_embed::Embeddings::new("diagonal", data, 2)
+    }
+}
+
+#[test]
+fn exact_groups_use_the_real_score_of_their_pairs() {
+    let schema = Schema::builder()
+        .text(
+            path("description"),
+            Text {
+                mode: univo_core::TextMode::Semantic,
+                ..Text::default()
+            },
+        )
+        .build()
+        .unwrap();
+    let model: std::sync::Arc<dyn univo_embed::Embedder> =
+        std::sync::Arc::new(Diagonal(univo_embed::ModelDescriptor {
+            source: univo_embed::ModelSource::Local {
+                path: "diagonal".into(),
+                files: Vec::new(),
+            },
+            dimension: 2,
+            backend: "diagonal",
+        }));
+    let mut index = SearchIndex::new(schema.clone(), 10, Some(model)).unwrap();
+    let record = |text: &str| {
+        let value = Map::new(vec![("description".into(), Value::Str(text.into()))]).unwrap();
+        prepare(&schema, &Value::Map(value)).unwrap()
+    };
+    index.add(vec![record("cloud"), record("cloud")]).unwrap();
+    let pair = compare(
+        &schema,
+        &index.store().records()[0],
+        &index.store().records()[1],
+    )
+    .unwrap()
+    .unwrap();
+    assert!(
+        pair.score.is_none(),
+        "without vectors the pair has no score"
+    );
+
+    let strict = index.groups(options(1.0)).unwrap();
+    assert_eq!(strict.exact, [vec![0, 1]]);
+    assert_eq!(strict.groups, [], "find refuses this pair at 1");
+    let loose = index.groups(options(0.9)).unwrap();
+    assert_eq!(members(&loose), [vec![0, 1]]);
+    assert!(loose.groups[0].min_score < 1.0);
+}
+
+#[test]
+fn searches_of_records_without_evidence_skip_their_exact_bucket() {
+    let schema = Schema::strings();
+    let records: Vec<PreparedRecord> = (0..30_000)
+        .map(|_| prepare(&schema, &Value::Str("  ".into())).unwrap())
+        .collect();
+    let mut index = SearchIndex::new(schema, 30_000, None).unwrap();
+    index.add(records).unwrap();
+    let start = std::time::Instant::now();
+    let report = index
+        .find(
+            univo_engine::SearchOptions {
+                min_score: 0.5,
+                limit: 10,
+                max_entries: usize::MAX,
+            },
+            false,
+            usize::MAX,
+            usize::MAX,
+        )
+        .unwrap();
+    assert!(
+        start.elapsed() < std::time::Duration::from_secs(5),
+        "{:?}",
+        start.elapsed()
+    );
+    assert_eq!(report.total_matches, 0);
+}

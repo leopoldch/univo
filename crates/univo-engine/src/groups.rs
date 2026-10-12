@@ -19,7 +19,7 @@
 
 use std::collections::HashMap;
 
-use univo_core::{Error, Result, exact_fingerprint, is_exact_match};
+use univo_core::{Error, Result, exact_fingerprint, has_exact_evidence, is_exact_match};
 
 use crate::{SearchIndex, SearchOptions};
 
@@ -81,12 +81,14 @@ struct Building {
 }
 
 /// Records grouped by verified equality: each active slot's representative
-/// (the first slot of its exact group, `usize::MAX` when inactive) and each
-/// representative's group size.
+/// (the first slot of its exact group, `usize::MAX` when inactive), each
+/// representative's group size, and, for exact groups whose members score
+/// at least the minimum together, that score.
 struct Exact {
     groups: Vec<Vec<usize>>,
     node: Vec<usize>,
     sizes: HashMap<usize, usize>,
+    inner: HashMap<usize, f32>,
 }
 
 /// Conservative groups as node lists, and the group of each grouped node.
@@ -115,9 +117,9 @@ impl SearchIndex {
             options.max_semantic_comparisons,
         )?;
         let mut report = GroupReport::default();
-        let exact = self.exact_groups()?;
+        let exact = self.exact_groups(min_score)?;
         let edges = self.qualifying_pairs(&exact, options, &mut report)?;
-        let conservative = conservative(&edges, &exact.sizes, options.max_group_size);
+        let conservative = conservative(&edges, &exact, options.max_group_size);
 
         let mut members: Vec<Vec<usize>> = vec![Vec::new(); conservative.groups.len()];
         for slot in self.store().active_slots() {
@@ -149,12 +151,19 @@ impl SearchIndex {
     }
 
     /// Fingerprint buckets, split by verified equality with each group's
-    /// first record.
-    fn exact_groups(&self) -> Result<Exact> {
+    /// first record, with the score of their members together.
+    fn exact_groups(&self, min_score: f32) -> Result<Exact> {
         let schema = self.schema();
         let records = self.store().records();
         let mut buckets: HashMap<u64, Vec<Vec<usize>>> = HashMap::new();
+        let mut singletons = Vec::new();
         for slot in self.store().active_slots() {
+            // Never an exact match, whatever its bucket holds: scanning the
+            // bucket for each blank record would be quadratic.
+            if !has_exact_evidence(schema, &records[slot])? {
+                singletons.push(vec![slot]);
+                continue;
+            }
             let groups = buckets
                 .entry(exact_fingerprint(schema, &records[slot])?)
                 .or_default();
@@ -174,13 +183,22 @@ impl SearchIndex {
             groups: Vec::new(),
             node: vec![usize::MAX; records.len()],
             sizes: HashMap::new(),
+            inner: HashMap::new(),
         };
-        for group in buckets.into_values().flatten() {
+        for group in buckets.into_values().flatten().chain(singletons) {
             for &slot in &group {
                 exact.node[slot] = group[0];
             }
             exact.sizes.insert(group[0], group.len());
             if group.len() > 1 {
+                // Equal records all score alike, but not necessarily 1: two
+                // identical unit vectors can have a cosine just below 1.
+                if let Some(score) = self
+                    .pair_score(group[0], group[1])?
+                    .filter(|score| *score >= min_score)
+                {
+                    exact.inner.insert(group[0], score);
+                }
                 exact.groups.push(group);
             }
         }
@@ -198,44 +216,53 @@ impl SearchIndex {
     ) -> Result<HashMap<(usize, usize), f32>> {
         let search = SearchOptions {
             min_score: options.min_score,
-            limit: usize::MAX,
+            limit: 0,
             max_entries: options.max_entries,
         };
         let mut edges: HashMap<(usize, usize), f32> = HashMap::new();
         let mut nodes: Vec<usize> = exact.sizes.keys().copied().collect();
         nodes.sort_unstable();
         for from in nodes {
-            let result = self.search_pairs(from, search, options.exhaustive)?;
+            // Pairs are folded into edges as they are found, so the budget
+            // bounds memory: no search result keeps its explanations.
+            let result =
+                self.visit_pairs(from, search, options.exhaustive, &mut |slot, score| {
+                    let to = exact.node[slot];
+                    if to == from || to == usize::MAX {
+                        return Ok(());
+                    }
+                    let kept = edges.entry((from.min(to), from.max(to))).or_insert(score);
+                    *kept = kept.max(score);
+                    if edges.len() > options.max_pairs {
+                        return Err(Error::group_pair_limit(edges.len(), options.max_pairs));
+                    }
+                    Ok(())
+                })?;
             report.candidates += result.candidates;
             report.truncated |= result.truncated;
             report.approximate |= result.approximate;
-            for found in result.matches {
-                let to = exact.node[found.slot];
-                if to == from || to == usize::MAX {
-                    continue;
-                }
-                let score = found.comparison.score.unwrap_or(0.0);
-                let kept = edges.entry((from.min(to), from.max(to))).or_insert(score);
-                *kept = kept.max(score);
-                if edges.len() > options.max_pairs {
-                    return Err(Error::group_pair_limit(edges.len(), options.max_pairs));
-                }
-            }
         }
         Ok(edges)
     }
 }
 
-/// Starts from the exact groups, then joins nodes and groups along the
-/// strongest pairs first, only when every pair across the two sides
-/// qualifies and the size limit holds.
+/// Starts from the exact groups whose members score at least the minimum
+/// together, then joins nodes and groups along the strongest pairs first,
+/// only when every pair across the two sides qualifies and the size limit
+/// holds. An exact group whose members do not qualify together joins
+/// nothing.
 fn conservative(
     edges: &HashMap<(usize, usize), f32>,
-    sizes: &HashMap<usize, usize>,
+    exact: &Exact,
     max_group_size: usize,
 ) -> Conservative {
-    let mut order: Vec<((usize, usize), f32)> =
-        edges.iter().map(|(&pair, &score)| (pair, score)).collect();
+    let sizes = &exact.sizes;
+    let usable = |node: usize| sizes[&node] == 1 || exact.inner.contains_key(&node);
+    let mut order: Vec<((usize, usize), f32)> = edges
+        .iter()
+        .filter(|((a, b), _)| usable(*a) && usable(*b))
+        .map(|(&pair, &score)| (pair, score))
+        .collect();
     order.sort_unstable_by(|(a, a_score), (b, b_score)| {
         b_score.total_cmp(a_score).then_with(|| a.cmp(b))
     });
@@ -243,20 +270,19 @@ fn conservative(
         groups: Vec::new(),
         group_of: HashMap::new(),
     };
-    // An exact group satisfies the policy on its own: every pair of its
-    // members scores 1. It starts as a group, in slot order.
-    let mut exact: Vec<(usize, usize)> = sizes
+    let mut seeds: Vec<(usize, f32)> = exact
+        .inner
         .iter()
-        .filter(|&(_, &size)| size > 1 && size <= max_group_size)
-        .map(|(&node, &size)| (node, size))
+        .filter(|&(node, _)| sizes[node] <= max_group_size)
+        .map(|(&node, &score)| (node, score))
         .collect();
-    exact.sort_unstable();
-    for (node, size) in exact {
+    seeds.sort_unstable_by_key(|&(node, _)| node);
+    for (node, score) in seeds {
         built.group_of.insert(node, built.groups.len());
         built.groups.push(Building {
             nodes: vec![node],
-            size,
-            min_score: 1.0,
+            size: sizes[&node],
+            min_score: score,
         });
     }
     for ((a, b), _) in order {
