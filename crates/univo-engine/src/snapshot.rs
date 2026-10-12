@@ -16,6 +16,7 @@ use crate::{SEARCH_VERSION, SearchIndex};
 
 const FORMAT: u32 = 1;
 const METADATA_LIMIT: u64 = 1 << 20;
+const MAX_DIMENSION: usize = 65_536;
 const RECORD_MAGIC: &[u8; 8] = b"UNIVOR01";
 const VECTOR_MAGIC: &[u8; 8] = b"UNIVOV01";
 static SERIAL: AtomicU64 = AtomicU64::new(0);
@@ -64,6 +65,22 @@ fn digest(bytes: &[u8]) -> String {
 }
 fn valid_digest(s: &str) -> bool {
     s.len() == 64 && s.bytes().all(|b| b.is_ascii_hexdigit())
+}
+
+fn check_shape(records: usize, dimension: usize, has_model: bool) -> Result<()> {
+    if records > u32::MAX as usize || dimension > MAX_DIMENSION || has_model != (dimension > 0) {
+        return Err(invalid("record count or dimension"));
+    }
+    Ok(())
+}
+
+fn parent_directory(path: &Path) -> &Path {
+    let parent = path.parent().unwrap_or(path);
+    if parent.as_os_str().is_empty() {
+        Path::new(".")
+    } else {
+        parent
+    }
 }
 
 fn schema_identity(schema: &univo_core::Schema) -> Value {
@@ -330,6 +347,11 @@ impl SearchIndex {
         max_bytes: u64,
         checkpoint: &mut impl FnMut(&str) -> Result<()>,
     ) -> Result<()> {
+        check_shape(
+            self.len(),
+            self.vectors.as_ref().map_or(0, |v| v.model().dimension),
+            self.vectors.is_some(),
+        )?;
         check_metadata(self)?;
         if max_bytes < 16 {
             return Err(Error::snapshot_limit());
@@ -376,9 +398,7 @@ impl SearchIndex {
             checkpoint("published")?;
             sync_directory(path)?;
             checkpoint("root_synced")?;
-            if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
-                sync_directory(parent)?;
-            }
+            sync_directory(parent_directory(path))?;
             checkpoint("parent_synced")?;
             Ok(())
         })();
@@ -541,12 +561,11 @@ impl Snapshot {
         {
             return Err(Error::snapshot_limit());
         }
-        if manifest.records > u32::MAX as usize
-            || manifest.dimension > 65536
-            || (manifest.model.is_some() != (manifest.dimension > 0))
-        {
-            return Err(invalid("record count or dimension"));
-        }
+        check_shape(
+            manifest.records,
+            manifest.dimension,
+            manifest.model.is_some(),
+        )?;
         let records = regular_file(&directory.join("records.bin"))?;
         let vectors = regular_file(&directory.join("vectors.bin"))?;
         for (file, blob) in [
@@ -1003,6 +1022,86 @@ mod tests {
             calls: AtomicU64::new(0),
         })
     }
+    #[test]
+    fn format_dimension_limit_is_checked_before_any_save_side_effect() {
+        let directory = Directory::new();
+        let mut model = test_model();
+        Arc::get_mut(&mut model).unwrap().descriptor.dimension = MAX_DIMENSION;
+        let valid = semantic_index(Arc::clone(&model));
+        valid.save(&directory.0, 1, json!({}), 1 << 20).unwrap();
+        let current = fs::read(directory.0.join("CURRENT")).unwrap();
+        let loaded = Snapshot::open(&directory.0, 1 << 20)
+            .unwrap()
+            .restore(semantic_index(model))
+            .unwrap();
+        assert!(loaded.is_empty());
+        assert_eq!(
+            loaded.vectors.as_ref().unwrap().model().dimension,
+            MAX_DIMENSION
+        );
+
+        let mut model = test_model();
+        Arc::get_mut(&mut model).unwrap().descriptor.dimension = MAX_DIMENSION + 1;
+        let invalid = semantic_index(model);
+        for path in [&directory.0, &directory.0.join("new-index")] {
+            let error = invalid.save(path, 2, json!({}), 1 << 20).unwrap_err();
+            assert_eq!(error.code(), ErrorCode::SnapshotInvalid);
+        }
+        assert!(!directory.0.join("new-index").exists());
+        assert_eq!(fs::read(directory.0.join("CURRENT")).unwrap(), current);
+        assert_eq!(fs::read_dir(&directory.0).unwrap().count(), 3); // generation, CURRENT, lock
+    }
+
+    #[test]
+    fn simple_relative_paths_use_the_current_directory_as_parent() {
+        assert_eq!(parent_directory(Path::new("index")), Path::new("."));
+        assert_eq!(
+            parent_directory(Path::new("parent/index")),
+            Path::new("parent")
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn relative_parent_sync_worker() {
+        use std::os::unix::fs::PermissionsExt;
+        if std::env::var_os("UNIVO_SNAPSHOT_RELATIVE_SYNC_TEST").is_none() {
+            return;
+        }
+        let mut read_denied = false;
+        let result =
+            index(&["old"]).save_with(Path::new("index"), 1, json!({}), 1 << 20, &mut |step| {
+                if step == "root_synced" {
+                    fs::set_permissions(".", fs::Permissions::from_mode(0o300)).unwrap();
+                    read_denied = File::open(".").is_err();
+                }
+                Ok(())
+            });
+        fs::set_permissions(".", fs::Permissions::from_mode(0o700)).unwrap();
+        if read_denied {
+            assert_eq!(result.unwrap_err().code(), ErrorCode::SnapshotIo);
+        } else {
+            // Privileged users may bypass permissions; path selection is also tested directly.
+            result.unwrap();
+        }
+        assert_eq!(restore(Path::new("index")).len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn relative_parent_sync_failure_is_reported_after_complete_publication() {
+        let directory = Directory::new();
+        private_directory(&directory.0).unwrap();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "snapshot::tests::relative_parent_sync_worker"])
+            .env("UNIVO_SNAPSHOT_RELATIVE_SYNC_TEST", "1")
+            .current_dir(&directory.0)
+            .status()
+            .unwrap();
+        assert!(status.success());
+        assert_eq!(restore(&directory.0.join("index")).len(), 1);
+    }
+
     #[test]
     fn semantic_restore_never_encodes_and_preserves_shared_and_missing_rows() {
         let directory = Directory::new();

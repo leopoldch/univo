@@ -79,6 +79,10 @@ inputs exercise rejection without panic. Native tests inject I/O errors and
 abrupt child-process exits at twelve save boundaries, confirm stable opened
 readers and lock release/refusal, and reject corrupt checksums, changed versions,
 model identity, forged dimensions/offsets and NaN even with refreshed checksums.
+Dimension-boundary tests round-trip an empty 65,536-dimensional index and reject
+65,537 dimensions before directory creation or CURRENT replacement. A child
+process using a simple relative path tests parent-directory sync failure after
+complete publication, with current-directory changes isolated from other tests.
 A counting embedder confirms zero inference calls during restore, including
 shared rows and absent vectors.
 

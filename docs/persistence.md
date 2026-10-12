@@ -31,7 +31,7 @@ not encryption or authentication of files supplied by an adversary.
   and complete marker, not all historical generations or total process RSS.
 - Load also caps records by the smaller of its explicit limit and the saved
   Finder capacity. Raise `max_records` explicitly to restore a larger index.
-- Manifest size is at most 1 MiB; model dimensions must be in `[1, 65536]`.
+- Manifest size is at most 1 MiB; model dimensions must be in `[1, 65536]`, checked on save before creating/changing the snapshot directory and again on load.
   Conservative metadata preflights reject oversized schema/model strings before
   JSON copies and model I/O. Core schema depth/selected-value limits apply, with an encoded allowance for
   normalization expansion and wire metadata. Lengths and vector buffer products
@@ -59,7 +59,7 @@ records and vectors. Before publication, an error leaves the previous CURRENT;
 after publication, an error can leave the complete new generation current.
 Retry or load to discover which complete generation is visible.
 
-Unix additionally syncs generation, root and parent directories. Windows syncs
+Unix additionally syncs generation, root and parent directories; a simple relative destination such as `"index"` synchronizes `"."` as its parent. Windows syncs
 files and replaces the pointer through Rust's standard filesystem API; the
 standard library supplies no directory-sync operation there. No Windows promise
 of directory-entry survival after power loss is made. Filesystem, OS and device
