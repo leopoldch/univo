@@ -34,6 +34,9 @@ use crate::values::ValueIndex;
 use crate::vectors::{RecordVectors, is_embedded};
 use crate::{EmbeddingCache, embed_records_cached};
 
+mod check;
+pub use check::{CheckOrAdd, Decision, QueryEncoder};
+
 /// Relative margin by which lanes lower the minimum score, so that rounding
 /// in the weighted mean never drops a record that reaches it. Relative, so
 /// that the lowered minimum stays positive for every positive minimum.

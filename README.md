@@ -42,6 +42,7 @@ The Amazon/Amiazon pair is returned as a candidate. Default hybrid fields use le
 - [Vector search](docs/vector-search.md)
 - [Lexical candidates](docs/lexical-search.md)
 - [Search](docs/search.md)
+- [Concurrency and check_or_add](docs/concurrency.md)
 
 ## Design priorities
 

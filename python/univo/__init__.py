@@ -17,6 +17,7 @@ from univo.errors import (
 )
 
 __all__ = [
+    "Decision",
     "DuplicateIdError",
     "Exact",
     "Finder",
@@ -38,7 +39,7 @@ __all__ = [
 
 
 def __getattr__(name: str) -> object:
-    if name in {"Finder", "Schema", "Text", "Exact", "Match", "Report"}:
+    if name in {"Decision", "Finder", "Schema", "Text", "Exact", "Match", "Report"}:
         from univo import _api
 
         value = getattr(_api, name)
@@ -48,4 +49,4 @@ def __getattr__(name: str) -> object:
 
 
 if TYPE_CHECKING:
-    from univo._api import Exact, Finder, Match, Report, Schema, Text
+    from univo._api import Decision, Exact, Finder, Match, Report, Schema, Text

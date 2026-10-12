@@ -65,7 +65,7 @@ The pair budget sums `n*(n-1)/2` within partition fingerprint buckets. Collision
 
 `config()` returns field options, partitions, policy/normalizer/scoring/search versions, configured and resolved model, requested/effective thread counts and limits. `config_fingerprint` identifies schema/scoring/model evidence within this build, including verified model descriptors after loading. It is not a snapshot compatibility format. A fresh configured semantic Finder has an unresolved fingerprint until the model loads. `stats()` returns record count, generation and estimated index bytes; the estimate excludes prepared records, model weights, Python input/output and allocator overhead. No business values are reported.
 
-The Python wrapper serializes calls on each Finder with a reentrant lock. Long Rust work detaches from the interpreter. Semantic encoding uses an instance index pool rather than multiplying it with a global tokenizer pool; temporary and persistent operations run serially. This is an instance guarantee, not database or distributed atomicity.
+A `Finder` can be shared by threads: searches run in parallel, and `add`, `upsert`, `remove` and `check_or_add` run one at a time ([concurrency](concurrency.md)). Long Rust work detaches from the interpreter. Semantic encoding uses an instance index pool rather than multiplying it with a global tokenizer pool. `check_or_add(record)` searches and inserts in one atomic step and returns `inserted`, `matched` or `review`. This is an instance guarantee, not database or distributed atomicity.
 
 ## Local semantic model
 

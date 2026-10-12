@@ -3,12 +3,12 @@ use crate::{errors::to_py_err, models::Model};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use std::hash::{Hash, Hasher};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use univo_core::{
     Comparison, Conflict, Error, Exact, ExactNormalizer, FieldKind, FieldPath, Limits, Map,
     PreparedRecord, RecordId, Schema, Text, TextMode, Value, exact_match, prepare,
 };
-use univo_engine::{SearchIndex, SearchOptions};
+use univo_engine::{Decision, QueryEncoder, SearchIndex, SearchOptions};
 
 type FieldSpec = (String, String, String, f32, bool, bool, String);
 
@@ -376,70 +376,245 @@ fn external_id(py: Python<'_>, id: &RecordId) -> PyResult<Py<PyAny>> {
     }
 }
 
+/// The mutable state of an index: records, lanes and logical generation.
 #[derive(Debug)]
-#[pyclass(module = "univo._univo", name = "Index")]
-pub(crate) struct NativeIndex {
+struct IndexState {
     index: SearchIndex,
-    max_records: usize,
     generation: u64,
-    pool: Option<Arc<rayon::ThreadPool>>,
 }
 
-fn id(py: Python<'_>, record: &PreparedRecord, slot: usize) -> PyResult<Py<PyAny>> {
-    match record.id() {
-        Some(RecordId::Str(id)) => Ok(id.as_ref().into_pyobject(py)?.into_any().unbind()),
-        Some(RecordId::Int(id)) => Ok(id.into_pyobject(py)?.into_any().unbind()),
-        None => Ok(slot.into_pyobject(py)?.into_any().unbind()),
+impl IndexState {
+    fn next_generation(&self, changed: bool) -> univo_core::Result<u64> {
+        if !changed {
+            return Ok(self.generation);
+        }
+        self.generation
+            .checked_add(1)
+            .ok_or_else(|| Error::snapshot_invalid("index generation exhausted; rebuild the index"))
     }
 }
 
-fn match_dict<'py>(
-    py: Python<'py>,
+/// An index shared by Python threads. Searches hold a shared lock and run
+/// in parallel; changes hold the exclusive lock. Locks are only taken with
+/// the interpreter released, and nothing holding one touches Python, so a
+/// lock never waits on the interpreter.
+#[derive(Debug)]
+#[pyclass(frozen, module = "univo._univo", name = "Index")]
+pub(crate) struct NativeIndex {
+    /// The index's schema, to convert inputs without taking a lock.
+    schema: Schema,
+    state: RwLock<IndexState>,
+    max_records: usize,
+    pool: Option<Arc<rayon::ThreadPool>>,
+}
+
+/// A record identifier as Python receives it.
+#[derive(Debug, Clone)]
+enum OutputId {
+    Id(RecordId),
+    Slot(usize),
+}
+
+impl OutputId {
+    fn of(record: &PreparedRecord, slot: usize) -> Self {
+        record.id().cloned().map_or(Self::Slot(slot), Self::Id)
+    }
+
+    fn to_py(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        match self {
+            Self::Id(id) => external_id(py, id),
+            Self::Slot(slot) => Ok(slot.into_pyobject(py)?.into_any().unbind()),
+        }
+    }
+}
+
+/// A match, built under the index lock and converted after it.
+#[derive(Debug)]
+struct MatchData {
+    left: OutputId,
+    right: OutputId,
+    score: Option<f32>,
+    coverage: f32,
+    exact: bool,
+    field_scores: Vec<(String, Option<f32>)>,
+    reasons: Vec<String>,
+    conflicts: Vec<String>,
+}
+
+#[derive(Debug, Default)]
+struct ReportData {
+    matches: Vec<MatchData>,
+    total: usize,
+    candidates: usize,
+    truncated: bool,
+    approximate: bool,
+    processed: usize,
+    generation: u64,
+}
+
+fn match_data(
     index: &SearchIndex,
     left: &PreparedRecord,
     left_slot: usize,
     right_slot: usize,
     comparison: &Comparison,
-) -> PyResult<Bound<'py, PyDict>> {
+) -> univo_core::Result<MatchData> {
     let right = &index.store().records()[right_slot];
-    let exact = exact_match(index.schema(), left, right).map_err(|e| to_py_err(py, &e))?;
-    let out = PyDict::new(py);
-    out.set_item("left_id", id(py, left, left_slot)?)?;
-    out.set_item("right_id", id(py, right, right_slot)?)?;
-    out.set_item("score", comparison.score)?;
-    out.set_item("coverage", comparison.coverage)?;
-    out.set_item(
-        "kind",
-        if exact.is_some() {
-            "exact"
-        } else {
-            "candidate"
-        },
-    )?;
-    let fields = PyDict::new(py);
+    let exact = exact_match(index.schema(), left, right)?;
+    let mut field_scores = Vec::new();
     let mut reasons = Vec::new();
     let mut conflicts = Vec::new();
     for (field, score) in index.schema().fields().iter().zip(comparison.fields.iter()) {
         let path = field.path.to_string();
-        fields.set_item(&path, score.similarity)?;
         reasons.push(format!("{path}: {:?}", score.signal));
         if score.contradiction {
-            conflicts.push(path);
+            conflicts.push(path.clone());
         }
+        field_scores.push((path, score.similarity));
     }
-    if let Some(exact) = exact {
-        for (field, steps) in exact.normalized_fields {
+    if let Some(exact) = &exact {
+        for (field, steps) in &exact.normalized_fields {
             reasons.push(format!(
                 "{}: normalized ({})",
-                index.schema().fields()[field].path,
+                index.schema().fields()[*field].path,
                 steps.names().collect::<Vec<_>>().join(", ")
             ));
         }
     }
+    Ok(MatchData {
+        left: OutputId::of(left, left_slot),
+        right: OutputId::of(right, right_slot),
+        score: comparison.score,
+        coverage: comparison.coverage,
+        exact: exact.is_some(),
+        field_scores,
+        reasons,
+        conflicts,
+    })
+}
+
+fn match_dict<'py>(py: Python<'py>, found: &MatchData) -> PyResult<Bound<'py, PyDict>> {
+    let out = PyDict::new(py);
+    out.set_item("left_id", found.left.to_py(py)?)?;
+    out.set_item("right_id", found.right.to_py(py)?)?;
+    out.set_item("score", found.score)?;
+    out.set_item("coverage", found.coverage)?;
+    out.set_item("kind", if found.exact { "exact" } else { "candidate" })?;
+    let fields = PyDict::new(py);
+    for (path, similarity) in &found.field_scores {
+        fields.set_item(path, similarity)?;
+    }
     out.set_item("field_scores", fields)?;
-    out.set_item("reasons", reasons)?;
-    out.set_item("conflicts", conflicts)?;
+    out.set_item("reasons", &found.reasons)?;
+    out.set_item("conflicts", &found.conflicts)?;
     Ok(out)
+}
+
+fn report_dict<'py>(py: Python<'py>, report: &ReportData) -> PyResult<Bound<'py, PyDict>> {
+    let matches = PyList::empty(py);
+    for found in &report.matches {
+        matches.append(match_dict(py, found)?)?;
+    }
+    let out = PyDict::new(py);
+    out.set_item("matches", &matches)?;
+    out.set_item("total_matches", report.total)?;
+    out.set_item("candidates", report.candidates)?;
+    out.set_item("candidate_truncated", report.truncated)?;
+    out.set_item("approximate", report.approximate)?;
+    out.set_item("output_truncated", report.total > report.matches.len())?;
+    out.set_item("processed", report.processed)?;
+    out.set_item("generation", report.generation)?;
+    Ok(out)
+}
+
+/// The report of a search for `query`, built under the lock.
+fn search_report(
+    state: &IndexState,
+    query: &PreparedRecord,
+    result: &univo_engine::SearchResult,
+) -> univo_core::Result<ReportData> {
+    let matches = result
+        .matches
+        .iter()
+        .map(|found| match_data(&state.index, query, 0, found.slot, &found.comparison))
+        .collect::<univo_core::Result<_>>()?;
+    Ok(ReportData {
+        matches,
+        total: result.total_matches,
+        candidates: result.candidates,
+        truncated: result.truncated,
+        approximate: result.approximate,
+        processed: 1,
+        generation: state.generation,
+    })
+}
+
+impl NativeIndex {
+    fn read(&self) -> univo_core::Result<RwLockReadGuard<'_, IndexState>> {
+        self.state.read().map_err(|_| Error::index_poisoned())
+    }
+
+    fn write(&self) -> univo_core::Result<RwLockWriteGuard<'_, IndexState>> {
+        self.state.write().map_err(|_| Error::index_poisoned())
+    }
+
+    fn build(
+        schema: &Schema,
+        max_records: usize,
+        model: Option<&Model>,
+        threads: usize,
+        cache: Option<&PyEmbeddingCache>,
+        ann: Option<(usize, usize)>,
+    ) -> univo_core::Result<(SearchIndex, Option<Arc<rayon::ThreadPool>>)> {
+        let needs_model = schema
+            .fields()
+            .iter()
+            .any(|f| matches!(f.kind, FieldKind::Text(t) if t.mode == TextMode::Semantic));
+        let pool = if needs_model {
+            Some(Arc::new(
+                rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .map_err(|_| Error::invalid_option("threads", "an available worker pool"))?,
+            ))
+        } else {
+            None
+        };
+        let embedder = model.map(|m| Arc::clone(&m.embedder) as Arc<dyn univo_embed::Embedder>);
+        let index = SearchIndex::new(schema.clone(), max_records, embedder)?;
+        let index = match cache {
+            Some(cache) => index.with_embedding_cache(Arc::clone(&cache.cache))?,
+            None => index,
+        };
+        let index = match ann {
+            Some((ef_search, max_candidates)) => index.with_ann(univo_engine::AnnOptions {
+                ef_search,
+                max_candidates,
+            })?,
+            None => index,
+        };
+        Ok((index, pool))
+    }
+
+    fn assemble(
+        index: SearchIndex,
+        generation: u64,
+        max_records: usize,
+        pool: Option<Arc<rayon::ThreadPool>>,
+    ) -> Self {
+        Self {
+            schema: index.schema().clone(),
+            state: RwLock::new(IndexState { index, generation }),
+            max_records,
+            pool,
+        }
+    }
+
+    /// The query encoder, taken under a brief shared lock: encoding then
+    /// runs with no lock held.
+    fn encoder(&self) -> univo_core::Result<QueryEncoder> {
+        Ok(self.read()?.index.encoder())
+    }
 }
 
 #[pymethods]
@@ -455,92 +630,75 @@ impl NativeIndex {
         cache: Option<&PyEmbeddingCache>,
         ann: Option<(usize, usize)>,
     ) -> PyResult<Self> {
-        let pool = if schema.needs_model() {
-            Some(Arc::new(
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(threads)
-                    .build()
-                    .map_err(|_| {
-                        to_py_err(
-                            py,
-                            &Error::invalid_option("threads", "an available worker pool"),
-                        )
-                    })?,
-            ))
-        } else {
-            None
-        };
-        let embedder = model.map(|m| Arc::clone(&m.embedder) as Arc<dyn univo_embed::Embedder>);
-        py.detach(|| {
-            let index = SearchIndex::new(schema.schema.clone(), max_records, embedder)?;
-            let index = match cache {
-                Some(cache) => index.with_embedding_cache(Arc::clone(&cache.cache))?,
-                None => index,
-            };
-            match ann {
-                Some((ef_search, max_candidates)) => index.with_ann(univo_engine::AnnOptions {
-                    ef_search,
-                    max_candidates,
-                }),
-                None => Ok(index),
-            }
-        })
-        .map(|index| Self {
-            index,
-            max_records,
-            generation: 0,
-            pool,
-        })
-        .map_err(|e| to_py_err(py, &e))
+        py.detach(|| Self::build(&schema.schema, max_records, model, threads, cache, ann))
+            .map(|(index, pool)| Self::assemble(index, 0, max_records, pool))
+            .map_err(|e| to_py_err(py, &e))
     }
+
     #[pyo3(signature = (inputs, semantic_budget=None))]
     fn add(
-        &mut self,
+        &self,
         py: Python<'_>,
         inputs: &Bound<'_, PyAny>,
         semantic_budget: Option<usize>,
     ) -> PyResult<Vec<Py<PyAny>>> {
-        let records = batch(
-            py,
-            self.index.schema(),
-            inputs,
-            self.max_records - self.index.len(),
-        )?;
-        let next_generation = self.next_generation(py, !records.is_empty())?;
-        let slots = py
+        let records = batch(py, &self.schema, inputs, self.max_records)?;
+        let ids = py
             .detach(|| {
+                // The budget is checked before any encoding work, then again
+                // under the exclusive lock, in case records arrived between.
                 if let Some(budget) = semantic_budget {
-                    self.index.check_find_batch(&records, budget)?;
+                    self.read()?.index.check_find_batch(&records, budget)?;
                 }
-                run(self.pool.as_deref(), || self.index.add(records))
+                let encoder = self.encoder()?;
+                let vectors = run(self.pool.as_deref(), || encoder.encode_batch(&records))?;
+                let mut state = self.write()?;
+                if let Some(budget) = semantic_budget {
+                    state.index.check_find_batch(&records, budget)?;
+                }
+                let generation = state.next_generation(!records.is_empty())?;
+                let slots = state.index.add_encoded(records, vectors)?;
+                state.generation = generation;
+                let store = state.index.store();
+                Ok(slots
+                    .map(|slot| OutputId::of(&store.records()[slot], slot))
+                    .collect::<Vec<_>>())
             })
-            .map_err(|e| to_py_err(py, &e))?;
-        self.generation = next_generation;
-        slots
-            .map(|slot| id(py, &self.index.store().records()[slot], slot))
-            .collect()
-    }
-    fn upsert(&mut self, py: Python<'_>, inputs: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyAny>>> {
-        let records = batch(py, self.index.schema(), inputs, self.max_records)?;
-        let generation = self.next_generation(py, !records.is_empty())?;
-        let slots = py
-            .detach(|| run(self.pool.as_deref(), || self.index.upsert(records)))
-            .map_err(|e| to_py_err(py, &e))?;
-        self.generation = generation;
-        slots
-            .into_iter()
-            .map(|slot| id(py, &self.index.store().records()[slot], slot))
-            .collect()
+            .map_err(|e: Error| to_py_err(py, &e))?;
+        ids.iter().map(|id| id.to_py(py)).collect()
     }
 
-    fn remove(&mut self, py: Python<'_>, inputs: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyAny>>> {
-        let ids = ids(py, self.index.schema(), inputs, self.max_records)?;
-        let changed = ids.iter().any(|id| self.index.store().contains_id(id));
-        let generation = self.next_generation(py, changed)?;
+    fn upsert(&self, py: Python<'_>, inputs: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyAny>>> {
+        let records = batch(py, &self.schema, inputs, self.max_records)?;
+        let ids = py
+            .detach(|| {
+                let mut guard = self.write()?;
+                let state = &mut *guard;
+                let generation = state.next_generation(!records.is_empty())?;
+                let slots = run(self.pool.as_deref(), || state.index.upsert(records))?;
+                state.generation = generation;
+                let store = state.index.store();
+                Ok(slots
+                    .into_iter()
+                    .map(|slot| OutputId::of(&store.records()[slot], slot))
+                    .collect::<Vec<_>>())
+            })
+            .map_err(|e: Error| to_py_err(py, &e))?;
+        ids.iter().map(|id| id.to_py(py)).collect()
+    }
+
+    fn remove(&self, py: Python<'_>, inputs: &Bound<'_, PyAny>) -> PyResult<Vec<Py<PyAny>>> {
+        let ids = ids(py, &self.schema, inputs, self.max_records)?;
         let missing = py
-            .detach(|| self.index.remove(&ids))
-            .map_err(|e| to_py_err(py, &e))?;
-        self.generation = generation;
+            .detach(|| {
+                let mut state = self.write()?;
+                let changed = ids.iter().any(|id| state.index.store().contains_id(id));
+                let generation = state.next_generation(changed)?;
+                let missing = state.index.remove(&ids)?;
+                state.generation = generation;
+                Ok(missing)
+            })
+            .map_err(|e: Error| to_py_err(py, &e))?;
         missing.iter().map(|value| external_id(py, value)).collect()
     }
 
@@ -553,43 +711,78 @@ impl NativeIndex {
         max_entries: usize,
         exhaustive: bool,
     ) -> PyResult<Bound<'py, PyDict>> {
-        let query = record(self.index.schema(), input).map_err(|e| to_py_err(py, &e))?;
+        let query = record(&self.schema, input).map_err(|e| to_py_err(py, &e))?;
         let options = SearchOptions {
             min_score,
             limit,
             max_entries,
         };
-        let result = py
+        let report = py
             .detach(|| {
-                run(self.pool.as_deref(), || {
-                    if exhaustive {
-                        self.index.search_exhaustive(&query, options)
-                    } else {
-                        self.index.search(&query, options)
-                    }
-                })
+                let encoder = self.encoder()?;
+                let vectors = run(self.pool.as_deref(), || encoder.encode(&query))?;
+                let state = self.read()?;
+                let result =
+                    state
+                        .index
+                        .search_encoded(&query, vectors.as_ref(), options, exhaustive)?;
+                search_report(&state, &query, &result)
             })
             .map_err(|e| to_py_err(py, &e))?;
-        let matches = PyList::empty(py);
-        for found in &result.matches {
-            matches.append(match_dict(
-                py,
-                &self.index,
-                &query,
-                0,
-                found.slot,
-                &found.comparison,
-            )?)?;
-        }
-        self.report(
-            py,
-            &matches,
-            result.total_matches,
-            result.candidates,
-            (result.truncated, result.approximate),
-            1,
-        )
+        report_dict(py, &report)
     }
+
+    /// Searches for `input` and adds it if nothing reaches `min_score`, under
+    /// one exclusive lock; the record is encoded before taking it.
+    fn check_or_add<'py>(
+        &self,
+        py: Python<'py>,
+        input: &Bound<'_, PyAny>,
+        min_score: f32,
+        limit: usize,
+        max_entries: usize,
+        exhaustive: bool,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let query = record(&self.schema, input).map_err(|e| to_py_err(py, &e))?;
+        let options = SearchOptions {
+            min_score,
+            limit,
+            max_entries,
+        };
+        let (decision, inserted, report) = py
+            .detach(|| {
+                let encoder = self.encoder()?;
+                let vectors = run(self.pool.as_deref(), || encoder.encode(&query))?;
+                let mut state = self.write()?;
+                let generation = state.next_generation(true)?;
+                let outcome =
+                    state
+                        .index
+                        .check_or_add(query.clone(), vectors, options, exhaustive)?;
+                if outcome.slot.is_some() {
+                    state.generation = generation;
+                }
+                let inserted = outcome
+                    .slot
+                    .map(|slot| OutputId::of(&state.index.store().records()[slot], slot));
+                let report = search_report(&state, &query, &outcome.result)?;
+                Ok((outcome.decision, inserted, report))
+            })
+            .map_err(|e: Error| to_py_err(py, &e))?;
+        let out = PyDict::new(py);
+        out.set_item(
+            "decision",
+            match decision {
+                Decision::Inserted => "inserted",
+                Decision::Matched => "matched",
+                Decision::Review => "review",
+            },
+        )?;
+        out.set_item("id", inserted.map(|id| id.to_py(py)).transpose()?)?;
+        out.set_item("report", report_dict(py, &report)?)?;
+        Ok(out)
+    }
+
     fn find<'py>(
         &self,
         py: Python<'py>,
@@ -600,10 +793,11 @@ impl NativeIndex {
         budgets: (usize, usize),
     ) -> PyResult<Bound<'py, PyDict>> {
         let (max_pairs, max_semantic_comparisons) = budgets;
-        let result = py
+        let report = py
             .detach(|| {
-                run(self.pool.as_deref(), || {
-                    self.index.find(
+                let state = self.read()?;
+                let result = run(self.pool.as_deref(), || {
+                    state.index.find(
                         SearchOptions {
                             min_score,
                             limit,
@@ -613,29 +807,35 @@ impl NativeIndex {
                         max_pairs,
                         max_semantic_comparisons,
                     )
+                })?;
+                let records = state.index.store().records();
+                let matches = result
+                    .matches
+                    .iter()
+                    .map(|found| {
+                        match_data(
+                            &state.index,
+                            &records[found.left],
+                            found.left,
+                            found.right,
+                            &found.comparison,
+                        )
+                    })
+                    .collect::<univo_core::Result<_>>()?;
+                Ok(ReportData {
+                    matches,
+                    total: result.total_matches,
+                    candidates: result.candidates,
+                    truncated: result.candidate_truncated,
+                    approximate: result.approximate,
+                    processed: state.index.len(),
+                    generation: state.generation,
                 })
             })
-            .map_err(|e| to_py_err(py, &e))?;
-        let matches = PyList::empty(py);
-        for found in &result.matches {
-            matches.append(match_dict(
-                py,
-                &self.index,
-                &self.index.store().records()[found.left],
-                found.left,
-                found.right,
-                &found.comparison,
-            )?)?;
-        }
-        self.report(
-            py,
-            &matches,
-            result.total_matches,
-            result.candidates,
-            (result.candidate_truncated, result.approximate),
-            self.index.len(),
-        )
+            .map_err(|e: Error| to_py_err(py, &e))?;
+        report_dict(py, &report)
     }
+
     #[allow(clippy::needless_pass_by_value)] // PyO3 extracts an owned path.
     fn save(
         &self,
@@ -652,53 +852,33 @@ impl NativeIndex {
         }
         let config = serde_json::from_str(configuration)
             .map_err(|_| to_py_err(py, &Error::snapshot_invalid("configuration structure")))?;
-        py.detach(|| self.index.save(&path, self.generation, config, max_bytes))
-            .map_err(|e| to_py_err(py, &e))
+        py.detach(|| {
+            let state = self.read()?;
+            state.index.save(&path, state.generation, config, max_bytes)
+        })
+        .map_err(|e| to_py_err(py, &e))
     }
 
     fn stats<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let counts = py
+            .detach(|| {
+                let state = self.read()?;
+                let index = &state.index;
+                Ok([
+                    ("records", index.len() as u64),
+                    ("retained_slots", index.store().len() as u64),
+                    ("tombstones", (index.store().len() - index.len()) as u64),
+                    ("generation", state.generation),
+                    ("index_bytes", index.heap_bytes() as u64),
+                    ("ann_bytes", index.ann_bytes() as u64),
+                    ("ann_nodes", index.ann_nodes() as u64),
+                ])
+            })
+            .map_err(|e: Error| to_py_err(py, &e))?;
         let out = PyDict::new(py);
-        out.set_item("records", self.index.len())?;
-        out.set_item("retained_slots", self.index.store().len())?;
-        out.set_item("tombstones", self.index.store().len() - self.index.len())?;
-        out.set_item("generation", self.generation)?;
-        out.set_item("index_bytes", self.index.heap_bytes())?;
-        out.set_item("ann_bytes", self.index.ann_bytes())?;
-        out.set_item("ann_nodes", self.index.ann_nodes())?;
-        Ok(out)
-    }
-}
-impl NativeIndex {
-    fn next_generation(&self, py: Python<'_>, changed: bool) -> PyResult<u64> {
-        if !changed {
-            return Ok(self.generation);
+        for (key, value) in counts {
+            out.set_item(key, value)?;
         }
-        self.generation.checked_add(1).ok_or_else(|| {
-            to_py_err(
-                py,
-                &Error::snapshot_invalid("index generation exhausted; rebuild the index"),
-            )
-        })
-    }
-
-    fn report<'py>(
-        &self,
-        py: Python<'py>,
-        matches: &Bound<'py, PyList>,
-        total: usize,
-        candidates: usize,
-        (truncated, approximate): (bool, bool),
-        processed: usize,
-    ) -> PyResult<Bound<'py, PyDict>> {
-        let out = PyDict::new(py);
-        out.set_item("matches", matches)?;
-        out.set_item("total_matches", total)?;
-        out.set_item("candidates", candidates)?;
-        out.set_item("candidate_truncated", truncated)?;
-        out.set_item("approximate", approximate)?;
-        out.set_item("output_truncated", total > matches.len())?;
-        out.set_item("processed", processed)?;
-        out.set_item("generation", self.generation)?;
         Ok(out)
     }
 }
@@ -815,11 +995,12 @@ impl PySnapshot {
             .take()
             .ok_or_else(|| to_py_err(py, &Error::snapshot_invalid("snapshot already consumed")))?;
         let generation = snapshot.generation();
-        let mut index = NativeIndex::new(py, schema, max_records, model, threads, cache, ann)?;
-        index.index = py
-            .detach(|| snapshot.restore(index.index))
-            .map_err(|e| to_py_err(py, &e))?;
-        index.generation = generation;
-        Ok(index)
+        py.detach(|| {
+            let (index, pool) =
+                NativeIndex::build(&schema.schema, max_records, model, threads, cache, ann)?;
+            let index = snapshot.restore(index)?;
+            Ok(NativeIndex::assemble(index, generation, max_records, pool))
+        })
+        .map_err(|e: Error| to_py_err(py, &e))
     }
 }

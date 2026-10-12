@@ -26,7 +26,8 @@ pub use embedding_cache::{CacheStats, EmbeddingCache};
 pub use exact::{ExactHit, ExactIndex, ExactSearch};
 pub use lexical::{LexicalIndex, LexicalMatch, LexicalSearch};
 pub use search::{
-    LaneCounts, SEARCH_VERSION, SearchIndex, SearchMatch, SearchOptions, SearchResult,
+    CheckOrAdd, Decision, LaneCounts, QueryEncoder, SEARCH_VERSION, SearchIndex, SearchMatch,
+    SearchOptions, SearchResult,
 };
 pub use store::RecordStore;
 pub use vectors::{FieldVectors, RecordVectors, embed_records, embed_records_cached, is_embedded};

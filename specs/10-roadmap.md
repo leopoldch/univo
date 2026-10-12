@@ -118,4 +118,5 @@ are covered. Backend screening, held-out vector recall and installed-wheel
 measurements are recorded in [ANN](../docs/ann.md) and
 [ADR 0015](../docs/adr/0015-explicit-partition-ann.md). No automatic profile,
 quality calibration, release or completion of the 512 MiB memory gate is claimed.
-Local check_or_add remains U-017.
+
+U-017 status: implemented. A shared `Finder` runs searches in parallel and changes one at a time behind a Rust `RwLock`, with encoding outside the lock; `check_or_add` searches and inserts in one exclusive step and returns `inserted`, `matched` or `review`. Two-call races are tested in Rust and Python (exactly one insertion per duplicate, against several for a search followed by `add`); the limits for separate processes and external databases are documented ([concurrency](../docs/concurrency.md), [ADR 0016](../docs/adr/0016-local-concurrency-and-check-or-add.md)).
