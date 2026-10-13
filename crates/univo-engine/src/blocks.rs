@@ -21,8 +21,9 @@ use crate::search::lane_threshold;
 pub(crate) const QUERY_BLOCK: usize = 64;
 
 /// Candidates a block may hold, over all its queries and semantic fields:
-/// 4 MiB per worker. A block that would hold more is split in two and
-/// recomputed, down to one query, which holds what the per-query scan held.
+/// 4 MiB of slots per worker, before the spare capacity of their vectors.
+/// A block that would hold more is split in two and recomputed, down to one
+/// query, which holds what the per-query scan held and may exceed it.
 pub(crate) const DENSE_BLOCK_BUDGET: usize = 1 << 20;
 
 /// One query's dense candidates: for each semantic field, the slots found.
