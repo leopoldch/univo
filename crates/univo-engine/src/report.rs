@@ -45,11 +45,17 @@ impl SearchIndex {
         self.check_scan(exhaustive, max_pairs, max_semantic_comparisons)?;
         let queries: Vec<usize> = self.store().active_slots().collect();
         let found = crate::fold_queries(
-            queries,
+            self.query_blocks(&queries),
             || Found::new(options.limit),
-            |mut found, left| {
-                let result = self.search_pairs(left, options, exhaustive)?;
-                found.add(self, left, result);
+            |mut found, block| {
+                let dense = (!exhaustive)
+                    .then(|| self.dense_block(&block, options.min_score))
+                    .flatten();
+                for (index, &left) in block.iter().enumerate() {
+                    let block_dense = dense.as_ref().map(|dense| dense[index].as_slice());
+                    let result = self.search_pairs(left, options, exhaustive, block_dense)?;
+                    found.add(self, left, result);
+                }
                 Ok(found)
             },
             Found::merge,

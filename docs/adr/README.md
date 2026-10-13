@@ -27,6 +27,7 @@ Each record captures one decision, the alternatives considered, the evidence, th
 | [0016](0016-local-concurrency-and-check-or-add.md) | Local concurrency and check_or_add | Accepted (U-017) |
 | [0017](0017-conservative-groups.md) | Exact and conservative groups | Accepted (U-018) |
 | [0018](0018-parallel-all-pairs.md) | Parallel all-pairs reports | Accepted (U-003 follow-up) |
+| [0019](0019-blocked-dense-all-pairs.md) | Blocked dense all-pairs comparisons | Accepted (U-003 follow-up) |
 
 ## Template
 

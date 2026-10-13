@@ -97,7 +97,7 @@ pub struct SearchIndex {
     lexical: Vec<LexicalIndex>,
     values: Vec<ValueIndex>,
     /// Semantic fields, by schema index.
-    semantic: Vec<usize>,
+    pub(crate) semantic: Vec<usize>,
     embedder: Option<Arc<dyn Embedder>>,
     pub(crate) vectors: Option<RecordVectors>,
     cache: Option<Arc<EmbeddingCache>>,
@@ -127,6 +127,9 @@ struct Query<'a> {
     vectors: Vec<Option<&'a [f32]>>,
     slot: Option<usize>,
     min_slot: usize,
+    /// The dense candidates of each semantic field, when an all-pairs
+    /// report computed them for a block of queries ([`crate::blocks`]).
+    dense: Option<&'a [Vec<u32>]>,
 }
 
 impl SearchIndex {
@@ -483,6 +486,7 @@ impl SearchIndex {
                 .map_or_else(Vec::new, |vectors| vectors.record(0)),
             slot: None,
             min_slot: 0,
+            dense: None,
         };
         self.search_candidates(&query, options)
     }
@@ -522,6 +526,7 @@ impl SearchIndex {
                 .map_or_else(Vec::new, |vectors| vectors.record(0)),
             slot: None,
             min_slot: 0,
+            dense: None,
         };
         let slots = self
             .partition(query.record)
@@ -591,15 +596,18 @@ impl SearchIndex {
             .fold(0, usize::saturating_add)
     }
 
+    /// `dense`, from [`Self::dense_block`], replaces the dense lane's scan.
     pub(crate) fn search_pairs(
         &self,
         slot: usize,
         options: SearchOptions,
         exhaustive: bool,
+        dense: Option<&[Vec<u32>]>,
     ) -> Result<SearchResult> {
         check_options(options)?;
         let mut query = self.stored_query(slot)?;
         query.min_slot = slot + 1;
+        query.dense = dense;
         if !exhaustive {
             return self.search_candidates(&query, options);
         }
@@ -627,6 +635,7 @@ impl SearchIndex {
             vectors,
             slot: Some(slot),
             min_slot: 0,
+            dense: None,
         })
     }
 
@@ -651,7 +660,7 @@ impl SearchIndex {
         Ok(Some(embedded))
     }
 
-    fn partition(&self, record: &PreparedRecord) -> &[u32] {
+    pub(crate) fn partition(&self, record: &PreparedRecord) -> &[u32] {
         self.partitions
             .get(&partition_fingerprint(record))
             .map_or(&[], Vec::as_slice)
@@ -676,7 +685,7 @@ impl SearchIndex {
         if !query.record.is_prepared_with(self.schema()) {
             return Err(Error::schema_mismatch());
         }
-        let threshold = options.min_score * (1.0 - ROUNDING_MARGIN);
+        let threshold = lane_threshold(options.min_score);
         let mut candidates: Vec<usize> = Vec::new();
 
         let exact = self.exact.matching_slots(query.record)?;
@@ -698,7 +707,7 @@ impl SearchIndex {
 
         if let Some(vectors) = &self.vectors {
             let partition = self.partition(query.record);
-            for &field in &self.semantic {
+            for (position, &field) in self.semantic.iter().enumerate() {
                 let (Some(field_vectors), Some(query_vector)) = (
                     vectors.field(field),
                     query.vectors.get(field).copied().flatten(),
@@ -719,6 +728,11 @@ impl SearchIndex {
                     result.truncated |= saturated;
                     result.lanes.semantic += slots.len();
                     candidates.extend(slots);
+                    continue;
+                }
+                if let Some(dense) = query.dense {
+                    result.lanes.semantic += dense[position].len();
+                    candidates.extend(dense[position].iter().map(|&slot| slot as usize));
                     continue;
                 }
                 let found = within(
@@ -870,11 +884,13 @@ impl SearchIndex {
         slot: usize,
         options: SearchOptions,
         exhaustive: bool,
+        dense: Option<&[Vec<u32>]>,
         visit: &mut dyn FnMut(usize, f32) -> Result<()>,
     ) -> Result<SearchResult> {
         check_options(options)?;
         let mut query = self.stored_query(slot)?;
         query.min_slot = slot + 1;
+        query.dense = dense;
         let mut result = SearchResult::default();
         let slots = if exhaustive {
             self.partition(query.record)
@@ -945,6 +961,11 @@ impl PartialEq for Ranked<'_> {
 }
 
 impl Eq for Ranked<'_> {}
+
+/// The minimum a lane applies, lowered against rounding.
+pub(crate) fn lane_threshold(min_score: f32) -> f32 {
+    min_score * (1.0 - ROUNDING_MARGIN)
+}
 
 fn check_options(options: SearchOptions) -> Result<()> {
     if options.min_score > 0.0 && options.min_score <= 1.0 {

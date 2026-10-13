@@ -246,30 +246,40 @@ impl SearchIndex {
         let mut nodes: Vec<usize> = exact.sizes.keys().copied().collect();
         nodes.sort_unstable();
         let counts = crate::fold_queries(
-            nodes,
+            self.query_blocks(&nodes),
             || (0usize, false, false),
-            |(candidates, truncated, approximate), from| {
+            |(mut candidates, mut truncated, mut approximate), block| {
+                let dense = (!options.exhaustive)
+                    .then(|| self.dense_block(&block, options.min_score))
+                    .flatten();
                 // Pairs are folded into edges as they are found, so the
                 // budget bounds memory: no search result keeps its
                 // explanations.
                 let mut buffer = Vec::new();
-                let result =
-                    self.visit_pairs(from, search, options.exhaustive, &mut |slot, score| {
-                        let to = exact.node[slot];
-                        if to != from && to != usize::MAX {
-                            buffer.push(((from.min(to), from.max(to)), score));
-                            if buffer.len() == EDGE_BUFFER {
-                                fold(&mut buffer)?;
+                for (index, &from) in block.iter().enumerate() {
+                    let block_dense = dense.as_ref().map(|dense| dense[index].as_slice());
+                    let result = self.visit_pairs(
+                        from,
+                        search,
+                        options.exhaustive,
+                        block_dense,
+                        &mut |slot, score| {
+                            let to = exact.node[slot];
+                            if to != from && to != usize::MAX {
+                                buffer.push(((from.min(to), from.max(to)), score));
+                                if buffer.len() == EDGE_BUFFER {
+                                    fold(&mut buffer)?;
+                                }
                             }
-                        }
-                        Ok(())
-                    })?;
+                            Ok(())
+                        },
+                    )?;
+                    candidates += result.candidates;
+                    truncated |= result.truncated;
+                    approximate |= result.approximate;
+                }
                 fold(&mut buffer)?;
-                Ok::<_, Error>((
-                    candidates + result.candidates,
-                    truncated | result.truncated,
-                    approximate | result.approximate,
-                ))
+                Ok::<_, Error>((candidates, truncated, approximate))
             },
             |a, b| (a.0 + b.0, a.1 | b.1, a.2 | b.2),
         )?;

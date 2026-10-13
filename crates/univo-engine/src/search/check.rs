@@ -130,6 +130,7 @@ impl SearchIndex {
             vectors: vectors.map_or_else(Vec::new, |vectors| vectors.record(0)),
             slot: None,
             min_slot: 0,
+            dense: None,
         };
         if exhaustive {
             let slots = self
