@@ -160,3 +160,32 @@ def test_find_and_group_give_the_same_result_on_every_thread_budget(
     expected = run(1)
     assert expected[1] > 500
     assert run(4) == expected
+
+
+def test_threads_default_to_every_available_core() -> None:
+    import univo._univo as native
+
+    available = native.available_threads()
+    assert available >= 1
+    assert finder().config()["threads"] == available
+    assert Finder(fields=["name"], threads=None).config()["effective_threads"] == available
+    for invalid in (0, -1, 1.5, "2", True):
+        with pytest.raises(InvalidParameterError):
+            Finder(fields=["name"], threads=invalid)  # type: ignore[arg-type]
+
+
+def test_a_finder_creates_its_worker_pool_once() -> None:
+    index = Finder(schema=Schema(fields={"name": Text()}, id_field="id"), threads=2)
+    records = [{"id": row, "name": name} for row, name in enumerate(NAMES)]
+    index.find(records)
+    pool = index._pool
+    assert pool is not None
+    assert pool.threads == 2
+    index.group(records)
+    index.add(records)
+    index.find(records)
+    assert index._pool is pool
+    # One thread without a model needs no pool: work runs on the caller.
+    single = Finder(schema=Schema(fields={"name": Text()}, id_field="id"), threads=1)
+    single.find(records)
+    assert single._pool is None

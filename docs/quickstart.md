@@ -55,7 +55,7 @@ Only the selected fields, identifier and partition keys are converted. Values ou
 | `Schema(max_fields=...)` | `64` | Selected field count |
 | `Finder(max_semantic_comparisons=...)` | `1000000` | Maximum dense semantic lane entries for candidate `find`; raise explicitly for large jobs |
 | `embedding_cache_bytes` | `4194304` | Estimated retained semantic cache bytes per Finder; `0` disables it; [contract](embedding-cache.md) |
-| `threads` | `1` | Semantic encoding pool budget; lexical retrieval/scoring currently use one thread |
+| `threads` | `None` | Worker threads for semantic encoding, `find` and `group`; `None` uses every core available to the process. Single searches run on the calling thread |
 
 `Report.matches` is a bounded tuple of `Match` values. `processed` counts input records (one for search). `total_matches` counts qualifying matches found, including output omitted by `limit`. `candidates` counts comparisons attempted after self/ID exclusion; find counts unordered pairs, search counts records. Hash collisions may contribute attempted cross-partition comparisons, which Rust still rejects.
 
@@ -65,7 +65,7 @@ The pair budget sums `n*(n-1)/2` within partition fingerprint buckets. Collision
 
 `config()` returns field options, partitions, policy/normalizer/scoring/search versions, configured and resolved model, requested/effective thread counts and limits. `config_fingerprint` identifies schema/scoring/model evidence within this build, including verified model descriptors after loading. It is not a snapshot compatibility format. A fresh configured semantic Finder has an unresolved fingerprint until the model loads. `stats()` returns record count, generation and estimated index bytes; the estimate excludes prepared records, model weights, Python input/output and allocator overhead. No business values are reported.
 
-A `Finder` can be shared by threads: searches run in parallel, and `add`, `upsert`, `remove` and `check_or_add` run one at a time ([concurrency](concurrency.md)). Long Rust work detaches from the interpreter. Semantic encoding uses an instance index pool rather than multiplying it with a global tokenizer pool. `check_or_add(record)` searches and inserts in one atomic step and returns `inserted`, `matched` or `review`. This is an instance guarantee, not database or distributed atomicity.
+A `Finder` can be shared by threads: searches run in parallel, and `add`, `upsert`, `remove` and `check_or_add` run one at a time ([concurrency](concurrency.md)). Long Rust work detaches from the interpreter. Semantic encoding, `find` and `group` share one worker pool per Finder, of every available core by default, rather than multiplying pools. `check_or_add(record)` searches and inserts in one atomic step and returns `inserted`, `matched` or `review`. This is an instance guarantee, not database or distributed atomicity.
 
 ## Local semantic model
 

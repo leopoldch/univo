@@ -27,6 +27,7 @@ Each record captures one decision, the alternatives considered, the evidence, th
 | [0016](0016-local-concurrency-and-check-or-add.md) | Local concurrency and check_or_add | Accepted (U-017) |
 | [0017](0017-conservative-groups.md) | Exact and conservative groups | Accepted (U-018) |
 | [0018](0018-parallel-all-pairs.md) | Parallel all-pairs reports | Accepted (U-003 follow-up) |
+| [0020](0020-every-core-by-default.md) | Every core by default, one pool per Finder | Accepted (U-003 follow-up) |
 
 ## Template
 

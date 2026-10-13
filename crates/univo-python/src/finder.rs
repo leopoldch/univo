@@ -104,10 +104,7 @@ impl PySchema {
     }
     #[getter]
     fn needs_model(&self) -> bool {
-        self.schema
-            .fields()
-            .iter()
-            .any(|f| matches!(f.kind, FieldKind::Text(t) if t.mode == TextMode::Semantic))
+        has_semantic(&self.schema)
     }
     fn check_mutation(&self, py: Python<'_>, operation: &str) -> PyResult<()> {
         if self.schema.id_field().is_none() {
@@ -406,6 +403,8 @@ pub(crate) struct NativeIndex {
     state: RwLock<IndexState>,
     max_records: usize,
     pool: Option<Arc<rayon::ThreadPool>>,
+    /// The schema has semantic fields to encode.
+    encodes: bool,
 }
 
 /// A record identifier as Python receives it.
@@ -562,27 +561,18 @@ impl NativeIndex {
         schema: &Schema,
         max_records: usize,
         model: Option<&Model>,
-        threads: usize,
+        pool: Option<&PyWorkerPool>,
         cache: Option<&PyEmbeddingCache>,
         ann: Option<(usize, usize)>,
     ) -> univo_core::Result<(SearchIndex, Option<Arc<rayon::ThreadPool>>)> {
-        // Encoding and all-pairs reports run on this pool, so `threads`
-        // bounds them; single searches run on the calling thread. Without a
-        // model, one thread needs no pool: reports then run on the caller.
-        // Encoding always needs one, or the tokenizer would use every core.
-        let needs_model = schema
-            .fields()
-            .iter()
-            .any(|f| matches!(f.kind, FieldKind::Text(t) if t.mode == TextMode::Semantic));
-        let pool = if needs_model || threads > 1 {
-            Some(Arc::new(
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(threads)
-                    .build()
-                    .map_err(|_| Error::invalid_option("threads", "an available worker pool"))?,
-            ))
-        } else {
-            None
+        // Encoding and all-pairs reports run on the Finder's pool, so
+        // `threads` bounds them; single searches run on the calling thread.
+        // Without a pool, reports run on the caller. Encoding always needs
+        // one, or the tokenizer would use every core.
+        let pool = match pool {
+            Some(pool) => Some(Arc::clone(&pool.pool)),
+            None if has_semantic(schema) => Some(worker_pool(1)?),
+            None => None,
         };
         let embedder = model.map(|m| Arc::clone(&m.embedder) as Arc<dyn univo_embed::Embedder>);
         let index = SearchIndex::new(schema.clone(), max_records, embedder)?;
@@ -608,10 +598,26 @@ impl NativeIndex {
     ) -> Self {
         Self {
             schema: index.schema().clone(),
+            encodes: has_semantic(index.schema()),
             state: RwLock::new(IndexState { index, generation }),
             max_records,
             pool,
         }
+    }
+
+    /// The pool that encodes, or `None` without semantic fields: nothing to
+    /// encode, so lexical searches do not hand their work to a worker.
+    fn encode_pool(&self) -> Option<&rayon::ThreadPool> {
+        self.pool.as_deref().filter(|_| self.encodes)
+    }
+
+    /// The pool of an all-pairs report over `records`, or `None` to run it
+    /// on the calling thread: waking the workers costs more than a small
+    /// report.
+    fn report_pool(&self, records: usize) -> Option<&rayon::ThreadPool> {
+        self.pool
+            .as_deref()
+            .filter(|_| records >= PARALLEL_MIN_RECORDS)
     }
 
     /// The query encoder, taken under a brief shared lock: encoding then
@@ -624,17 +630,17 @@ impl NativeIndex {
 #[pymethods]
 impl NativeIndex {
     #[new]
-    #[pyo3(signature = (schema, max_records, model=None, threads=1, cache=None, ann=None))]
+    #[pyo3(signature = (schema, max_records, model=None, pool=None, cache=None, ann=None))]
     fn new(
         py: Python<'_>,
         schema: &PySchema,
         max_records: usize,
         model: Option<&Model>,
-        threads: usize,
+        pool: Option<&PyWorkerPool>,
         cache: Option<&PyEmbeddingCache>,
         ann: Option<(usize, usize)>,
     ) -> PyResult<Self> {
-        py.detach(|| Self::build(&schema.schema, max_records, model, threads, cache, ann))
+        py.detach(|| Self::build(&schema.schema, max_records, model, pool, cache, ann))
             .map(|(index, pool)| Self::assemble(index, 0, max_records, pool))
             .map_err(|e| to_py_err(py, &e))
     }
@@ -655,7 +661,7 @@ impl NativeIndex {
                     self.read()?.index.check_find_batch(&records, budget)?;
                 }
                 let encoder = self.encoder()?;
-                let vectors = run(self.pool.as_deref(), || encoder.encode_batch(&records))?;
+                let vectors = run(self.encode_pool(), || encoder.encode_batch(&records))?;
                 let mut state = self.write()?;
                 if let Some(budget) = semantic_budget {
                     state.index.check_find_batch(&records, budget)?;
@@ -679,7 +685,7 @@ impl NativeIndex {
                 let mut guard = self.write()?;
                 let state = &mut *guard;
                 let generation = state.next_generation(!records.is_empty())?;
-                let slots = run(self.pool.as_deref(), || state.index.upsert(records))?;
+                let slots = run(self.encode_pool(), || state.index.upsert(records))?;
                 state.generation = generation;
                 let store = state.index.store();
                 Ok(slots
@@ -724,7 +730,7 @@ impl NativeIndex {
         let report = py
             .detach(|| {
                 let encoder = self.encoder()?;
-                let vectors = run(self.pool.as_deref(), || encoder.encode(&query))?;
+                let vectors = run(self.encode_pool(), || encoder.encode(&query))?;
                 let state = self.read()?;
                 let result =
                     state
@@ -756,7 +762,7 @@ impl NativeIndex {
         let (decision, inserted, report) = py
             .detach(|| {
                 let encoder = self.encoder()?;
-                let vectors = run(self.pool.as_deref(), || encoder.encode(&query))?;
+                let vectors = run(self.encode_pool(), || encoder.encode(&query))?;
                 let mut state = self.write()?;
                 let generation = state.next_generation(true)?;
                 let outcome =
@@ -800,7 +806,7 @@ impl NativeIndex {
         let report = py
             .detach(|| {
                 let state = self.read()?;
-                let result = run(self.pool.as_deref(), || {
+                let result = run(self.report_pool(state.index.len()), || {
                     state.index.find(
                         SearchOptions {
                             min_score,
@@ -864,7 +870,9 @@ impl NativeIndex {
         let (report, ids, processed) = py
             .detach(|| {
                 let state = self.read()?;
-                let report = run(self.pool.as_deref(), || state.index.groups(options))?;
+                let report = run(self.report_pool(state.index.len()), || {
+                    state.index.groups(options)
+                })?;
                 let store = state.index.store();
                 let ids = |slots: &[usize]| -> Vec<OutputId> {
                     slots
@@ -964,6 +972,58 @@ pub(crate) fn invalid_option(py: Python<'_>, name: &str, expected: &str) -> PyEr
     to_py_err(py, &Error::invalid_option(name, expected))
 }
 
+fn has_semantic(schema: &Schema) -> bool {
+    schema
+        .fields()
+        .iter()
+        .any(|f| matches!(f.kind, FieldKind::Text(t) if t.mode == TextMode::Semantic))
+}
+
+/// Records from which `find` and `group` run on the worker pool.
+const PARALLEL_MIN_RECORDS: usize = 512;
+
+/// The worker threads of one Finder, shared by all its indexes: the
+/// persistent one and the temporary ones of `find` and `group`. Created
+/// once, so small calls pay no thread creation.
+#[derive(Debug)]
+#[pyclass(frozen, module = "univo._univo", name = "WorkerPool")]
+pub(crate) struct PyWorkerPool {
+    pool: Arc<rayon::ThreadPool>,
+}
+
+#[pymethods]
+impl PyWorkerPool {
+    #[new]
+    fn new(py: Python<'_>, threads: usize) -> PyResult<Self> {
+        py.detach(|| worker_pool(threads))
+            .map(|pool| Self { pool })
+            .map_err(|e| to_py_err(py, &e))
+    }
+
+    #[getter]
+    fn threads(&self) -> usize {
+        self.pool.current_num_threads()
+    }
+}
+
+fn worker_pool(threads: usize) -> univo_core::Result<Arc<rayon::ThreadPool>> {
+    if threads == 0 {
+        return Err(Error::invalid_option("threads", "a positive integer"));
+    }
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build()
+        .map(Arc::new)
+        .map_err(|_| Error::invalid_option("threads", "an available worker pool"))
+}
+
+/// Threads this process may run at once: the cores it is allowed, within
+/// CPU affinity and, on Linux, container quotas. One when unknown.
+#[pyfunction]
+pub(crate) fn available_threads() -> usize {
+    std::thread::available_parallelism().map_or(1, std::num::NonZero::get)
+}
+
 fn run<T: Send>(pool: Option<&rayon::ThreadPool>, work: impl FnOnce() -> T + Send) -> T {
     match pool {
         Some(pool) => pool.install(work),
@@ -1048,7 +1108,7 @@ impl PySnapshot {
             .check_capacity(max_records)
             .map_err(|e| to_py_err(py, &e))
     }
-    #[pyo3(signature = (schema, max_records, model=None, threads=1, cache=None, ann=None))]
+    #[pyo3(signature = (schema, max_records, model=None, pool=None, cache=None, ann=None))]
     #[allow(clippy::too_many_arguments)] // PyO3 mirrors index construction.
     fn restore(
         &mut self,
@@ -1056,7 +1116,7 @@ impl PySnapshot {
         schema: &PySchema,
         max_records: usize,
         model: Option<&Model>,
-        threads: usize,
+        pool: Option<&PyWorkerPool>,
         cache: Option<&PyEmbeddingCache>,
         ann: Option<(usize, usize)>,
     ) -> PyResult<NativeIndex> {
@@ -1067,7 +1127,7 @@ impl PySnapshot {
         let generation = snapshot.generation();
         py.detach(|| {
             let (index, pool) =
-                NativeIndex::build(&schema.schema, max_records, model, threads, cache, ann)?;
+                NativeIndex::build(&schema.schema, max_records, model, pool, cache, ann)?;
             let index = snapshot.restore(index)?;
             Ok(NativeIndex::assemble(index, generation, max_records, pool))
         })
