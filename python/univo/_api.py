@@ -265,8 +265,9 @@ class Finder:
             self._embedding_cache = _univo.EmbeddingCache(self._model, self._embedding_cache_bytes)
 
     def _worker_pool(self) -> _univo.WorkerPool | None:
-        """The Finder's worker threads, shared by all its indexes and created
-        once. Encoding needs them; one thread without a model needs none."""
+        """The Finder's worker pool, shared by all its indexes and created
+        once. Its threads start only at the first semantic encoding or the
+        first report large enough to run in parallel."""
         if self._pool is None and (self._threads > 1 or self._native_schema.needs_model):
             self._pool = _univo.WorkerPool(self._threads)
         return self._pool

@@ -3,7 +3,7 @@ use crate::{errors::to_py_err, models::Model};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use std::hash::{Hash, Hasher};
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Arc, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use univo_core::{
     Comparison, Conflict, Error, Exact, ExactNormalizer, FieldKind, FieldPath, Limits, Map,
     PreparedRecord, RecordId, Schema, Text, TextMode, Value, exact_match, prepare,
@@ -402,7 +402,7 @@ pub(crate) struct NativeIndex {
     schema: Schema,
     state: RwLock<IndexState>,
     max_records: usize,
-    pool: Option<Arc<rayon::ThreadPool>>,
+    pool: Option<Arc<LazyPool>>,
     /// The schema has semantic fields to encode.
     encodes: bool,
 }
@@ -564,14 +564,14 @@ impl NativeIndex {
         pool: Option<&PyWorkerPool>,
         cache: Option<&PyEmbeddingCache>,
         ann: Option<(usize, usize)>,
-    ) -> univo_core::Result<(SearchIndex, Option<Arc<rayon::ThreadPool>>)> {
+    ) -> univo_core::Result<(SearchIndex, Option<Arc<LazyPool>>)> {
         // Encoding and all-pairs reports run on the Finder's pool, so
         // `threads` bounds them; single searches run on the calling thread.
         // Without a pool, reports run on the caller. Encoding always needs
         // one, or the tokenizer would use every core.
         let pool = match pool {
             Some(pool) => Some(Arc::clone(&pool.pool)),
-            None if has_semantic(schema) => Some(worker_pool(1)?),
+            None if has_semantic(schema) => Some(Arc::new(LazyPool::new(1)?)),
             None => None,
         };
         let embedder = model.map(|m| Arc::clone(&m.embedder) as Arc<dyn univo_embed::Embedder>);
@@ -594,7 +594,7 @@ impl NativeIndex {
         index: SearchIndex,
         generation: u64,
         max_records: usize,
-        pool: Option<Arc<rayon::ThreadPool>>,
+        pool: Option<Arc<LazyPool>>,
     ) -> Self {
         Self {
             schema: index.schema().clone(),
@@ -605,19 +605,25 @@ impl NativeIndex {
         }
     }
 
-    /// The pool that encodes, or `None` without semantic fields: nothing to
-    /// encode, so lexical searches do not hand their work to a worker.
-    fn encode_pool(&self) -> Option<&rayon::ThreadPool> {
-        self.pool.as_deref().filter(|_| self.encodes)
+    /// The pool that encodes, started on first use, or `None` without
+    /// semantic fields: nothing to encode, so lexical calls never start it.
+    fn encode_pool(&self) -> univo_core::Result<Option<Arc<rayon::ThreadPool>>> {
+        match &self.pool {
+            Some(pool) if self.encodes => pool.get().map(Some),
+            _ => Ok(None),
+        }
     }
 
-    /// The pool of an all-pairs report over `records`, or `None` to run it
-    /// on the calling thread: waking the workers costs more than a small
-    /// report.
-    fn report_pool(&self, records: usize) -> Option<&rayon::ThreadPool> {
-        self.pool
-            .as_deref()
-            .filter(|_| records >= PARALLEL_MIN_RECORDS)
+    /// The pool of an all-pairs report over `records`, started on first
+    /// use, or `None` to run the report on the calling thread: one thread,
+    /// or a report too small to pay for waking the workers.
+    fn report_pool(&self, records: usize) -> univo_core::Result<Option<Arc<rayon::ThreadPool>>> {
+        match &self.pool {
+            Some(pool) if pool.threads > 1 && records >= PARALLEL_MIN_RECORDS => {
+                pool.get().map(Some)
+            }
+            _ => Ok(None),
+        }
     }
 
     /// The query encoder, taken under a brief shared lock: encoding then
@@ -661,7 +667,9 @@ impl NativeIndex {
                     self.read()?.index.check_find_batch(&records, budget)?;
                 }
                 let encoder = self.encoder()?;
-                let vectors = run(self.encode_pool(), || encoder.encode_batch(&records))?;
+                let vectors = run(self.encode_pool()?.as_deref(), || {
+                    encoder.encode_batch(&records)
+                })?;
                 let mut state = self.write()?;
                 if let Some(budget) = semantic_budget {
                     state.index.check_find_batch(&records, budget)?;
@@ -685,7 +693,9 @@ impl NativeIndex {
                 let mut guard = self.write()?;
                 let state = &mut *guard;
                 let generation = state.next_generation(!records.is_empty())?;
-                let slots = run(self.encode_pool(), || state.index.upsert(records))?;
+                let slots = run(self.encode_pool()?.as_deref(), || {
+                    state.index.upsert(records)
+                })?;
                 state.generation = generation;
                 let store = state.index.store();
                 Ok(slots
@@ -730,7 +740,7 @@ impl NativeIndex {
         let report = py
             .detach(|| {
                 let encoder = self.encoder()?;
-                let vectors = run(self.encode_pool(), || encoder.encode(&query))?;
+                let vectors = run(self.encode_pool()?.as_deref(), || encoder.encode(&query))?;
                 let state = self.read()?;
                 let result =
                     state
@@ -762,7 +772,7 @@ impl NativeIndex {
         let (decision, inserted, report) = py
             .detach(|| {
                 let encoder = self.encoder()?;
-                let vectors = run(self.encode_pool(), || encoder.encode(&query))?;
+                let vectors = run(self.encode_pool()?.as_deref(), || encoder.encode(&query))?;
                 let mut state = self.write()?;
                 let generation = state.next_generation(true)?;
                 let outcome =
@@ -806,7 +816,7 @@ impl NativeIndex {
         let report = py
             .detach(|| {
                 let state = self.read()?;
-                let result = run(self.report_pool(state.index.len()), || {
+                let result = run(self.report_pool(state.index.len())?.as_deref(), || {
                     state.index.find(
                         SearchOptions {
                             min_score,
@@ -870,7 +880,7 @@ impl NativeIndex {
         let (report, ids, processed) = py
             .detach(|| {
                 let state = self.read()?;
-                let report = run(self.report_pool(state.index.len()), || {
+                let report = run(self.report_pool(state.index.len())?.as_deref(), || {
                     state.index.groups(options)
                 })?;
                 let store = state.index.store();
@@ -982,39 +992,80 @@ fn has_semantic(schema: &Schema) -> bool {
 /// Records from which `find` and `group` run on the worker pool.
 const PARALLEL_MIN_RECORDS: usize = 512;
 
+/// Worker threads started on first use: a Finder that never encodes nor
+/// runs a large report never starts any.
+#[derive(Debug)]
+pub(crate) struct LazyPool {
+    threads: usize,
+    pool: Mutex<Option<Arc<rayon::ThreadPool>>>,
+}
+
+impl LazyPool {
+    fn new(threads: usize) -> univo_core::Result<Self> {
+        if threads == 0 {
+            return Err(Error::invalid_option("threads", "a positive integer"));
+        }
+        Ok(Self {
+            threads,
+            pool: Mutex::new(None),
+        })
+    }
+
+    /// The workers, started by the first caller.
+    fn get(&self) -> univo_core::Result<Arc<rayon::ThreadPool>> {
+        // Building cannot leave the slot half-written: recover a poisoned lock.
+        let mut slot = self.pool.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(pool) = slot.as_ref() {
+            return Ok(Arc::clone(pool));
+        }
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(self.threads)
+            .build()
+            .map(Arc::new)
+            .map_err(|_| Error::invalid_option("threads", "an available worker pool"))?;
+        *slot = Some(Arc::clone(&pool));
+        Ok(pool)
+    }
+
+    fn started(&self) -> bool {
+        self.pool
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .is_some()
+    }
+}
+
 /// The worker threads of one Finder, shared by all its indexes: the
-/// persistent one and the temporary ones of `find` and `group`. Created
-/// once, so small calls pay no thread creation.
+/// persistent one and the temporary ones of `find` and `group`. Its threads
+/// start on first use and are created once, so small calls pay no thread
+/// creation.
 #[derive(Debug)]
 #[pyclass(frozen, module = "univo._univo", name = "WorkerPool")]
 pub(crate) struct PyWorkerPool {
-    pool: Arc<rayon::ThreadPool>,
+    pool: Arc<LazyPool>,
 }
 
 #[pymethods]
 impl PyWorkerPool {
     #[new]
     fn new(py: Python<'_>, threads: usize) -> PyResult<Self> {
-        py.detach(|| worker_pool(threads))
-            .map(|pool| Self { pool })
+        LazyPool::new(threads)
+            .map(|pool| Self {
+                pool: Arc::new(pool),
+            })
             .map_err(|e| to_py_err(py, &e))
     }
 
     #[getter]
     fn threads(&self) -> usize {
-        self.pool.current_num_threads()
+        self.pool.threads
     }
-}
 
-fn worker_pool(threads: usize) -> univo_core::Result<Arc<rayon::ThreadPool>> {
-    if threads == 0 {
-        return Err(Error::invalid_option("threads", "a positive integer"));
+    /// Whether the worker threads have started.
+    #[getter]
+    fn started(&self) -> bool {
+        self.pool.started()
     }
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .map(Arc::new)
-        .map_err(|_| Error::invalid_option("threads", "an available worker pool"))
 }
 
 /// Threads this process may run at once: the cores it is allowed, within

@@ -174,18 +174,30 @@ def test_threads_default_to_every_available_core() -> None:
             Finder(fields=["name"], threads=invalid)  # type: ignore[arg-type]
 
 
-def test_a_finder_creates_its_worker_pool_once() -> None:
+def test_a_finder_creates_its_worker_pool_once_and_starts_it_on_need() -> None:
     index = Finder(schema=Schema(fields={"name": Text()}, id_field="id"), threads=2)
-    records = [{"id": row, "name": name} for row, name in enumerate(NAMES)]
-    index.find(records)
+    small = [{"id": row, "name": name} for row, name in enumerate(NAMES)]
+    index.find(small)
     pool = index._pool
     assert pool is not None
     assert pool.threads == 2
-    index.group(records)
-    index.add(records)
-    index.find(records)
+    # A small report runs on the calling thread: no worker starts.
+    assert not pool.started
+    large = [{"id": row, "name": f"{NAMES[row % len(NAMES)]} {row}"} for row in range(600)]
+    index.find(large)
+    assert pool.started
+    index.group(large)
+    index.add(small)
     assert index._pool is pool
     # One thread without a model needs no pool: work runs on the caller.
     single = Finder(schema=Schema(fields={"name": Text()}, id_field="id"), threads=1)
-    single.find(records)
+    single.find(large)
     assert single._pool is None
+
+
+def test_lexical_add_and_search_start_no_worker() -> None:
+    index = Finder(fields=["name"], threads=4)
+    index.add([{"name": "Amazon"}, {"name": "Amazon Web Services"}])
+    index.search({"name": "Amazon"})
+    index.check_or_add({"name": "Amazn"})
+    assert index._pool is None or not index._pool.started

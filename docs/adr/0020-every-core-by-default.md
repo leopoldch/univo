@@ -15,7 +15,7 @@ Two costs stood in the way:
 ## Decision
 
 - **Default.** `Finder(threads=None)` and `Finder.load(threads=None)` use every core the process may run on: Rust's `available_parallelism`, which follows CPU affinity and, on Linux, container CPU quotas. `config()["threads"]` reports the resolved number. An explicit positive integer keeps its meaning.
-- **One pool per Finder.** `univo._univo.WorkerPool` is created once, on first need, and passed to every index of the Finder: the persistent one, those of `find` and `group`, and the one `load` restores. It is needed with semantic fields (encoding) or more than one thread.
+- **One pool per Finder, started on need.** `univo._univo.WorkerPool` is created once and passed to every index of the Finder: the persistent one, those of `find` and `group`, and the one `load` restores. Creating it starts no thread. Its threads start at the first semantic encoding or the first report that runs in parallel, so a lexical Finder used for `add` and `search` never starts any, whatever the number of cores.
 - **Pool only when it helps.**
   - Encoding goes through the pool only when the schema has semantic fields.
   - `find` and `group` use the pool from 512 records; smaller reports run on the calling thread, where waking the workers would cost more than the work.
@@ -40,7 +40,8 @@ Two costs stood in the way:
 
 Tests (`tests/python/test_concurrency.py`):
 - the default equals `available_threads()`, and `threads` values 0, -1, 1.5, `"2"` and `True` are refused;
-- a Finder creates its pool once across `find`, `group`, `add` and `find`;
+- a Finder creates its pool once across `find`, `group`, `add` and `find`, and starts its threads only at a report of 600 records, not at one of 8;
+- a lexical Finder with 4 threads starts no worker through `add`, `search` and `check_or_add` (the test fails if lexical calls start the pool);
 - a one-thread lexical Finder creates none;
 - `find` and `group` give the same results on 1 and 4 threads, at 600 records, which is above the parallel threshold.
 
