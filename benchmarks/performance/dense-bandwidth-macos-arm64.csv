@@ -1,0 +1,17 @@
+vectors_mb,mode,threads,ns_per_dot,read_gb_per_s
+1,single,1,19.23,53.3
+1,single,2,11.68,87.7
+1,single,4,5.73,178.7
+1,single,8,4.05,252.9
+1,blocked,1,10.88,1.5
+1,blocked,2,5.80,2.8
+1,blocked,4,3.25,4.9
+1,blocked,8,2.43,6.6
+102,single,1,20.50,49.9
+102,single,2,15.21,67.3
+102,single,4,8.25,124.2
+102,single,8,10.07,101.7
+102,blocked,1,11.28,1.4
+102,blocked,2,5.91,2.7
+102,blocked,4,3.26,4.9
+102,blocked,8,2.60,6.1

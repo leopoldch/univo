@@ -11,6 +11,7 @@
 //!   the reference for any approximate index.
 
 pub mod ann;
+mod blocks;
 pub use ann::AnnOptions;
 pub mod dense;
 pub mod embedding_cache;
@@ -41,10 +42,10 @@ pub use report::{PairMatch, PairReport};
 /// (inside `ThreadPool::install`) they run in parallel on that pool; from
 /// any other thread, in order on it. The caller chooses the threads, and
 /// the global pool is never used implicitly.
-pub(crate) fn fold_queries<A: Send>(
-    queries: Vec<usize>,
+pub(crate) fn fold_queries<T: Send, A: Send>(
+    queries: Vec<T>,
     init: impl Fn() -> A + Sync + Send,
-    fold: impl Fn(A, usize) -> univo_core::Result<A> + Sync + Send,
+    fold: impl Fn(A, T) -> univo_core::Result<A> + Sync + Send,
     merge: impl Fn(A, A) -> A + Sync + Send,
 ) -> univo_core::Result<A> {
     use rayon::prelude::*;

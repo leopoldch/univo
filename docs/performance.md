@@ -295,6 +295,33 @@ CI success is claimed. No model change, release or merge.
 Every configuration removes the same records as before. For reference, SemHash 0.5.0 takes 1.0 s, 2.5 s and 14 s on the same data with every core ([U-003](../benchmarks/comparison/README.md)).
 
 - **Half the comparisons.** An all-pairs query now scans only the records after it, in the lexical verification and the dense semantic scan: one thread is about twice as fast.
-- **Threads.** Lexical reports scale to 5.1× on 8 threads at 100,000 records. Dense semantic reports stop at 1.9× there: each query streams every later vector from memory, up to 100 MB at 100,000 records, so memory bandwidth, not arithmetic, bounds them from about 4 threads. Comparing blocks of queries with each vector read is the next step.
+- **Threads.** Lexical reports scale to 5.1× on 8 threads at 100,000 records. Dense semantic reports stop at 1.9× there: each query streams every later vector from memory, up to 100 MB at 100,000 records, so memory bandwidth, not arithmetic, bounds them from about 4 threads. [ADR 0019](adr/0019-blocked-dense-all-pairs.md) measures this cause in isolation and compares blocks of queries with each vector read.
 - **HNSW** stays slower than the exhaustive scan up to 30,000 records; its graph is still built on one thread.
 - **Small calls.** With `threads=1`, a lexical index creates no pool: `find` of 20 records takes 483 µs against 510 µs before, and `group` 83 µs against 85 µs (median of five runs of 2,000 calls). With `threads=4`, creating the index's pool adds about 25 µs to `find` and 50 µs to `group`.
+
+## Blocked dense all-pairs (ADR 0019)
+
+**Cause, in isolation.** [`dense_bandwidth`](../crates/univo-engine/examples/dense_bandwidth.rs) times the scoring cosine of 256-dimensional vectors, query by query or in blocks of 64 queries sharing each row read, with the vectors in cache (1 MB) or in memory (100 MB, a 100,000-record partition). [Raw output](../benchmarks/performance/dense-bandwidth-macos-arm64.csv); best of three, Apple M2 on battery at full charge, low-power mode off.
+
+| Vectors | Mode | 1 thread | 4 threads | 8 threads | Read on 8 threads |
+| --- | --- | --- | --- | --- | --- |
+| 1 MB | query by query | 19.2 ns/dot | 5.7 ns | 4.1 ns | 253 GB/s (cache) |
+| 100 MB | query by query | 20.5 ns | 8.3 ns | 10.1 ns | 102 GB/s |
+| 1 MB | blocks of 64 | 10.9 ns | 3.3 ns | 2.4 ns | 6.6 GB/s |
+| 100 MB | blocks of 64 | 11.3 ns | 3.3 ns | 2.6 ns | 6.1 GB/s |
+
+Query by query, the in-memory scan stops near the M2's nominal 100 GB/s from 4 threads, and 8 threads are slower than 4; in cache the same work scales to 4.7×. In blocks, cache and memory give the same times: the scan no longer depends on memory bandwidth.
+
+**End to end.** U-003 workload (synthetic names, one partition, `min_score=0.8`, [script](../benchmarks/comparison/scale.py)), model load included, same conditions; [raw results](../benchmarks/performance/blocked-dense-macos-arm64.jsonl).
+
+| Records | Before, 1 thread | Blocked, 1 thread | Before, 8 threads | Blocked, 8 threads | CPU, 8 threads | Peak RSS, 8 threads | SemHash 0.5.0 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 10,000 | 1.4 s | 0.76 s | 0.36 s | **0.23 s** | 1.2 s | 131 MiB | 1.0 s |
+| 30,000 | 11.7 s | 5.4 s | 4.1 s | **1.43 s** | 9.2 s | 179 MiB | 2.5 s |
+| 100,000 | 126 s | 57 s | 66.5 s | **13.7 s** | 100 s | 347 MiB | 14.0 s, 643 MiB |
+
+Every run removes the same records as before. Univo's search is exact; SemHash's index is approximate.
+
+**Memory of similar data.** Blocks hold at most 2^20 candidates and split when they would hold more. 100,000 records with identical vectors, `groups(max_pairs=1)` on 8 threads, peak RSS above the index: 1,385 MiB with 16 semantic fields before the bound, 129 MiB with it; 153 MiB and 62 MiB with one field.
+
+The all-pairs harness [`all_pairs`](../crates/univo-engine/examples/all_pairs.rs) gives 11.2 ns per pair on one thread at 20,000 records, against 26.5 ns for the same kernel left to the compiler's vectorizer.

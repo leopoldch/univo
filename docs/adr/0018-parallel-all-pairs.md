@@ -52,10 +52,10 @@ Mutation checks:
 ## Consequences
 
 - `find` holds up to `threads × limit` pairs with explanations before the merge, instead of `limit`. `groups` holds `max_pairs` pairs plus 1,024 per worker.
-- Dense semantic reports are bound by memory bandwidth from about 4 threads: each query streams every later vector. Scaling is 1.9× on 8 threads at 100,000 records, against 5.1× for lexical reports.
+- Dense semantic reports are bound by memory bandwidth from about 4 threads: each query streams every later vector. Scaling is 1.9× on 8 threads at 100,000 records, against 5.1× for lexical reports. [ADR 0019](0019-blocked-dense-all-pairs.md) measures this cause in isolation and removes it.
 - HNSW graph construction stays on one thread.
 
 ## Revisit when
 
-- Blocked dense comparisons (several queries per vector read) land: re-measure thread scaling.
+- Blocked dense comparisons (several queries per vector read) land: re-measure thread scaling. Done in [ADR 0019](0019-blocked-dense-all-pairs.md): 4.2× on 8 threads at 100,000 records.
 - Small `find` or `group` calls with `threads > 1` dominate a workload: share pools.
