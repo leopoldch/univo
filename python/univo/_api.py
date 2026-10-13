@@ -180,7 +180,7 @@ class Finder:
         hub_url: str | None = None,
         offline: bool = False,
         cache_dir: str | os.PathLike[str] | None = None,
-        threads: int = 1,
+        threads: int | None = None,
         max_records: int = 100_000,
         max_exhaustive_pairs: int = 1_000_000,
         max_semantic_comparisons: int = 1_000_000,
@@ -195,8 +195,8 @@ class Finder:
             raise _univo.invalid_option("id_field", "used with fields or schema")
         if model is not None and model_path is not None:
             raise _univo.invalid_option("model", "exclusive of model_path")
-        if type(threads) is not int or threads < 1:
-            raise _univo.invalid_option("threads", "a positive integer")
+        if threads is not None and (type(threads) is not int or threads < 1):
+            raise _univo.invalid_option("threads", "a positive integer or None")
         if type(max_records) is not int or not 0 < max_records <= 2**32 - 1:
             raise _univo.invalid_option("max_records", "an integer in [1, 2**32 - 1]")
         if fields is not None:
@@ -239,7 +239,8 @@ class Finder:
         self._hub_url = hub_url
         self._offline = offline
         self._cache_dir = None if cache_dir is None else os.fspath(cache_dir)
-        self._threads = threads
+        self._threads = _univo.available_threads() if threads is None else threads
+        self._pool: _univo.WorkerPool | None = None
         self._max_records = max_records
         self._model: _univo.Model | None = None
         self._index: _univo.Index | None = None
@@ -263,13 +264,21 @@ class Finder:
             assert self._model is not None
             self._embedding_cache = _univo.EmbeddingCache(self._model, self._embedding_cache_bytes)
 
+    def _worker_pool(self) -> _univo.WorkerPool | None:
+        """The Finder's worker pool, shared by all its indexes and created
+        once. Its threads start only at the first semantic encoding or the
+        first report large enough to run in parallel."""
+        if self._pool is None and (self._threads > 1 or self._native_schema.needs_model):
+            self._pool = _univo.WorkerPool(self._threads)
+        return self._pool
+
     def _new_index(self, *, exhaustive: bool = False) -> _univo.Index:
         self._resolve_model()
         return _univo.Index(
             self._native_schema,
             self._max_records,
             self._model,
-            self._threads,
+            self._worker_pool(),
             self._embedding_cache,
             None if exhaustive else self._ann,
         )
@@ -542,7 +551,7 @@ class Finder:
         offline: bool = False,
         cache_dir: str | os.PathLike[str] | None = None,
         hub_url: str | None = None,
-        threads: int = 1,
+        threads: int | None = None,
         max_snapshot_bytes: int = 512 << 20,
         max_records: int = 100_000,
     ) -> Finder:
@@ -592,7 +601,7 @@ class Finder:
             finder._native_schema,
             finder._max_records,
             finder._model,
-            threads,
+            finder._worker_pool(),
             finder._embedding_cache,
             finder._ann,
         )

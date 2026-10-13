@@ -98,7 +98,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Univo semantic retrieval: explicit HNSW or exhaustive dense search",
     )
     parser.add_argument(
-        "--threads", type=int, default=1, help="Univo thread budget; SemHash uses every core"
+        "--threads", type=int, default=None, help="Univo thread budget, every core by default"
     )
     arguments = parser.parse_args(argv)
     texts = names(arguments.records)

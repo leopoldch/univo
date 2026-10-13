@@ -25,7 +25,7 @@ not encryption or authentication of files supplied by an adversary.
 ## API and limits
 
 - `finder.save(path, max_snapshot_bytes=512 << 20)` writes a new generation.
-- `Finder.load(path, offline=False, cache_dir=None, hub_url=None, threads=1,
+- `Finder.load(path, offline=False, cache_dir=None, hub_url=None, threads=None,
   max_snapshot_bytes=512 << 20, max_records=100_000)` restores it.
 - The byte budget applies to the current generation's records, vectors, manifest
   and complete marker, not all historical generations or total process RSS.
