@@ -34,6 +34,8 @@ Chaque PR indique son contrat, ses tests, les chiffres pertinents et les limites
 
 Chemin critique : corpus → choix modèle → moteur exact → API → qualité → persistance/mutations → ANN → packaging final. La portabilité des wheels est testée tôt pour éviter une refonte tardive.
 
+U-001 status: decided in [ADR 0001](../docs/adr/0001-project-name-and-license.md): `univo` on PyPI and crates.io, MIT license. Re-checked on 2026-10-13: the registry names are still free, every linked Rust dependency is permissive, and the `univo` Hugging Face namespace belongs to an unrelated user, so a project-published model needs another namespace. The names are claimed only at the first publication.
+
 U-004 status: the [spike](../benchmarks/spikes/u004/README.md) compared twelve candidates; [ADR 0007](../docs/adr/0007-default-embedding-model.md) proposes the static `potion-base-8M` model and records the model-selection contract. The choice awaits the maintainer's acceptance and the U-012 quality benchmark.
 
 U-013 status: implemented. Rust caches normalized semantic texts within a Finder, shared across persistent and temporary indexes; complete model compatibility is checked and FIFO retained memory is bounded by an explicit estimate. Counting encoders and installed-wheel tests verify reuse, eviction, changed selected text, ignored unselected text and unchanged decisions ([contract](../docs/embedding-cache.md), [ADR 0012](../docs/adr/0012-bounded-embedding-cache.md)). Persistence and record mutation APIs remain separate tasks.
