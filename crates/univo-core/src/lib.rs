@@ -37,7 +37,7 @@ pub use schema::{
     Conflict, Exact, ExactNormalizer, Field, FieldKind, Limits, MAX_NESTING_DEPTH, Schema,
     SchemaBuilder, Text, TextMode,
 };
-pub use semantic::{dot, semantic_similarity};
+pub use semantic::{dot, dots, semantic_similarity};
 pub use value::{DuplicateKey, Finite, Lookup, Map, Value};
 
 /// Version of the Univo core, shared by every binding.
