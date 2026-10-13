@@ -320,4 +320,8 @@ Query by query, the in-memory scan stops near the M2's nominal 100 GB/s from 4 t
 | 30,000 | 11.7 s | 5.4 s | 4.1 s | **1.43 s** | 9.2 s | 179 MiB | 2.5 s |
 | 100,000 | 126 s | 57 s | 66.5 s | **13.7 s** | 100 s | 347 MiB | 14.0 s, 643 MiB |
 
-Every run removes the same records as before. Univo's search is exact; SemHash's index is approximate. The all-pairs harness [`all_pairs`](../crates/univo-engine/examples/all_pairs.rs) gives 11.2 ns per pair on one thread at 20,000 records, against 26.5 ns for the same kernel left to the compiler's vectorizer.
+Every run removes the same records as before. Univo's search is exact; SemHash's index is approximate.
+
+**Memory of similar data.** Blocks hold at most 2^20 candidates and split when they would hold more. 100,000 records with identical vectors, `groups(max_pairs=1)` on 8 threads, peak RSS above the index: 1,385 MiB with 16 semantic fields before the bound, 129 MiB with it; 153 MiB and 62 MiB with one field.
+
+The all-pairs harness [`all_pairs`](../crates/univo-engine/examples/all_pairs.rs) gives 11.2 ns per pair on one thread at 20,000 records, against 26.5 ns for the same kernel left to the compiler's vectorizer.

@@ -48,14 +48,16 @@ impl SearchIndex {
             self.query_blocks(&queries),
             || Found::new(options.limit),
             |mut found, block| {
-                let dense = (!exhaustive)
-                    .then(|| self.dense_block(&block, options.min_score))
-                    .flatten();
-                for (index, &left) in block.iter().enumerate() {
-                    let block_dense = dense.as_ref().map(|dense| dense[index].as_slice());
-                    let result = self.search_pairs(left, options, exhaustive, block_dense)?;
-                    found.add(self, left, result);
-                }
+                self.for_each_in_block(
+                    &block,
+                    options.min_score,
+                    exhaustive,
+                    &mut |left, dense| {
+                        let result = self.search_pairs(left, options, exhaustive, dense)?;
+                        found.add(self, left, result);
+                        Ok(())
+                    },
+                )?;
                 Ok(found)
             },
             Found::merge,

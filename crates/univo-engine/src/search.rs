@@ -93,6 +93,8 @@ pub struct SearchResult {
 pub struct SearchIndex {
     exact: ExactIndex,
     pub(crate) ann_options: Option<crate::AnnOptions>,
+    /// Candidates one all-pairs block may hold ([`crate::blocks`]).
+    pub(crate) dense_block_budget: usize,
     ann: crate::ann::AnnIndex,
     lexical: Vec<LexicalIndex>,
     values: Vec<ValueIndex>,
@@ -191,6 +193,7 @@ impl SearchIndex {
         Ok(Self {
             exact,
             ann_options: None,
+            dense_block_budget: crate::blocks::DENSE_BLOCK_BUDGET,
             ann: crate::ann::AnnIndex::default(),
             lexical,
             values,
@@ -228,6 +231,16 @@ impl SearchIndex {
         }
         self.ann_options = Some(options);
         Ok(self)
+    }
+
+    /// Sets the candidates one all-pairs block may hold before it is split,
+    /// [`crate::blocks::DENSE_BLOCK_BUDGET`] by default. For tests and
+    /// measurements; results do not depend on it.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_dense_block_budget(mut self, candidates: usize) -> Self {
+        self.dense_block_budget = candidates;
+        self
     }
 
     pub fn ann_bytes(&self) -> usize {
@@ -388,6 +401,7 @@ impl SearchIndex {
         )?;
         fresh.cache.clone_from(&self.cache);
         fresh.ann_options = self.ann_options;
+        fresh.dense_block_budget = self.dense_block_budget;
         fresh.add_preembedded(records, vectors)?;
         *self = fresh;
         Ok(())

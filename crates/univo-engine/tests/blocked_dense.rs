@@ -186,3 +186,75 @@ fn blocked_groups_equal_exhaustive_groups() {
         assert_eq!(report.exact, oracle.exact);
     }
 }
+
+/// Eight semantic fields of near-identical texts: every pair matches, so
+/// blocks would hold 64 queries × the partition × 8 fields.
+fn similar_index(records: i64, budget: usize) -> SearchIndex {
+    let mut builder = Schema::builder().id_field(path("id"));
+    for field in 0..8 {
+        builder = builder.text(path(&format!("f{field}")), semantic(1.0));
+    }
+    let schema = builder.build().unwrap();
+    let prepared = (0..records)
+        .map(|id| {
+            let mut entries = vec![("id".to_owned(), Value::Int(id))];
+            entries.extend(
+                (0..8).map(|field| (format!("f{field}"), Value::Str(format!("acme corp {id}")))),
+            );
+            prepare(&schema, &Value::Map(Map::new(entries).unwrap())).unwrap()
+        })
+        .collect();
+    let model: Arc<dyn Embedder> = Arc::new(BigramEmbedder(ModelDescriptor {
+        source: ModelSource::Local {
+            path: "bigram".into(),
+            files: Vec::new(),
+        },
+        dimension: DIMENSION,
+        backend: "bigram",
+    }));
+    let mut index = SearchIndex::new(schema, 10_000, Some(model))
+        .unwrap()
+        .with_dense_block_budget(budget);
+    index.add(prepared).unwrap();
+    index
+}
+
+#[test]
+fn blocks_over_budget_are_split_with_the_same_result() {
+    let options = SearchOptions {
+        min_score: 0.5,
+        limit: usize::MAX,
+        max_entries: usize::MAX,
+    };
+    let oracle = similar_index(300, usize::MAX)
+        .find(options, true, usize::MAX, usize::MAX)
+        .unwrap();
+    assert!(oracle.total_matches > 40_000, "{}", oracle.total_matches);
+    for budget in [0, 1_000, usize::MAX] {
+        let index = similar_index(300, budget);
+        let report = on(4, || index.find(options, false, usize::MAX, usize::MAX)).unwrap();
+        assert_eq!(report.matches, oracle.matches, "{budget}");
+    }
+}
+
+#[test]
+fn a_small_pair_budget_fails_without_building_large_blocks() {
+    for budget in [0, usize::MAX] {
+        let index = similar_index(300, budget);
+        let options = GroupOptions {
+            min_score: 0.5,
+            max_entries: usize::MAX,
+            exhaustive: false,
+            max_group_size: 100,
+            max_pairs: 1,
+            max_exhaustive_pairs: usize::MAX,
+            max_semantic_comparisons: usize::MAX,
+        };
+        let error = on(4, || index.groups(options)).unwrap_err();
+        assert_eq!(
+            error.code(),
+            univo_core::ErrorCode::GroupPairLimit,
+            "{budget}"
+        );
+    }
+}
