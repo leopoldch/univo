@@ -385,6 +385,27 @@ def test_an_acronym_matches_the_words_it_abbreviates() -> None:
     assert finder.search({"id": "nhs", "name": "NHS"}).matches == ()
 
 
+def test_names_with_distinct_words_score_lower_and_conflict() -> None:
+    finder = Finder(schema=Schema(id_field="id", fields={"name": Text()}), offline=True)
+    template = finder.find(
+        [
+            {"id": "a", "name": "National Institute of Epidemiology"},
+            {"id": "b", "name": "National Institute of Oncology"},
+        ],
+        min_score=0.01,
+    ).matches
+    extended = finder.find(
+        [
+            {"id": "a", "name": "National Institute of Oncology"},
+            {"id": "b", "name": "National Institute of Oncology Research"},
+        ],
+        min_score=0.01,
+    ).matches
+    assert template[0].conflicts == ["name"]
+    assert extended[0].conflicts == []
+    assert template[0].score < extended[0].score
+
+
 def test_the_reported_versions_are_the_native_ones() -> None:
     config = Finder().config()
     assert (config["scoring_version"], config["search_version"], config["normalizer_version"]) == (
@@ -392,4 +413,4 @@ def test_the_reported_versions_are_the_native_ones() -> None:
         _univo.SEARCH_VERSION,
         _univo.NORMALIZER_VERSION,
     )
-    assert _univo.SCORING_VERSION == 3
+    assert _univo.SCORING_VERSION == 4

@@ -19,7 +19,7 @@ pub const MIN_ACRONYM_CHARS: usize = 5;
 pub const MAX_ACRONYM_CHARS: usize = 10;
 /// Texts with this many spaces or more, descriptions rather than names,
 /// have no initials.
-const MAX_INITIALS_SPACES: usize = 2 * MAX_ACRONYM_CHARS;
+pub(crate) const MAX_INITIALS_SPACES: usize = 2 * MAX_ACRONYM_CHARS;
 
 /// Words an acronym may skip, case-folded and sorted: articles, prepositions
 /// and conjunctions of the languages most common in organization names.
@@ -53,12 +53,12 @@ fn acronym_chars(text: &str) -> Option<impl Iterator<Item = char>> {
 }
 
 /// The words of `text`: runs of letters and digits.
-fn words(text: &str) -> impl Iterator<Item = &str> {
+pub(crate) fn words(text: &str) -> impl Iterator<Item = &str> {
     text.split(|c: char| !c.is_alphanumeric())
         .filter(|word| !word.is_empty())
 }
 
-fn is_skippable(word: &str) -> bool {
+pub(crate) fn is_skippable(word: &str) -> bool {
     if word.len() > 6 {
         return false;
     }

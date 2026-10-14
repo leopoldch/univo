@@ -12,6 +12,7 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
   - Typed errors with stable codes, paths and hints ([catalog](docs/reference/errors.md)).
 - **Matching.**
   - Pairwise scoring over exact, lexical (edit distance and trigrams), semantic and acronym evidence, with per-field explanations and coverage.
+  - Names with distinct words ("Institute of Epidemiology" / "Institute of Oncology") score lower and report a conflict (scoring version 4).
   - Unicode NFC and case folding for text, and identity or hostname normalization for exact fields.
 - **Search.**
   - One complete candidate lane per field, verified against an exhaustive oracle.

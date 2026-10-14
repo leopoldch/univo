@@ -62,17 +62,20 @@ Protocol `ror-alias-v2` ([corpus](ror-alias-v2/corpus.json)) keeps every v1 pair
 - **Why.** "SPF" against "South Plains Foundation", when "SPF" is the alias of Sun Protection Foundation. v1 had no such pair, so it could not measure the risk of acronym evidence.
 - **Size.** 189 validation and 207 test pairs (886 train, reserved).
 
-The builder writes v2; rebuild with the command above. Results with scoring version 3, which adds acronym evidence ([ADR 0022](../../docs/adr/0022-acronym-evidence.md)), against version 2. Same machine and protocol as above, on 2026-10-14:
+The builder writes v2; rebuild with the command above. Results with scoring version 3, which adds acronym evidence ([ADR 0022](../../docs/adr/0022-acronym-evidence.md)), and version 4, which scores names with distinct words lower ([ADR 0023](../../docs/adr/0023-distinct-words.md)), against version 2. Same machine and protocol as above, on 2026-10-14:
 
 | Comparator | Validation threshold | Test precision | Test recall | Test AUC | Shared-acronym false matches |
 | --- | --- | --- | --- | --- | --- |
 | [Lexical, scoring 2](ror-alias-v2/lexical-scoring-2.json) | 0.80000001 | 93.75% | 5.59% | 0.438 | 0 of 207 |
-| [Lexical, scoring 3](ror-alias-v2/lexical.json) | 0.74074078 | 94.12% | 10.74% | 0.468 | 1 of 207 |
+| [Lexical, scoring 3](ror-alias-v2/lexical-scoring-3.json) | 0.74074078 | 94.12% | 10.74% | 0.468 | 1 of 207 |
+| [Lexical, scoring 4](ror-alias-v2/lexical.json) | 0.59047621 | 95.59% | 14.54% | 0.461 | 1 of 207 |
 | [Default model, scoring 2](ror-alias-v2/default-model-scoring-2.json) | 0.66665548 | 95.62% | 30.95% | 0.704 | 0 of 207 |
-| [Default model, scoring 3](ror-alias-v2/default-model.json) | 0.66106427 | 95.74% | 35.20% | 0.726 | 1 of 207 |
+| [Default model, scoring 3](ror-alias-v2/default-model-scoring-3.json) | 0.66106427 | 95.74% | 35.20% | 0.726 | 1 of 207 |
+| [Default model, scoring 4](ror-alias-v2/default-model.json) | 0.55673504 | 95.96% | 40.79% | 0.730 | 2 of 207 |
 
-- **Selection on validation only.** The acronym rule (five characters or more, similarity 0.9) was chosen there; ADR 0022 lists the alternatives.
-- **The test split was scored once with that rule.** That was on a first v2 build, whose deduplication bug dropped some shared-acronym negatives. Mutation tests found the bug. The fixed corpus gives the same selection and the figures above.
+- **Selection on validation only.** The acronym rule (five characters or more, similarity 0.9) and the distinct-words factor (0.8) were chosen there; ADRs 0022 and 0023 list the alternatives.
+- **Scoring 4.** It finds 75 more test aliases with no false alias match. The gain comes mostly from cross-language aliases (180 to 242), as the calibrated threshold drops from 0.661 to 0.557; English aliases go from 169 to 160. Distinct organizations matched: 21 to 23.
+- **The test split was scored once with each rule.** That was on a first v2 build, whose deduplication bug dropped some shared-acronym negatives. Mutation tests found the bug. The fixed corpus gives the same selection and the figures above.
 - **The quality gates still fail.**
 
 ## Critical regression and languages
@@ -86,6 +89,8 @@ The 234 critical cases never choose a threshold. Full profile evaluation checks 
 | potion-base-8M | 0.784 | 0.831 | 0.708 |
 | potion-multilingual-128M | 0.786 | 0.829 | 0.716 |
 | static-similarity-mrl, int8, 128 dims | 0.785 | 0.830 | 0.705 |
+| Lexical, scoring 4 | 0.815 | 0.850 | 0.774 |
+| static-similarity-mrl, int8, 128 dims, scoring 4 | 0.833 | 0.872 | 0.768 |
 
 The raw files also include pure lexical/semantic text-view AUC per language, family and view (234 views), plus test metrics per ROR language/family. Other critical languages have at most four record pairs; some have only one class, so AUC is null. Three cross-language record pairs cannot establish cross-language quality. The French difference does not establish a multilingual advantage and does not justify exceeding the 100 MiB default-model budget.
 

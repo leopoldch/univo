@@ -6,6 +6,7 @@
 mod acronym;
 mod budget;
 mod compare;
+mod distinct;
 mod error;
 mod exact;
 mod fingerprint;
@@ -26,6 +27,7 @@ pub use compare::{
     Comparison, FieldComparison, SCORING_VERSION, Score, Signal, compare, compare_with_vectors,
     has_value, lexical_similarity, score_with_vectors,
 };
+pub use distinct::{DISTINCT_WORDS_FACTOR, distinct_words};
 pub use error::{Detail, Error, ErrorCode, ErrorKind, RecordLocation, Result};
 pub use exact::{
     ExactMatch, exact_fingerprint, exact_match, has_exact_evidence, is_exact_match,

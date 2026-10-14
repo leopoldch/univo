@@ -2,7 +2,8 @@
 //! and lexical fields are scored lexically (ADR 0009).
 
 use univo_core::{
-    FieldPath, Map, Schema, Signal, Text, TextMode, Value, compare, compare_with_vectors, prepare,
+    DISTINCT_WORDS_FACTOR, FieldPath, Map, Schema, Signal, Text, TextMode, Value, compare,
+    compare_with_vectors, prepare,
 };
 
 fn schema(mode: TextMode) -> Schema {
@@ -31,10 +32,7 @@ const OPPOSITE: [f32; 2] = [-0.6, -0.8];
 #[test]
 fn semantic_fields_use_the_cosine_of_their_embeddings() {
     let schema = schema(TextMode::Semantic);
-    let (left, right) = (
-        record(&schema, "cloud hosting"),
-        record(&schema, "web hosting"),
-    );
+    let (left, right) = (record(&schema, "cloud hosting"), record(&schema, "hosting"));
 
     let result = compare_with_vectors(&schema, &left, &[Some(&A)], &right, &[Some(&B)])
         .unwrap()
@@ -49,6 +47,32 @@ fn semantic_fields_use_the_cosine_of_their_embeddings() {
         .unwrap()
         .unwrap();
     assert_eq!(opposite.score, Some(0.0));
+}
+
+#[test]
+fn texts_with_distinct_words_score_less_and_contradict() {
+    // "cloud" and "web" are each a word of their own on one template.
+    for mode in [TextMode::Semantic, TextMode::Lexical] {
+        let schema = schema(mode);
+        let (left, right) = (
+            record(&schema, "cloud hosting"),
+            record(&schema, "web hosting"),
+        );
+        let plain = compare(&schema, &left, &record(&schema, "hosting"))
+            .unwrap()
+            .unwrap();
+        let result = compare_with_vectors(&schema, &left, &[Some(&A)], &right, &[Some(&B)])
+            .unwrap()
+            .unwrap();
+        let field = &result.fields[0];
+        assert!(field.contradiction, "{mode:?}");
+        assert!(!field.veto);
+        assert!(!plain.fields[0].contradiction);
+        if mode == TextMode::Semantic {
+            assert_eq!(field.signal, Signal::Semantic);
+            assert!((field.similarity.unwrap() - 0.96 * DISTINCT_WORDS_FACTOR).abs() < 1e-6);
+        }
+    }
 }
 
 #[test]

@@ -1,6 +1,6 @@
 # Pairwise scoring
 
-How two prepared records are compared, field by field, into a score, a coverage and a list of contradictions. This implements [specs/03-matching.md §10](../../specs/03-matching.md) with the lexical signals of U-008 and the semantic similarity of U-010 ([ADR 0009](../adr/0009-semantic-evidence-in-scoring.md)). The rules are versioned by `SCORING_VERSION`, now 3: any change in a similarity, a signal or a score increments it. Version 3 adds acronym evidence ([ADR 0022](../adr/0022-acronym-evidence.md)); snapshots saved with an earlier version are refused and must be rebuilt from the records.
+How two prepared records are compared, field by field, into a score, a coverage and a list of contradictions. This implements [specs/03-matching.md §10](../../specs/03-matching.md) with the lexical signals of U-008 and the semantic similarity of U-010 ([ADR 0009](../adr/0009-semantic-evidence-in-scoring.md)). The rules are versioned by `SCORING_VERSION`, now 4: any change in a similarity, a signal or a score increments it. Version 3 adds acronym evidence ([ADR 0022](../adr/0022-acronym-evidence.md)), version 4 distinct words ([ADR 0023](../adr/0023-distinct-words.md)); snapshots saved with an earlier version are refused and must be rebuilt from the records.
 
 Scores rank pairs. **They are not probabilities**, and no threshold is defined here: thresholds are calibrated on a separate dataset (U-012).
 
@@ -20,6 +20,7 @@ Otherwise each field yields a similarity in `[0, 1]`, or no similarity when it g
 | text, semantic mode | the cosine of the two embeddings, clamped to `[0, 1]`; none without both embeddings | `semantic` |
 | text, hybrid mode | as lexical mode; hybrid fields are not embedded until a combination is validated (U-012) | `edit_distance` or `trigrams` |
 | text, any mode, one side the acronym of the other's words | at least 0.9: the larger of 0.9 and the mode's similarity | `acronym` when 0.9 is larger |
+| text, any mode, names with distinct words | 0.8 × the mode's similarity, with a contradiction (never a veto) | the mode's signal |
 | exact, scalar or list | 1 when equal after normalization, 0 otherwise, with a contradiction | `exact` |
 | exact, object | equal leaves / leaves present on both sides, compared key by key at every depth; a differing leaf is a contradiction, a key on one side only makes the field `incomplete` | `keys` |
 
@@ -50,6 +51,21 @@ A text is the acronym of another when it is one word of 5 to 10 letters or digit
 - **Cost.** The acronym and the initials are hashed once, when the record is prepared, and when a snapshot is loaded. A comparison first compares these hashes, then confirms on the texts.
 
 The rule applies to lexical, hybrid and semantic fields alike, and the [acronym lane](../design/search.md) finds these pairs whatever their lexical or semantic similarity. The measurements are in [ADR 0022](../adr/0022-acronym-evidence.md).
+
+## Distinct words
+
+Two names built on one template, each with a word of its own, such as "National Institute of Epidemiology" and "National Institute of Oncology", get a high lexical or semantic similarity, yet name different organizations. They have **distinct words** when:
+- **they share a content word**: a word other than the articles, prepositions and conjunctions of the acronym rule;
+- **each has a content word of its own**: one related to no content word of the other.
+
+Two words are related when they are equal, when one begins the other and has 3 characters or more ("univ" and "university"), or when their edit similarity is 0.8 or more ("universitat" and "universität").
+
+- **Effect.** The field similarity is multiplied by 0.8, and the field reports a contradiction, which a text field never turns into a veto. When acronym evidence wins, there is no contradiction.
+- **Not for one-sided words.** "Instituto Federal Goiano" against "Instituto Federal de Educação, Ciência e Tecnologia Goiano" is not penalized: only one side has words of its own.
+- **Names, not descriptions.** As for acronyms, a text with 20 spaces or more never has distinct words.
+- **Cost.** A 64-bit summary of each text's content words is computed when the record is prepared and when a snapshot is loaded. A comparison looks at the words only when the two summaries share a bit.
+
+The rule lowers similarities and never raises one, so candidate search stays complete. The measurements are in [ADR 0023](../adr/0023-distinct-words.md).
 
 ## Semantic signal
 
@@ -82,8 +98,8 @@ The comparison lists, for each field in schema order, its similarity, its signal
 - `crates/univo-core/tests/comparison_corpus.rs`:
   - every pair of the critical corpus respects the hard rules: no comparison across partitions; a veto exactly when a discriminant field contradicts; `compatible` pairs incomplete and not vetoed; `exact` pairs scored 1;
   - the score is symmetric and deterministic;
-  - its AUC on the corpus (0.763 at U-008) is guarded against regressions.
-- `crates/univo-engine/tests/semantic_corpus.rs`: with the default model's embeddings, the AUC is 0.776 (U-010), guarded at 0.756; it runs when the model's files are available, as in CI.
+  - its AUC on the corpus (0.763 at U-008, 0.795 with distinct words) is guarded against regressions.
+- `crates/univo-engine/tests/semantic_corpus.rs`: with the default model's embeddings, the AUC is 0.776 (U-010) and 0.827 with distinct words, guarded at 0.756; it runs when the model's files are available, as in CI.
 - `crates/univo-core/tests/semantic_comparison.rs`: cosine and clamping, no evidence without both embeddings, lexical and hybrid fields unaffected by embeddings.
 - `crates/univo-core/tests/object_comparison.rs`: nested nulls are unknown, nested differences veto, one-sided keys lower the coverage, objects of unknown values give no evidence, empty objects are equal.
 - `crates/univo-core/tests/lexical_properties.rs`: edit similarity and trigram Jaccard against naive reference implementations.
