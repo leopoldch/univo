@@ -413,3 +413,22 @@ Same machine, the change as first published against the change with the review f
 - **Run order.** Alternating each pair in the same order favoured the first run by about 3% as the machine heated. In ABBA order, the semantic all-pairs run takes 8.77 s after the review fixes and 8.91 s before (means of four, with thermal throttling on both sides).
 - **Kernel call.** A first version called `dots` for fields without a prefix next to `dots_reaching` in the scan loop. Two inlined kernels in that loop slowed the 100,000-name run from 5.0 to 8.3 s; the case now lives in `dots_reaching`.
 - **Not kept.** Norms precomputed once per report, instead of once per block of 64 queries, were measured neutral (5.0–5.4 s on both sides): a row's norm costs a 64th of the products of a block. Same identical outputs as above.
+
+## Lexical signatures
+
+Each record of a lexical field keeps a 128-bit signature of its trigrams. Before the scoring function verifies a candidate, upper bounds of its Jaccard index and edit similarity, derived from the signatures, must allow the threshold ([lexical candidates](lexical-search.md#how-the-search-stays-complete)). The search stays exact.
+
+Apple M2 on battery, release wheels outside the source tree, one partition, minimum score 0.8, every core. The change before and after alternated in ABBA order:
+
+| 100,000 names | Before | After | Speed-up |
+| --- | --- | --- | --- |
+| `find`, synthetic names | 30.8 s, 176–184 s CPU | **4.0–4.4 s**, 24–25 s CPU | ×7.3 |
+| `group`, synthetic names | 33.8–33.9 s | **5.0–5.2 s** | ×6.6 |
+| `find`, ROR names | 24.7–28.5 s, 152–158 s CPU | **12.1–13.0 s**, 73–78 s CPU | ×2.1 |
+| `group`, ROR names | 26.6–28.4 s | **12.3–12.9 s** | ×2.2 |
+
+- **Same results.** Six `find` and `group` configurations return identical pairs, scores to the bit, explanations, candidate counts and groups: synthetic and ROR names, minimum scores 0.8 over 100,000 records, 0.6 over 30,000 and 0.5 exhaustively over 5,000. Peak memory stays within 4 MiB.
+- **ROR names.** These are 100,000 distinct names, labels, aliases and acronyms drawn from the ROR v2.14 dump (seed 0). They gain less than the synthetic names: there are 85,063 real matches to verify, and many short acronyms, whose candidates come from length buckets.
+- **Cost.** The signatures take 16 bytes per record and lexical field. They add no dependency and change neither the scores, nor the snapshot format, nor the comparator, which still verifies every candidate the bounds admit.
+- **Origin.** The approach comes from an external prototype: 3.50–3.78 s for the native engine on synthetic names, against 29.1–32.6 s.
+

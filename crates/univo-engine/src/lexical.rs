@@ -17,7 +17,20 @@
 //!   lengths concerned are scanned instead.
 //!
 //! The rarest trigrams are chosen, so frequent ones are rarely read, and
-//! every candidate is verified with the scoring function itself.
+//! every candidate is verified with the scoring function itself, unless its
+//! signature proves it cannot reach the threshold:
+//!
+//! - Each record keeps a 128-bit signature, one bit per hashed trigram. A
+//!   bit of `A` absent from `B` stands for at least one trigram of `A`
+//!   missing from `B`; collisions only hide missing trigrams. This bounds
+//!   the shared trigrams, hence the Jaccard index, from above.
+//! - One edit destroys at most three trigram positions, so `m` trigrams
+//!   missing from either side need at least `⌈m / 3⌉` edits (the q-gram
+//!   bound, Ukkonen 1992), and at least the length difference. This bounds
+//!   the edit similarity from above.
+//!
+//! A candidate is rejected only when both bounds are below the threshold:
+//! the search is exact, not approximate.
 
 use std::collections::{HashMap, HashSet};
 use std::ops::RangeInclusive;
@@ -44,7 +57,8 @@ pub struct LexicalSearch {
     pub matches: Vec<LexicalMatch>,
     /// Posting and length-bucket entries read.
     pub entries_read: usize,
-    /// Distinct records whose similarity was computed.
+    /// Distinct records checked against the threshold: scored, or
+    /// rejected by their signature.
     pub candidates_verified: usize,
     /// The work limit stopped the search: matches may be missing.
     pub truncated: bool,
@@ -63,6 +77,8 @@ pub struct LexicalIndex {
     /// Characters and distinct trigrams of each record's text, by slot;
     /// zero trigrams when the record has no indexed text.
     sizes: Vec<(u32, u32)>,
+    /// [`signature`] of each record's trigrams, by slot; 0 without text.
+    signatures: Vec<u128>,
     postings: HashMap<(u64, u64), Vec<u32>>,
     /// Records of each partition by character count, for texts short
     /// enough to be compared by edit distance.
@@ -100,6 +116,7 @@ impl LexicalIndex {
             partitions: Vec::new(),
             partition_sizes: HashMap::new(),
             sizes: Vec::new(),
+            signatures: Vec::new(),
             postings: HashMap::new(),
             lengths: HashMap::new(),
         };
@@ -136,6 +153,7 @@ impl LexicalIndex {
             + self.partition_sizes.capacity() * (size_of::<(u64, usize)>() + 1)
             + self.partitions.capacity() * size_of::<u64>()
             + self.sizes.capacity() * size_of::<(u32, u32)>()
+            + self.signatures.capacity() * size_of::<u128>()
     }
 
     /// Indexes the records appended to `store` since the last update.
@@ -154,7 +172,9 @@ impl LexicalIndex {
             let slot = slot_number(self.partitions.len())?;
             let partition = partition_fingerprint(record);
             let mut size = (0, 0);
+            let mut bits = 0;
             if let Some((text, trigrams)) = indexed_text(record, self.field) {
+                bits = signature(trigrams);
                 for trigram in trigrams {
                     self.postings
                         .entry((partition, *trigram))
@@ -179,6 +199,7 @@ impl LexicalIndex {
             self.partitions.push(partition);
             *self.partition_sizes.entry(partition).or_default() += 1;
             self.sizes.push(size);
+            self.signatures.push(bits);
         }
         Ok(())
     }
@@ -243,7 +264,13 @@ impl LexicalIndex {
         let partition = partition_fingerprint(query);
         let lists = self.plan(partition, text, trigrams, threshold);
 
-        let filter = SizeFilter::new(text.chars().count(), trigrams.len(), threshold);
+        let chars = text.chars().count();
+        let filter = SizeFilter::new(chars, trigrams.len(), threshold);
+        let sketch = Sketch {
+            chars,
+            trigrams: trigrams.len(),
+            signature: signature(trigrams),
+        };
         let mut seen = Seen::new(
             self.partitions.len(),
             self.partition_sizes.get(&partition).copied().unwrap_or(0),
@@ -275,6 +302,18 @@ impl LexicalIndex {
                 }
                 let candidate = &records[slot];
                 if candidate.partition() != query.partition() {
+                    continue;
+                }
+                let (other_chars, other_trigrams) = self.sizes[slot];
+                let other = Sketch {
+                    chars: other_chars as usize,
+                    trigrams: other_trigrams as usize,
+                    signature: self.signatures[slot],
+                };
+                // The size filter admits indexed texts only: a rejected
+                // candidate counts as verified, as it would have been.
+                if !sketch.may_reach(&other, threshold) {
+                    result.candidates_verified += 1;
                     continue;
                 }
                 let Some((other, other_trigrams)) = indexed_text(candidate, self.field) else {
@@ -444,6 +483,55 @@ impl SizeFilter {
     }
 }
 
+/// 128 bits summarizing a trigram set: the bit of each trigram's hash.
+fn signature(trigrams: &[u64]) -> u128 {
+    trigrams.iter().fold(0, |bits, &trigram| {
+        bits | 1 << (trigram.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 57)
+    })
+}
+
+/// What [`LexicalIndex`] keeps of a text: its characters, distinct
+/// trigrams and [`signature`].
+struct Sketch {
+    chars: usize,
+    trigrams: usize,
+    signature: u128,
+}
+
+impl Sketch {
+    /// Whether the texts may reach `threshold`: `false` only when upper
+    /// bounds of both their Jaccard index and their edit similarity are
+    /// below it (see the module documentation). The bounds use the
+    /// comparator's own arithmetic, so a score at the threshold passes.
+    fn may_reach(&self, other: &Self, threshold: f32) -> bool {
+        let missing = (self.signature & !other.signature).count_ones() as usize;
+        let other_missing = (other.signature & !self.signature).count_ones() as usize;
+        let shared = self
+            .trigrams
+            .saturating_sub(missing)
+            .min(other.trigrams.saturating_sub(other_missing));
+        let union = self.trigrams + other.trigrams - shared;
+        if union == 0 || ratio(shared, union) >= threshold {
+            return true;
+        }
+        if self.chars > MAX_EDIT_CHARS || other.chars > MAX_EDIT_CHARS {
+            return false;
+        }
+        let longest = self.chars.max(other.chars);
+        let edits = missing
+            .max(other_missing)
+            .div_ceil(3)
+            .max(self.chars.abs_diff(other.chars));
+        longest == 0 || 1.0 - ratio(edits, longest) >= threshold
+    }
+}
+
+/// `numerator / denominator` as `univo_core` computes similarities.
+#[allow(clippy::cast_precision_loss)]
+fn ratio(numerator: usize, denominator: usize) -> f32 {
+    numerator as f32 / denominator as f32
+}
+
 /// A count as a float; counts here are character and trigram numbers, far
 /// below 2^52, so the conversion is exact.
 #[allow(clippy::cast_precision_loss)]
@@ -466,7 +554,126 @@ fn floor_count(value: f64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use univo_core::{FieldPath, Map, Schema, Text, Value, prepare};
+    use univo_core::{FieldPath, Map, Schema, Text, Value, prepare, trigrams};
+
+    fn sketch(text: &str) -> (Sketch, Box<[u64]>) {
+        let grams = trigrams(text);
+        let sketch = Sketch {
+            chars: text.chars().count(),
+            trigrams: grams.len(),
+            signature: signature(&grams),
+        };
+        (sketch, grams)
+    }
+
+    /// Every pair of `texts` at thresholds around its score: a rejected
+    /// pair never reaches the threshold. Returns the rejections.
+    fn check_signatures(texts: &[String]) -> usize {
+        let sketches: Vec<_> = texts.iter().map(|text| sketch(text)).collect();
+        let mut rejected = 0;
+        for (a, (a_sketch, a_grams)) in texts.iter().zip(&sketches) {
+            for (b, (b_sketch, b_grams)) in texts.iter().zip(&sketches) {
+                let (score, _) = lexical_similarity(a, a_grams, b, b_grams);
+                for threshold in [
+                    0.1,
+                    0.5,
+                    0.8,
+                    0.9,
+                    1.0,
+                    score,
+                    score.next_up(),
+                    score.next_down(),
+                ] {
+                    if !(threshold > 0.0 && threshold <= 1.0) {
+                        continue;
+                    }
+                    if !a_sketch.may_reach(b_sketch, threshold) {
+                        rejected += 1;
+                        assert!(score < threshold, "{a:?} {b:?} {score} {threshold}");
+                    }
+                }
+            }
+        }
+        rejected
+    }
+
+    #[test]
+    fn signatures_never_reject_short_texts_that_reach_the_threshold() {
+        // Every text of up to four characters over a small alphabet with a
+        // space and a multibyte letter, and long repetitions around the
+        // edit limit.
+        let alphabet = ['a', 'b', ' ', 'é'];
+        let mut texts = Vec::new();
+        for length in 1..=4u32 {
+            for mut value in 0..4usize.pow(length) {
+                texts.push(
+                    (0..length)
+                        .map(|_| {
+                            let character = alphabet[value % 4];
+                            value /= 4;
+                            character
+                        })
+                        .collect(),
+                );
+            }
+        }
+        for n in [15, 16, 21, 22, 63, 64, 65, 100] {
+            texts.extend(["a".repeat(n), "é".repeat(n), "ab ".repeat(n / 3)]);
+            texts.push(format!("{}b", "a".repeat(n - 1)));
+        }
+        assert!(check_signatures(&texts) > 10_000);
+    }
+
+    #[test]
+    fn signatures_never_reject_names_that_reach_the_threshold() {
+        // Names with typos, swapped and dropped words: the pairs search
+        // meets, most of them below the threshold.
+        let words = [
+            "acme",
+            "global",
+            "institute",
+            "of",
+            "technology",
+            "université",
+            "paris",
+            "saclay",
+            "national",
+            "research",
+            "center",
+            "société",
+            "générale",
+            "bank",
+        ];
+        let mut state = 0x2545_F491_4F6C_DD1Du64;
+        let mut next = |bound: usize| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            usize::try_from(state % bound as u64).unwrap()
+        };
+        let mut texts = Vec::new();
+        for _ in 0..160 {
+            let count = 1 + next(5);
+            let mut name: Vec<char> = (0..count)
+                .map(|_| words[next(words.len())])
+                .collect::<Vec<_>>()
+                .join(" ")
+                .chars()
+                .collect();
+            for _ in 0..next(3) {
+                let at = next(name.len());
+                match next(3) {
+                    0 => {
+                        name.remove(at);
+                    }
+                    1 => name.insert(at, 'x'),
+                    _ => name[at] = 'e',
+                }
+            }
+            texts.push(name.into_iter().collect());
+        }
+        assert!(check_signatures(&texts) > 50_000);
+    }
 
     #[test]
     fn lower_slots_are_skipped_but_counted_against_the_work_limit() {
