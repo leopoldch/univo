@@ -322,7 +322,7 @@ def test_the_command_line_downloads_and_inspects(hub: Hub, tmp_path: pathlib.Pat
 def test_the_default_model_downloads_from_a_mirror_and_loads(tmp_path: pathlib.Path) -> None:
     mirror = Hub(
         repository="univo-models/static-similarity-mrl-multilingual-int8-128",
-        commit="0000000000000000000000000000000000000000",
+        commit="ee7c2cb71e6948246b2bf45ef47083d215d69f2a",
         directory=pathlib.Path(os.environ["UNIVO_TEST_MODEL_DIR"]),
     )
     with serve(mirror):

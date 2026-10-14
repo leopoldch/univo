@@ -33,8 +33,7 @@ pub fn default_model() -> PinnedModel {
             organization: "univo-models".to_owned(),
             name: "static-similarity-mrl-multilingual-int8-128".to_owned(),
         },
-        // Replaced by the commit of the published repository.
-        revision: "0000000000000000000000000000000000000000",
+        revision: "ee7c2cb71e6948246b2bf45ef47083d215d69f2a",
         files: vec![
             file(
                 "config.json",

@@ -60,7 +60,7 @@ jobs:
       UNIVO_PERF_SLACK: ${{ matrix.perf_slack }}
       # The pinned default model; tests verify its checksums before use.
       UNIVO_TEST_MODEL_DIR: ${{ github.workspace }}/.models/default
-      MODEL_URL: https://huggingface.co/univo-models/static-similarity-mrl-multilingual-int8-128/resolve/0000000000000000000000000000000000000000
+      MODEL_URL: https://huggingface.co/univo-models/static-similarity-mrl-multilingual-int8-128/resolve/ee7c2cb71e6948246b2bf45ef47083d215d69f2a
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
@@ -71,7 +71,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: .models/default
-          key: model-default-0000000000000000000000000000000000000000
+          key: model-default-ee7c2cb71e6948246b2bf45ef47083d215d69f2a
       - if: steps.model-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
@@ -138,14 +138,14 @@ jobs:
       UNIVO_EXPECT_MACHINE: ${{ matrix.machine }}
       UNIVO_PERF_SLACK: "2.0"
       UNIVO_TEST_MODEL_DIR: ${{ github.workspace }}/.models/default
-      MODEL_URL: https://huggingface.co/univo-models/static-similarity-mrl-multilingual-int8-128/resolve/0000000000000000000000000000000000000000
+      MODEL_URL: https://huggingface.co/univo-models/static-similarity-mrl-multilingual-int8-128/resolve/ee7c2cb71e6948246b2bf45ef47083d215d69f2a
     steps:
       - uses: actions/checkout@v7
       - id: model-cache
         uses: actions/cache@v6
         with:
           path: .models/default
-          key: model-default-0000000000000000000000000000000000000000
+          key: model-default-ee7c2cb71e6948246b2bf45ef47083d215d69f2a
       - if: steps.model-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
