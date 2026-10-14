@@ -23,8 +23,8 @@ pub use acronym::{
     acronym_similarity, initials,
 };
 pub use compare::{
-    Comparison, FieldComparison, SCORING_VERSION, Signal, compare, compare_with_vectors, has_value,
-    lexical_similarity,
+    Comparison, FieldComparison, SCORING_VERSION, Score, Signal, compare, compare_with_vectors,
+    has_value, lexical_similarity, score_with_vectors,
 };
 pub use error::{Detail, Error, ErrorCode, ErrorKind, RecordLocation, Result};
 pub use exact::{
@@ -42,7 +42,7 @@ pub use schema::{
     Conflict, Exact, ExactNormalizer, Field, FieldKind, Limits, MAX_NESTING_DEPTH, Schema,
     SchemaBuilder, Text, TextMode,
 };
-pub use semantic::{dot, dots, semantic_similarity};
+pub use semantic::{dot, dots, dots_reaching, rest_norm, semantic_similarity};
 pub use value::{DuplicateKey, Finite, Lookup, Map, Value};
 
 /// Version of the Univo core, shared by every binding.

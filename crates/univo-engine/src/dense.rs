@@ -135,3 +135,57 @@ pub fn within<K: Ord>(
     });
     found.into_iter().map(|(neighbor, _)| neighbor).collect()
 }
+
+/// The slots of [`within`], unsorted, appended to `found`; returns their
+/// number. Candidate lanes sort and deduplicate all their slots anyway.
+pub(crate) fn extend_within(
+    vectors: &FieldVectors,
+    query: &[f32],
+    candidates: impl IntoIterator<Item = usize>,
+    threshold: f32,
+    found: &mut Vec<usize>,
+) -> usize {
+    if query.len() != vectors.dimension() {
+        return 0;
+    }
+    let before = found.len();
+    found.extend(candidates.into_iter().filter(|&slot| {
+        vectors
+            .get(slot)
+            .is_some_and(|row| semantic_similarity(query, row) >= threshold)
+    }));
+    found.len() - before
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extend_within_appends_the_slots_within_finds() {
+        // Slot 3 has no embedding; rows 0 to 4 are unit vectors at angles.
+        let angles = [0.0f32, 0.3, 0.6, 0.9, 1.2];
+        let vectors = FieldVectors {
+            dimension: 2,
+            data: angles.iter().flat_map(|a| [a.cos(), a.sin()]).collect(),
+            rows: vec![Some(4), Some(0), Some(2), None, Some(1), Some(3)],
+        };
+        let query = [1.0, 0.0];
+        for threshold in [0.0, 0.5, 0.8, 0.96, 1.0] {
+            let mut expected: Vec<usize> = within(&vectors, &query, 0..6, threshold, |slot| slot)
+                .iter()
+                .map(|neighbor| neighbor.slot)
+                .collect();
+            let mut found = vec![42];
+            let added = extend_within(&vectors, &query, 0..6, threshold, &mut found);
+            assert_eq!(found.remove(0), 42);
+            assert_eq!(added, found.len());
+            expected.sort_unstable();
+            assert_eq!(found, expected, "{threshold}");
+        }
+        assert_eq!(
+            extend_within(&vectors, &[1.0], 0..6, 0.0, &mut Vec::new()),
+            0
+        );
+    }
+}

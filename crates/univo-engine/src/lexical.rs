@@ -200,13 +200,20 @@ impl LexicalIndex {
         threshold: f32,
         max_entries: usize,
     ) -> Result<LexicalSearch> {
-        self.search_from(store, query, threshold, max_entries, 0)
+        let mut result = self.search_from(store, query, threshold, max_entries, 0)?;
+        result.matches.sort_by(|a, b| {
+            b.similarity
+                .total_cmp(&a.similarity)
+                .then_with(|| a.slot.cmp(&b.slot))
+        });
+        Ok(result)
     }
 
-    /// [`Self::search`] restricted to slots from `min_slot`: all-pairs
-    /// searches find each pair from its lower slot only. Lower slots are
-    /// still read and counted against `max_entries`, so truncation does not
-    /// depend on `min_slot`; they are only not verified.
+    /// [`Self::search`] restricted to slots from `min_slot`, with matches in
+    /// no particular order: all-pairs searches find each pair from its lower
+    /// slot only. Lists hold slots in increasing order, so lower slots are
+    /// skipped at once, yet still counted against `max_entries`: truncation
+    /// does not depend on `min_slot`.
     pub(crate) fn search_from(
         &self,
         store: &RecordStore,
@@ -242,7 +249,15 @@ impl LexicalIndex {
             self.partition_sizes.get(&partition).copied().unwrap_or(0),
         );
         'lists: for slots in lists {
-            for &slot in slots {
+            debug_assert!(slots.is_sorted());
+            let skipped = slots.partition_point(|&slot| (slot as usize) < min_slot);
+            if skipped > max_entries - result.entries_read {
+                result.entries_read = max_entries;
+                result.truncated = true;
+                break;
+            }
+            result.entries_read += skipped;
+            for &slot in &slots[skipped..] {
                 if result.entries_read == max_entries {
                     result.truncated = true;
                     break 'lists;
@@ -252,10 +267,7 @@ impl LexicalIndex {
                     continue;
                 }
                 let slot = slot as usize;
-                if slot < min_slot
-                    || self.partitions[slot] != partition
-                    || !filter.admits(self.sizes[slot])
-                {
+                if self.partitions[slot] != partition || !filter.admits(self.sizes[slot]) {
                     continue;
                 }
                 if !store.is_active(slot) {
@@ -280,11 +292,6 @@ impl LexicalIndex {
                 }
             }
         }
-        result.matches.sort_by(|a, b| {
-            b.similarity
-                .total_cmp(&a.similarity)
-                .then_with(|| a.slot.cmp(&b.slot))
-        });
         Ok(result)
     }
 
@@ -454,4 +461,65 @@ fn ceil_count(value: f64) -> usize {
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 fn floor_count(value: f64) -> usize {
     value.floor().max(0.0) as usize
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use univo_core::{FieldPath, Map, Schema, Text, Value, prepare};
+
+    #[test]
+    fn lower_slots_are_skipped_but_counted_against_the_work_limit() {
+        let schema = Schema::builder()
+            .text(FieldPath::parse("name").unwrap(), Text::default())
+            .build()
+            .unwrap();
+        let names = [
+            "acme corp",
+            "acme corporation",
+            "acme co",
+            "acne corp",
+            "acme",
+        ];
+        let records: Vec<_> = (0..60)
+            .map(|i| {
+                let name = format!("{} {}", names[i % names.len()], i % 7);
+                let value = Map::new(vec![("name".into(), Value::Str(name))]).unwrap();
+                prepare(&schema, &Value::Map(value)).unwrap()
+            })
+            .collect();
+        let mut store = RecordStore::new(schema, usize::MAX);
+        store.append(records.clone()).unwrap();
+        let index = LexicalIndex::new(&store, 0).unwrap();
+        let slots = |found: &LexicalSearch| {
+            let mut slots: Vec<_> = found.matches.iter().map(|found| found.slot).collect();
+            slots.sort_unstable();
+            slots
+        };
+        let mut truncations = 0;
+        for query in &records[..10] {
+            let all = index
+                .search_from(&store, query, 0.5, usize::MAX, 0)
+                .unwrap();
+            for max_entries in 0..=all.entries_read + 1 {
+                let from_zero = index
+                    .search_from(&store, query, 0.5, max_entries, 0)
+                    .unwrap();
+                truncations += usize::from(from_zero.truncated);
+                for min_slot in [0, 1, 7, 30, 59, 60] {
+                    let from = index
+                        .search_from(&store, query, 0.5, max_entries, min_slot)
+                        .unwrap();
+                    assert_eq!(from.entries_read, from_zero.entries_read);
+                    assert_eq!(from.truncated, from_zero.truncated);
+                    let expected: Vec<_> = slots(&from_zero)
+                        .into_iter()
+                        .filter(|&slot| slot >= min_slot)
+                        .collect();
+                    assert_eq!(slots(&from), expected);
+                }
+            }
+        }
+        assert!(truncations > 100);
+    }
 }

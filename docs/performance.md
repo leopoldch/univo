@@ -365,3 +365,51 @@ Release builds, same reference machine, median of five runs, alternating `main` 
 - **What the cost buys.** The acronym and initials of each text are hashed once, at preparation, so that a comparison usually costs a few integer comparisons.
 - **Preparation.** A first version that built them as strings doubled preparation (2,500 ns per record) and added 36 ns per compared pair.
 - **The end-to-end runs.** They ran on battery and removed the same records. Their synthetic names contain no acronyms, so the acronym lane stays empty.
+
+## Performance audit fixes
+
+Apple M2, release wheels outside the source tree, `main` and the change alternated. Measured on battery from 35% down to 16%, low-power mode off.
+- **Same results.** Five `find` and `group` configurations (lexical and semantic, minimum scores 0.6 to 0.9) return identical pairs, scores to the bit, explanations and groups. Snapshots are byte for byte identical.
+
+| Measure | `main` | Change |
+| --- | --- | --- |
+| Semantic all-pairs, 100,000 names, every core | 7.45–7.76 s, 52–55 s CPU, 301 MiB | **4.75–4.84 s**, 32–33 s CPU, 270 MiB |
+| Lexical all-pairs, 100,000 names, every core | 24.9–25.0 s, 182 MiB | 24.4 s, **159 MiB** |
+| Add 100,000 records with IDs: peak RSS | 157.5 MiB | **135.0 MiB** |
+| Save a 100,000-record semantic snapshot | 0.28–0.38 s | **0.20 s** |
+| Load it | 0.29 s, 460 MiB | **0.23 s**, 403 MiB |
+| 2,000 HNSW searches over 30,000 records | 1.20 s | 1.10 s |
+| Search p95, group of 10,000 identical records | 6.45 ms | 6.22 ms |
+| `find`, `group` and search at 30,000 records | — | within noise (±3%) |
+
+With the same model, SemHash 0.5.0 takes 8.72 s on the 100,000-name semantic run ([multilingual default](#multilingual-default-model-adr-0021)).
+
+- **Blocked dense scan.** For each group of eight queries and each row, the products of the first half of the dimensions come first. The rest is bounded by the product of the norms of the remaining dimensions (Cauchy–Schwarz), plus a rounding margin of `4·n·ε`.
+  - **Skip.** When no query of the group can reach the lane threshold, the row is skipped.
+  - **Otherwise.** The products continue from the same partial sums, so similarities are bit for bit those of the full kernel, and the dense lane keeps returning what the oracle returns.
+- **Scoring without explanations.** Candidates are scored without building per-field explanations and with one vector buffer per query.
+  - **Search** explains only the `limit` matches it keeps.
+  - **`find`** feeds each worker's bounded heap directly and explains the kept pairs once the report is complete.
+  - **`group`** explains none.
+- **Exact buckets.** A bucket holding one ID stores it inline; a tree is built for the second, instead of one tree per distinct record.
+- **Snapshots.** Records and vectors are written and read a few bytes at a time; they are now hashed and written in 64 KiB chunks. The digest and the format are unchanged.
+- **HNSW.** The search explores `max(k, ef_search)` nodes and returns the first `k`. Every request up to `ef_search` is a prefix of one traversal, which is now done once instead of once per doubling of `k`.
+- **Lexical all-pairs.** Posting lists hold slots in increasing order. The entries below the query's slot are skipped by binary search, yet still counted against `max_entries`, so truncation is unchanged.
+- **Exhaustive all-pairs.** Each query streams the later slots of its partition directly, instead of copying the whole partition: `O(n²)` slot copies fewer over a report. Candidate counts are unchanged, since earlier slots were excluded anyway.
+- **Dense lane of one search.** Slots are appended to the candidate list without the sort of `within`, as the list is sorted once anyway. The public `within` still sorts.
+- **No prefix.** Below 16 dimensions, the kernel computes the products directly, with no bound and no norm.
+
+Same machine, the change as first published against the change with the review fixes, alternated three times. It ran partly on battery and the reference itself varied from 5.1 to 8.9 s on one case, so only paired runs compare.
+
+| Measure | Before review fixes | After |
+| --- | --- | --- |
+| Semantic all-pairs, 100,000 names | 5.06, 8.89, 8.03 s | 6.82, 8.24, 7.50 s |
+| Semantic groups, 100,000 names | 6.92, 7.97, 7.47 s | 7.10, 7.93, 7.48 s |
+| Exhaustive lexical all-pairs, 10,000 names | 5.87, 3.08, 3.04 s | 4.04, 2.95, 2.95 s |
+| Exhaustive semantic all-pairs, 10,000 names | 0.86, 0.69, 0.67 s | 0.73, 0.58, 0.68 s |
+| 2,000 dense searches over 100,000 names | 4.05, 3.18, 3.14 s | 3.60, 3.33, 3.30 s |
+
+- **Within noise.** None of these changes is measurable here: the copies and the sort were small next to the scoring they precede. They remove work that grows with the partition.
+- **Run order.** Alternating each pair in the same order favoured the first run by about 3% as the machine heated. In ABBA order, the semantic all-pairs run takes 8.77 s after the review fixes and 8.91 s before (means of four, with thermal throttling on both sides).
+- **Kernel call.** A first version called `dots` for fields without a prefix next to `dots_reaching` in the scan loop. Two inlined kernels in that loop slowed the 100,000-name run from 5.0 to 8.3 s; the case now lives in `dots_reaching`.
+- **Not kept.** Norms precomputed once per report, instead of once per block of 64 queries, were measured neutral (5.0–5.4 s on both sides): a row's norm costs a 64th of the products of a block. Same identical outputs as above.

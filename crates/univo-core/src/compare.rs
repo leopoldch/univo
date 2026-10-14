@@ -116,7 +116,59 @@ pub fn compare_with_vectors(
         return Ok(None);
     }
 
-    let fields: Box<[FieldComparison]> = schema
+    let fields: Box<[FieldComparison]> =
+        field_comparisons(schema, left, left_vectors, right, right_vectors).collect();
+    let total = aggregate(schema, fields.iter());
+    Ok(Some(Comparison {
+        score: total.score,
+        coverage: total.coverage,
+        vetoed: total.vetoed,
+        fields,
+    }))
+}
+
+/// The score and veto of [`compare_with_vectors`], computed identically
+/// but without building the per-field explanations: what deciding whether
+/// a candidate matches needs.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Score {
+    pub score: Option<f32>,
+    pub coverage: f32,
+    pub vetoed: bool,
+}
+
+/// [`compare_with_vectors`] without its explanations, and without
+/// allocating.
+///
+/// # Errors
+///
+/// As [`compare`].
+pub fn score_with_vectors(
+    schema: &Schema,
+    left: &PreparedRecord,
+    left_vectors: &[Option<&[f32]>],
+    right: &PreparedRecord,
+    right_vectors: &[Option<&[f32]>],
+) -> Result<Option<Score>> {
+    let expected = schema.preparation_fingerprint();
+    if left.schema != expected || right.schema != expected {
+        return Err(Error::schema_mismatch());
+    }
+    if left.partition != right.partition {
+        return Ok(None);
+    }
+    let fields = field_comparisons(schema, left, left_vectors, right, right_vectors);
+    Ok(Some(aggregate(schema, fields)))
+}
+
+fn field_comparisons<'a>(
+    schema: &'a Schema,
+    left: &'a PreparedRecord,
+    left_vectors: &'a [Option<&[f32]>],
+    right: &'a PreparedRecord,
+    right_vectors: &'a [Option<&[f32]>],
+) -> impl Iterator<Item = FieldComparison> + 'a {
+    schema
         .fields()
         .iter()
         .zip(left.fields.iter().zip(right.fields.iter()))
@@ -125,14 +177,23 @@ pub fn compare_with_vectors(
             let vectors = field_vector(left_vectors, index).zip(field_vector(right_vectors, index));
             compare_field(field, a, b, vectors)
         })
-        .collect();
+}
 
+/// The weighted score, coverage and veto of field comparisons in schema
+/// order.
+fn aggregate<F: std::borrow::Borrow<FieldComparison>>(
+    schema: &Schema,
+    fields: impl Iterator<Item = F>,
+) -> Score {
     let mut total = 0.0f64;
     let mut evidence = 0.0f64;
     let mut weighted = 0.0f64;
-    for (field, comparison) in schema.fields().iter().zip(fields.iter()) {
+    let mut vetoed = false;
+    for (field, comparison) in schema.fields().iter().zip(fields) {
+        let comparison = comparison.borrow();
         let weight = f64::from(field.kind.weight());
         total += weight;
+        vetoed |= comparison.veto;
         if let Some(similarity) = comparison.similarity {
             let backed = weight * f64::from(comparison.evidence);
             evidence += backed;
@@ -147,12 +208,11 @@ pub fn compare_with_vectors(
     } else {
         0.0
     };
-    Ok(Some(Comparison {
+    Score {
         score,
         coverage,
-        vetoed: fields.iter().any(|field| field.veto),
-        fields,
-    }))
+        vetoed,
+    }
 }
 
 fn field_vector<'a>(vectors: &[Option<&'a [f32]>], index: usize) -> Option<&'a [f32]> {

@@ -1,6 +1,6 @@
 //! Immutable, bounded local snapshots with a single atomic publication point.
 use std::fs::{self, File, TryLockError};
-use std::io::{BufReader, BufWriter, Read, Write};
+use std::io::{Read, Write};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -229,8 +229,13 @@ fn write_small(path: &Path, bytes: &[u8]) -> Result<()> {
     file.sync_all().map_err(io)
 }
 
+/// Bytes hashed and written at once: records and vectors are written a few
+/// bytes at a time, and hashing them that way costs more than the I/O.
+const CHUNK: usize = 1 << 16;
+
 struct CheckedWriter {
-    output: BufWriter<File>,
+    output: File,
+    buffer: Vec<u8>,
     hash: Sha256,
     bytes: u64,
     limit: u64,
@@ -242,13 +247,29 @@ impl Write for CheckedWriter {
             self.exhausted = true;
             return Err(std::io::Error::other("snapshot byte budget exhausted"));
         }
-        let n = self.output.write(bytes)?;
-        self.hash.update(&bytes[..n]);
-        self.bytes += n as u64;
-        Ok(n)
+        if self.buffer.len() + bytes.len() > CHUNK {
+            self.write_buffer()?;
+        }
+        if bytes.len() >= CHUNK {
+            self.hash.update(bytes);
+            self.output.write_all(bytes)?;
+        } else {
+            self.buffer.extend_from_slice(bytes);
+        }
+        self.bytes += bytes.len() as u64;
+        Ok(bytes.len())
     }
     fn flush(&mut self) -> std::io::Result<()> {
+        self.write_buffer()?;
         self.output.flush()
+    }
+}
+impl CheckedWriter {
+    fn write_buffer(&mut self) -> std::io::Result<()> {
+        self.hash.update(&self.buffer);
+        self.output.write_all(&self.buffer)?;
+        self.buffer.clear();
+        Ok(())
     }
 }
 fn write_blob(
@@ -257,7 +278,8 @@ fn write_blob(
     body: impl FnOnce(&mut CheckedWriter) -> Result<()>,
 ) -> Result<Blob> {
     let mut writer = CheckedWriter {
-        output: BufWriter::new(private_file(path, true)?),
+        output: private_file(path, true)?,
+        buffer: Vec::with_capacity(CHUNK),
         hash: Sha256::new(),
         bytes: 0,
         limit,
@@ -271,26 +293,38 @@ fn write_blob(
         });
     }
     writer.flush().map_err(io)?;
-    writer.output.get_ref().sync_all().map_err(io)?;
+    writer.output.sync_all().map_err(io)?;
     Ok(Blob {
         bytes: writer.bytes,
         sha256: Digest::Sha256(writer.hash.finalize().into()).to_hex(),
     })
 }
 
+/// Reads a data file in chunks, each hashed as a whole when it is read.
 struct CheckedReader {
-    input: BufReader<File>,
+    input: File,
+    buffer: Box<[u8]>,
+    start: usize,
+    end: usize,
     hash: Sha256,
-    left: u64,
+    /// Bytes of the file not yet read into the buffer.
+    unread: u64,
 }
 impl Read for CheckedReader {
     fn read(&mut self, bytes: &mut [u8]) -> std::io::Result<usize> {
-        let n = bytes
-            .len()
-            .min(usize::try_from(self.left).unwrap_or(usize::MAX));
-        let n = self.input.read(&mut bytes[..n])?;
-        self.hash.update(&bytes[..n]);
-        self.left -= n as u64;
+        if self.start == self.end {
+            let wanted = self
+                .buffer
+                .len()
+                .min(usize::try_from(self.unread).unwrap_or(usize::MAX));
+            let n = self.input.read(&mut self.buffer[..wanted])?;
+            self.hash.update(&self.buffer[..n]);
+            self.unread -= n as u64;
+            (self.start, self.end) = (0, n);
+        }
+        let n = bytes.len().min(self.end - self.start);
+        bytes[..n].copy_from_slice(&self.buffer[self.start..self.start + n]);
+        self.start += n;
         Ok(n)
     }
 }
@@ -300,10 +334,17 @@ impl CheckedReader {
             return Err(invalid("file size or checksum declaration"));
         }
         Ok(Self {
-            input: BufReader::new(file),
+            input: file,
+            buffer: vec![0; CHUNK].into_boxed_slice(),
+            start: 0,
+            end: 0,
             hash: Sha256::new(),
-            left: blob.bytes,
+            unread: blob.bytes,
         })
+    }
+    /// Bytes of the file not consumed yet, buffered or not.
+    fn remaining(&self) -> u64 {
+        self.unread + (self.end - self.start) as u64
     }
     fn read_fixed<const N: usize>(&mut self) -> Result<[u8; N]> {
         let mut bytes = [0; N];
@@ -316,7 +357,9 @@ impl CheckedReader {
             .map_err(|_| invalid("count overflow"))
     }
     fn finish(self, blob: &Blob) -> Result<()> {
-        if self.left != 0 || Digest::Sha256(self.hash.finalize().into()).to_hex() != blob.sha256 {
+        if self.remaining() != 0
+            || Digest::Sha256(self.hash.finalize().into()).to_hex() != blob.sha256
+        {
             return Err(invalid("data checksum or trailing bytes"));
         }
         Ok(())
@@ -646,7 +689,7 @@ impl Snapshot {
         // Do not reserve based on untrusted count; each record consumes bytes.
         let mut records = Vec::new();
         for slot in 0..self.manifest.records {
-            let left = usize::try_from(input.left).unwrap_or(usize::MAX);
+            let left = usize::try_from(input.remaining()).unwrap_or(usize::MAX);
             let record = univo_core::snapshot::read_record(&mut input, index.schema(), left)?;
             if let Some(vectors) = &vectors {
                 for i in 0..index.schema().fields().len() {
@@ -708,7 +751,7 @@ fn read_vector_field(input: &mut CheckedReader, manifest: &Manifest) -> Result<F
         .checked_add(records)
         .and_then(|n| n.checked_mul(4))
         .ok_or_else(|| invalid("vector byte overflow"))?;
-    if bytes as u64 > input.left {
+    if bytes as u64 > input.remaining() {
         return Err(invalid("vector buffer size"));
     }
     let mut slots = Vec::with_capacity(records);
@@ -787,6 +830,55 @@ mod tests {
         fs::write(directory.join("COMPLETE"), &checksum).unwrap();
         let name = directory.file_name().unwrap().to_str().unwrap();
         fs::write(path.join("CURRENT"), format!("{name}\n{checksum}\n")).unwrap();
+    }
+
+    #[test]
+    fn chunked_hashing_matches_the_digest_of_the_bytes() {
+        let directory = Directory::new();
+        fs::create_dir_all(&directory.0).unwrap();
+        let path = directory.0.join("blob");
+        let pieces: Vec<Vec<u8>> = [1, 3, CHUNK - 1, 7, CHUNK, 2, 3 * CHUNK + 5, 0, 11]
+            .iter()
+            .enumerate()
+            .map(|(i, &len)| {
+                (0..len)
+                    .map(|j| u8::try_from((i * 31 + j) % 251).unwrap())
+                    .collect()
+            })
+            .collect();
+        let blob = write_blob(&path, u64::MAX, |out| {
+            for piece in &pieces {
+                out.write_all(piece).map_err(io)?;
+            }
+            Ok(())
+        })
+        .unwrap();
+        let all: Vec<u8> = pieces.concat();
+        assert_eq!(blob.bytes, all.len() as u64);
+        assert_eq!(
+            blob.sha256,
+            Digest::Sha256(Sha256::digest(&all).into()).to_hex()
+        );
+        assert_eq!(fs::read(&path).unwrap(), all);
+        // Read back in small and large pieces: same bytes, same digest.
+        let mut reader = CheckedReader::new(File::open(&path).unwrap(), &blob).unwrap();
+        let mut read = Vec::new();
+        let mut size = 1;
+        loop {
+            let mut piece = vec![0; size];
+            let n = reader.read(&mut piece).unwrap();
+            if n == 0 {
+                break;
+            }
+            read.extend_from_slice(&piece[..n]);
+            size = size * 7 % 70_001 + 1;
+        }
+        assert_eq!(read, all);
+        reader.finish(&blob).unwrap();
+        // Bytes left unread are trailing data, even once hashed.
+        let mut reader = CheckedReader::new(File::open(&path).unwrap(), &blob).unwrap();
+        reader.read_fixed::<4>().unwrap();
+        assert!(reader.finish(&blob).is_err());
     }
 
     #[test]

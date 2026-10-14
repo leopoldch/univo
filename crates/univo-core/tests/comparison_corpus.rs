@@ -7,7 +7,7 @@
 mod corpus;
 
 use serde_json::Value as Json;
-use univo_core::{Comparison, Schema, compare};
+use univo_core::{Comparison, Schema, compare, score_with_vectors};
 
 use corpus::{cases, prepare_pair, schema};
 
@@ -159,4 +159,30 @@ fn score_ranks_duplicates_above_distinct_pairs() {
         value >= SCORE_AUC_FLOOR,
         "score AUC {value:.3} below {SCORE_AUC_FLOOR}"
     );
+}
+
+#[test]
+fn the_score_alone_equals_the_full_comparison() {
+    let mut compared = 0;
+    for (case, schema) in valid_cases() {
+        let (left, right) = prepare_pair(&case, &schema);
+        let (left, right) = (left.unwrap(), right.unwrap());
+        let full = compare(&schema, &left, &right).unwrap();
+        let alone = score_with_vectors(&schema, &left, &[], &right, &[]).unwrap();
+        assert_eq!(
+            alone.map(|score| (
+                score.score.map(f32::to_bits),
+                score.coverage.to_bits(),
+                score.vetoed
+            )),
+            full.map(|full| (
+                full.score.map(f32::to_bits),
+                full.coverage.to_bits(),
+                full.vetoed
+            )),
+            "{case}"
+        );
+        compared += 1;
+    }
+    assert!(compared > 200);
 }

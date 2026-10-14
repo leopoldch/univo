@@ -53,8 +53,22 @@ impl SearchIndex {
                     options.min_score,
                     exhaustive,
                     &mut |left, dense| {
-                        let result = self.search_pairs(left, options, exhaustive, dense)?;
-                        found.add(self, left, result);
+                        let result = self.visit_pairs(
+                            left,
+                            options,
+                            exhaustive,
+                            dense,
+                            &mut |right, score| {
+                                found.keep(RankedPair {
+                                    score,
+                                    left,
+                                    right_id: self.store().records()[right].id(),
+                                    right,
+                                });
+                                Ok(())
+                            },
+                        )?;
+                        found.add(&result);
                         Ok(())
                     },
                 )?;
@@ -62,13 +76,22 @@ impl SearchIndex {
             },
             Found::merge,
         )?;
+        // Only the pairs kept are explained, in parallel inside a pool.
         let mut report = found.report;
-        report.matches = found
-            .kept
-            .into_sorted_vec()
-            .into_iter()
-            .map(|ranked| ranked.found)
-            .collect();
+        let kept = found.kept.into_sorted_vec();
+        let explain = |ranked: &RankedPair<'_>| {
+            Ok(PairMatch {
+                left: ranked.left,
+                right: ranked.right,
+                comparison: self.explain_pair(ranked.left, ranked.right, ranked.score)?,
+            })
+        };
+        report.matches = if rayon::current_thread_index().is_some() {
+            use rayon::prelude::*;
+            kept.par_iter().map(explain).collect::<Result<_>>()?
+        } else {
+            kept.iter().map(explain).collect::<Result<_>>()?
+        };
         Ok(report)
     }
 }
@@ -89,21 +112,12 @@ impl<'a> Found<'a> {
         }
     }
 
-    fn add(&mut self, index: &'a SearchIndex, left: usize, result: crate::SearchResult) {
+    /// Adds the counts of one query, whose matches went to [`Self::keep`].
+    fn add(&mut self, result: &crate::SearchResult) {
         self.report.total_matches += result.total_matches;
         self.report.candidates += result.candidates;
         self.report.candidate_truncated |= result.truncated;
         self.report.approximate |= result.approximate;
-        for found in result.matches {
-            self.keep(RankedPair {
-                right_id: index.store().records()[found.slot].id(),
-                found: PairMatch {
-                    left,
-                    right: found.slot,
-                    comparison: found.comparison,
-                },
-            });
-        }
     }
 
     fn keep(&mut self, candidate: RankedPair<'a>) {
@@ -152,22 +166,22 @@ impl SearchIndex {
     }
 }
 
-/// The greatest pair is the worst kept result, so replacement is O(log limit).
+/// A kept pair, explained only once the report is complete. The greatest
+/// pair is the worst kept result, so replacement is O(log limit).
 struct RankedPair<'a> {
+    score: f32,
+    left: usize,
     right_id: Option<&'a RecordId>,
-    found: PairMatch,
+    right: usize,
 }
 impl Ord for RankedPair<'_> {
     fn cmp(&self, other: &Self) -> Ordering {
         other
-            .found
-            .comparison
             .score
-            .unwrap_or(0.0)
-            .total_cmp(&self.found.comparison.score.unwrap_or(0.0))
-            .then_with(|| self.found.left.cmp(&other.found.left))
+            .total_cmp(&self.score)
+            .then_with(|| self.left.cmp(&other.left))
             .then_with(|| self.right_id.cmp(&other.right_id))
-            .then_with(|| self.found.right.cmp(&other.found.right))
+            .then_with(|| self.right.cmp(&other.right))
     }
 }
 impl PartialOrd for RankedPair<'_> {
