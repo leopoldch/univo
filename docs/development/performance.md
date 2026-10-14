@@ -6,6 +6,8 @@ Speed is the main promise of Univo, so resource budgets are tested, not only doc
 
 [benchmarks/budgets.toml](../../benchmarks/budgets.toml) is the single source of enforced budgets. Its values implement the table in [specs/07-performance.md](../../specs/07-performance.md). Changing a budget requires updating that specification in the same change, with the reason.
 
+Timed tests hold `univo_testkit::timing::exclusive()` while they measure, so the timed tests of one test binary never share the CPU. Without it, Cargo ran them in parallel, and preparing the standard workload measured 1,295 ns per record instead of 1,175 ns, up to 1,950 ns on a busy machine, against a 1,500 ns budget.
+
 ## Reference machine
 
 | Item | Value |

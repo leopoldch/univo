@@ -92,6 +92,7 @@ fn report(line: &str) {
     ignore = "performance budgets apply to release builds"
 )]
 fn dense_incremental_insertion_stays_within_budget() {
+    let _alone = univo_testkit::timing::exclusive();
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../benchmarks/budgets.toml");
     let budgets: toml::Table = std::fs::read_to_string(path).unwrap().parse().unwrap();
     let budget = &budgets["engine"]["dense_insert"];

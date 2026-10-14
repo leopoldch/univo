@@ -153,6 +153,7 @@ fn median(mut samples: Vec<Duration>) -> Duration {
     ignore = "performance budgets apply to release builds"
 )]
 fn preparing_the_standard_workload_stays_within_budget() {
+    let _alone = univo_testkit::timing::exclusive();
     let records = budget("core.prepare", "records").as_integer().unwrap();
     let records = usize::try_from(records).unwrap();
     let values = workload(records, 50);
@@ -189,6 +190,7 @@ fn preparing_the_standard_workload_stays_within_budget() {
     ignore = "performance budgets apply to release builds"
 )]
 fn comparing_candidate_pairs_stays_within_budget() {
+    let _alone = univo_testkit::timing::exclusive();
     let pairs = budget("core.compare", "pairs").as_integer().unwrap();
     let pairs = usize::try_from(pairs).unwrap();
     let candidates =
@@ -276,6 +278,7 @@ fn configurations(records: usize) -> Vec<Value> {
     ignore = "performance budgets apply to release builds"
 )]
 fn comparing_configuration_objects_stays_within_budget() {
+    let _alone = univo_testkit::timing::exclusive();
     let pairs = usize::try_from(
         budget("core.compare_objects", "pairs")
             .as_integer()
