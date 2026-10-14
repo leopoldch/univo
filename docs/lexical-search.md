@@ -14,7 +14,7 @@ The search returns every record of the query's partition whose lexical similarit
 - **Similarity** is the scoring rule itself (`lexical_similarity`, see [scoring](scoring.md)): the larger of the edit similarity, for texts of at most 64 characters, and the trigram Jaccard index.
 - **Completeness:** without a work limit, the result is exactly what comparing the query with every record would give.
 - **Work limit:** `max_entries` caps the index entries read. When it stops the search, `truncated` is set and matches may be missing; the matches returned are still correct.
-- **Counters:** `entries_read` and `candidates_verified` report the work done.
+- **Counters:** `entries_read` and `candidates_verified` report the work done. A candidate rejected by its signature counts as verified, as it was before the signature existed.
 - **Missing text:** blank, missing and null texts are neither indexed nor matched, as in scoring.
 - **Partitions:** postings are keyed by partition, and every candidate's partition is compared by value, so a fingerprint collision cannot cross a partition.
 - **Schema:** records prepared with another schema are refused by the store, and queries by the search, with `state.schema_mismatch`.
@@ -27,19 +27,26 @@ Every candidate is verified with the scoring function, so the index only has to 
 - **Edit filter.** An edit similarity of at least `t` bounds both the candidate's length (`t·m ≤ n ≤ m/t`) and the edit distance (`d ≤ (1−t)·max(m, n)`). The search cuts the padded query into `d + 1` disjoint segments of at least three characters. Each edit destroys at most one segment, so one segment survives intact in the match, with all its trigrams. Reading the rarest trigram of each segment is therefore enough.
 - **Length scan.** When the query is too short for `d + 1` segments of three characters, the records of the lengths concerned are scanned instead.
 - **Size filter.** Before a candidate's text is read, its length and trigram count, stored per record, must allow at least one of the two similarities to reach `t`.
+- **Signature filter.** Each record also stores a 128-bit signature: the bit of each of its trigrams' hash. With `B` the candidate's set:
+  - **Missing trigrams.** A bit of `A` absent from `B`'s signature stands for at least one trigram of `A` missing from `B`. Collisions can only hide missing trigrams, never invent them. The shared trigrams are therefore at most `min(|A| − m_A, |B| − m_B)`, with `m_A` and `m_B` the bits each side lacks, which bounds the Jaccard index from above.
+  - **Edits.** One edit destroys at most three trigram positions, so `max(m_A, m_B)` missing trigrams need at least `⌈max(m_A, m_B) / 3⌉` edits (the q-gram bound, [Ukkonen, 1992](https://www.cs.helsinki.fi/u/ukkonen/TCS92.pdf)), and at least `|m − n|`. This bounds the edit similarity from above.
+  - **Rejection.** A candidate is rejected only when both bounds are below `t`. They are computed with the comparator's own float arithmetic, so a score exactly at `t` passes. Otherwise the scoring function verifies the candidate, unchanged.
 - **Records already read** are tracked in a bitmap over the index when the query's partition is a large share of it, in a hash set otherwise, so a search in a small partition does not allocate for the whole index.
 
 ## Cost
 
 Synthetic company names of about 20 characters (two or three words of syllables and a number), 100,000 records in one partition, Apple M2, one thread:
 
-| Threshold | Median | p95 | Records verified per query |
-| --- | --- | --- | --- |
-| 0.7 | 13.8 ms | 20.3 ms | 38,800 |
-| 0.8 | 2.9 ms | 6.5 ms (budget 15 ms) | 8,000 |
-| 0.9 | 0.24 ms | 0.63 ms | 620 |
+| Threshold | Median | p95 | Records verified per query | Without signatures: median, p95 |
+| --- | --- | --- | --- | --- |
+| 0.7 | 11.3–11.5 ms | 18.6 ms | 38,800 | 13.6–14.1 ms, 20.8 ms |
+| 0.8 | 0.23 ms | 0.75–0.77 ms (budget 15 ms) | 8,000 | 2.9 ms, 6.3–6.5 ms |
+| 0.9 | 18 µs | 37 µs | 620 | 0.23–0.27 ms, 0.58–0.66 ms |
 
-- **Build:** the index of 100,000 names builds in 25 ms (budget 50 ms) and takes about 14 MiB: 4 bytes per distinct trigram occurrence, one hash-map entry per distinct trigram and partition, and 16 bytes per record.
+- **Verified records.** They include those the signatures reject without scoring.
+- **Thresholds.** The bounds reject most candidates at 0.8 and above. At 0.7, an edit similarity allows more missing trigrams, and fewer candidates are rejected.
+
+- **Build:** the index of 100,000 names builds in 27–30 ms with or without signatures (budget 50 ms) and takes about 14 MiB: 4 bytes per distinct trigram occurrence, one hash-map entry per distinct trigram and partition, and 16 bytes per record. The signatures add 16 bytes per record: the index reported grows from 14.4 to 16.4 MiB, with the vector's spare capacity.
 - **Low thresholds are expensive by construction.** An edit similarity of 0.7 allows up to eight edits on 20 to 28 characters, so a complete search must examine a large part of the partition.
 - **Small vocabularies cost more.** With names drawn from only twenty words, every trigram inside a word is frequent: 0.8 then takes 10 ms at p95.
 - **Operating point:** U-010c chooses the threshold and the work limit by measuring the recall of duplicates against the exhaustive oracle.
@@ -58,5 +65,17 @@ Synthetic company names of about 20 characters (two or three words of syllables 
   - thresholds above 1, at or below 0, NaN and infinity are refused;
   - a small partition of a large index, searched through the hash set, still equals the scan.
 - **Mutation checks:** reading one trigram instead of the rarest prefix, skipping the length scan, taking `d` segments instead of `d + 1`, and segments of two characters each make these tests fail.
+
+Unit tests in `crates/univo-engine/src/lexical.rs` check the signature bound against the scoring function:
+- **Pairs.** Every pair of texts of up to four characters over `a`, `b`, a space and `é`, plus repetitions of 15 to 100 characters around the edit limit, and 160 names with typos, dropped and repeated words.
+- **Thresholds.** 0.1, 0.5, 0.8, 0.9, 1, and each pair's score with the floats just above and below it.
+- **Checks.** A rejected pair never reaches the threshold, and the bound rejects tens of thousands of pairs.
+- **Mutation checks.** These tests fail when:
+  - the edit bound uses `⌈m/2⌉` or `m_A + m_B`;
+  - either comparison becomes strict;
+  - one more trigram counts as missing;
+  - the edit limit is applied at 64 characters instead of above it.
+
+  The oracle tests fail when a candidate is checked against another slot's signature.
 
 `crates/univo-engine/tests/lexical_search_budget.rs` enforces the build and search budgets in release builds.
