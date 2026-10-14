@@ -26,8 +26,13 @@
 //!   the shared trigrams, hence the Jaccard index, from above.
 //! - One edit destroys at most three trigram positions, so `m` trigrams
 //!   missing from either side need at least `⌈m / 3⌉` edits (the q-gram
-//!   bound, Ukkonen 1992), and at least the length difference. This bounds
-//!   the edit similarity from above.
+//!   bound, Ukkonen 1992).
+//! - One edit removes at most one character and adds at most one, so at
+//!   least as many edits are needed as characters one side has in excess
+//!   (the bag distance). Each short text also keeps its character counts
+//!   by hashed bucket; merging characters into buckets can only hide
+//!   differences. With the trigram bound, this bounds the edit similarity
+//!   from above.
 //!
 //! A candidate is rejected only when both bounds are below the threshold:
 //! the search is exact, not approximate.
@@ -77,8 +82,8 @@ pub struct LexicalIndex {
     /// Characters and distinct trigrams of each record's text, by slot;
     /// zero trigrams when the record has no indexed text.
     sizes: Vec<(u32, u32)>,
-    /// [`signature`] of each record's trigrams, by slot; 0 without text.
-    signatures: Vec<u128>,
+    /// [`Summary`] of each record's text, by slot; empty without text.
+    summaries: Vec<Summary>,
     postings: HashMap<(u64, u64), Vec<u32>>,
     /// Records of each partition by character count, for texts short
     /// enough to be compared by edit distance.
@@ -116,7 +121,7 @@ impl LexicalIndex {
             partitions: Vec::new(),
             partition_sizes: HashMap::new(),
             sizes: Vec::new(),
-            signatures: Vec::new(),
+            summaries: Vec::new(),
             postings: HashMap::new(),
             lengths: HashMap::new(),
         };
@@ -153,7 +158,7 @@ impl LexicalIndex {
             + self.partition_sizes.capacity() * (size_of::<(u64, usize)>() + 1)
             + self.partitions.capacity() * size_of::<u64>()
             + self.sizes.capacity() * size_of::<(u32, u32)>()
-            + self.signatures.capacity() * size_of::<u128>()
+            + self.summaries.capacity() * size_of::<Summary>()
     }
 
     /// Indexes the records appended to `store` since the last update.
@@ -172,9 +177,9 @@ impl LexicalIndex {
             let slot = slot_number(self.partitions.len())?;
             let partition = partition_fingerprint(record);
             let mut size = (0, 0);
-            let mut bits = 0;
+            let mut summary = Summary::default();
             if let Some((text, trigrams)) = indexed_text(record, self.field) {
-                bits = signature(trigrams);
+                summary = Summary::new(text, trigrams);
                 for trigram in trigrams {
                     self.postings
                         .entry((partition, *trigram))
@@ -199,7 +204,7 @@ impl LexicalIndex {
             self.partitions.push(partition);
             *self.partition_sizes.entry(partition).or_default() += 1;
             self.sizes.push(size);
-            self.signatures.push(bits);
+            self.summaries.push(summary);
         }
         Ok(())
     }
@@ -266,10 +271,11 @@ impl LexicalIndex {
 
         let chars = text.chars().count();
         let filter = SizeFilter::new(chars, trigrams.len(), threshold);
+        let summary = Summary::new(text, trigrams);
         let sketch = Sketch {
             chars,
             trigrams: trigrams.len(),
-            signature: signature(trigrams),
+            summary: &summary,
         };
         let mut seen = Seen::new(
             self.partitions.len(),
@@ -308,7 +314,7 @@ impl LexicalIndex {
                 let other = Sketch {
                     chars: other_chars as usize,
                     trigrams: other_trigrams as usize,
-                    signature: self.signatures[slot],
+                    summary: &self.summaries[slot],
                 };
                 // The size filter admits indexed texts only: a rejected
                 // candidate counts as verified, as it would have been.
@@ -483,29 +489,66 @@ impl SizeFilter {
     }
 }
 
-/// 128 bits summarizing a trigram set: the bit of each trigram's hash.
-fn signature(trigrams: &[u64]) -> u128 {
-    trigrams.iter().fold(0, |bits, &trigram| {
-        bits | 1 << (trigram.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 57)
-    })
+/// Buckets of the character counts a [`Summary`] keeps.
+const BUCKETS: usize = 32;
+
+/// What the bounds of [`Sketch::may_reach`] read from a text, 48 bytes.
+#[derive(Debug, Clone, Copy, Default)]
+struct Summary {
+    /// The bit of each trigram's hash.
+    signature: u128,
+    /// Characters by hashed bucket, for texts of at most
+    /// [`MAX_EDIT_CHARS`] characters, so a count never exceeds 64; zeros
+    /// for longer texts, which edit distance does not compare.
+    characters: [u8; BUCKETS],
 }
 
-/// What [`LexicalIndex`] keeps of a text: its characters, distinct
-/// trigrams and [`signature`].
-struct Sketch {
+impl Summary {
+    fn new(text: &str, trigrams: &[u64]) -> Self {
+        let signature = trigrams.iter().fold(0, |bits, &trigram| {
+            bits | 1 << (trigram.wrapping_mul(0x9E37_79B9_7F4A_7C15) >> 57)
+        });
+        let mut characters = [0u8; BUCKETS];
+        if text.chars().nth(MAX_EDIT_CHARS).is_none() {
+            for character in text.chars() {
+                characters[(u32::from(character).wrapping_mul(0x9E37_79B9) >> 27) as usize] += 1;
+            }
+        }
+        Self {
+            signature,
+            characters,
+        }
+    }
+
+    /// Edits needed at least between the texts: the larger of the
+    /// characters each has in excess, bucket by bucket.
+    fn bag_distance(&self, other: &Self) -> usize {
+        let (mut excess, mut missing) = (0u32, 0u32);
+        for (&a, &b) in self.characters.iter().zip(&other.characters) {
+            excess += u32::from(a.saturating_sub(b));
+            missing += u32::from(b.saturating_sub(a));
+        }
+        excess.max(missing) as usize
+    }
+}
+
+/// A text as the bounds see it: its characters, distinct trigrams and
+/// [`Summary`].
+struct Sketch<'a> {
     chars: usize,
     trigrams: usize,
-    signature: u128,
+    summary: &'a Summary,
 }
 
-impl Sketch {
+impl Sketch<'_> {
     /// Whether the texts may reach `threshold`: `false` only when upper
     /// bounds of both their Jaccard index and their edit similarity are
     /// below it (see the module documentation). The bounds use the
     /// comparator's own arithmetic, so a score at the threshold passes.
     fn may_reach(&self, other: &Self, threshold: f32) -> bool {
-        let missing = (self.signature & !other.signature).count_ones() as usize;
-        let other_missing = (other.signature & !self.signature).count_ones() as usize;
+        let (signature, other_signature) = (self.summary.signature, other.summary.signature);
+        let missing = (signature & !other_signature).count_ones() as usize;
+        let other_missing = (other_signature & !signature).count_ones() as usize;
         let shared = self
             .trigrams
             .saturating_sub(missing)
@@ -518,11 +561,13 @@ impl Sketch {
             return false;
         }
         let longest = self.chars.max(other.chars);
+        let reaches = |edits| longest == 0 || 1.0 - ratio(edits, longest) >= threshold;
         let edits = missing
             .max(other_missing)
             .div_ceil(3)
             .max(self.chars.abs_diff(other.chars));
-        longest == 0 || 1.0 - ratio(edits, longest) >= threshold
+        // The bag distance reads two cache lines more: only when needed.
+        reaches(edits) && reaches(edits.max(self.summary.bag_distance(other.summary)))
     }
 }
 
@@ -556,24 +601,29 @@ mod tests {
     use super::*;
     use univo_core::{FieldPath, Map, Schema, Text, Value, prepare, trigrams};
 
-    fn sketch(text: &str) -> (Sketch, Box<[u64]>) {
+    fn summary(text: &str) -> (Summary, Box<[u64]>) {
         let grams = trigrams(text);
-        let sketch = Sketch {
+        (Summary::new(text, &grams), grams)
+    }
+
+    fn sketch<'a>(text: &str, (summary, grams): &'a (Summary, Box<[u64]>)) -> Sketch<'a> {
+        Sketch {
             chars: text.chars().count(),
             trigrams: grams.len(),
-            signature: signature(&grams),
-        };
-        (sketch, grams)
+            summary,
+        }
     }
 
     /// Every pair of `texts` at thresholds around its score: a rejected
     /// pair never reaches the threshold. Returns the rejections.
     fn check_signatures(texts: &[String]) -> usize {
-        let sketches: Vec<_> = texts.iter().map(|text| sketch(text)).collect();
+        let summaries: Vec<_> = texts.iter().map(|text| summary(text)).collect();
         let mut rejected = 0;
-        for (a, (a_sketch, a_grams)) in texts.iter().zip(&sketches) {
-            for (b, (b_sketch, b_grams)) in texts.iter().zip(&sketches) {
-                let (score, _) = lexical_similarity(a, a_grams, b, b_grams);
+        for (a, a_summary) in texts.iter().zip(&summaries) {
+            let a_sketch = sketch(a, a_summary);
+            for (b, b_summary) in texts.iter().zip(&summaries) {
+                let b_sketch = sketch(b, b_summary);
+                let (score, _) = lexical_similarity(a, &a_summary.1, b, &b_summary.1);
                 for threshold in [
                     0.1,
                     0.5,
@@ -587,7 +637,7 @@ mod tests {
                     if !(threshold > 0.0 && threshold <= 1.0) {
                         continue;
                     }
-                    if !a_sketch.may_reach(b_sketch, threshold) {
+                    if !a_sketch.may_reach(&b_sketch, threshold) {
                         rejected += 1;
                         assert!(score < threshold, "{a:?} {b:?} {score} {threshold}");
                     }
