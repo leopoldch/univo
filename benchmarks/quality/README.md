@@ -1,6 +1,6 @@
 # U-012: offline name calibration
 
-The benchmark and calibration tooling are implemented. The quality gates fail on this task; no production threshold, model change or alpha publication follows from these results. [ADR 0011](../../docs/adr/0011-offline-quality-calibration.md) records the decision.
+The benchmark and calibration tooling are implemented. The quality gates fail on this task; no production threshold or alpha publication follows from these results. The default model changed afterwards on this benchmark's evidence ([ADR 0021](../../docs/adr/0021-multilingual-default-model.md)). [ADR 0011](../../docs/adr/0011-offline-quality-calibration.md) records the decision.
 
 ## Reproduce
 
@@ -43,6 +43,11 @@ The 12,972 pairs are a name-alias benchmark, not a representative deployment dis
 | [potion-base-2M](potion-base-2M.json) | 0.76844931 | 95.95% | 17.67% | 0.725 | 7.86 MiB | 96.6 MiB |
 | [potion-base-8M](potion-base-8M.json) | 0.73860359 | 96.77% | 17.90% | 0.747 | 29.49 MiB | 142.3 MiB |
 | [potion-multilingual-128M](potion-multilingual-128M.json) | 0.77333266 | 96.02% | 16.18% | 0.705 | 506.38 MiB | 2,045.1 MiB |
+| [static-similarity-mrl, int8, 128 dims](static-similarity-mrl-multilingual-int8-128.json), default since ADR 0021 | 0.66665548 | 95.62% | 30.95% | 0.690 | 14.56 MiB | 173.7 MiB |
+
+The default model's row was measured on 2026-10-13 with the same protocol: the same machine and CPython, a release wheel from the ADR 0021 branch installed outside the tree, and Rust absent from PATH. Its gain comes mostly from cross-language aliases, a display name and an alias tagged with different languages: 177 of 363 found, against 30 for potion-base-8M. In English it finds 159 of 291, against 128. It also accepts 19 distinct pairs, against 8. Its test AUC is lower because more pairs score at or below zero and count as unreturned.
+
+These test figures are exploratory for the model choice. The spike printed test results for several variants (64 to 1,024 dimensions) before ADR 0021 fixed the selection rule. The rule picks the 128-dimension variant on validation alone: 32.9% validation recall, against 30.9% at 1,024 dimensions, 30.0% at 256 and 29.3% at 64. An unseen held-out set must still confirm the gain.
 
 No comparator meets the proposed 98% precision / 90% recall gates on test. Exact normalized names return one true and two false positives: identical names are not proof of organization identity. This baseline has tiny support and demonstrates homonyms, not a universal exact-match precision estimate.
 
@@ -60,6 +65,7 @@ The 234 critical cases never choose a threshold. Full profile evaluation checks 
 | potion-base-2M | 0.786 | 0.831 | 0.718 |
 | potion-base-8M | 0.784 | 0.831 | 0.708 |
 | potion-multilingual-128M | 0.786 | 0.829 | 0.716 |
+| static-similarity-mrl, int8, 128 dims | 0.785 | 0.830 | 0.705 |
 
 The raw files also include pure lexical/semantic text-view AUC per language, family and view (234 views), plus test metrics per ROR language/family. Other critical languages have at most four record pairs; some have only one class, so AUC is null. Three cross-language record pairs cannot establish cross-language quality. The French difference does not establish a multilingual advantage and does not justify exceeding the 100 MiB default-model budget.
 

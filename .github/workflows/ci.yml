@@ -61,8 +61,8 @@ jobs:
     env:
       UNIVO_PERF_SLACK: ${{ matrix.perf_slack }}
       # The pinned default model; tests verify its checksums before use.
-      UNIVO_TEST_MODEL_DIR: ${{ github.workspace }}/.models/potion-base-8M
-      MODEL_URL: https://huggingface.co/minishlab/potion-base-8M/resolve/bf8b056651a2c21b8d2565580b8569da283cab23
+      UNIVO_TEST_MODEL_DIR: ${{ github.workspace }}/.models/default
+      MODEL_URL: https://huggingface.co/univo-models/static-similarity-mrl-multilingual-int8-128/resolve/ee7c2cb71e6948246b2bf45ef47083d215d69f2a
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
@@ -72,8 +72,8 @@ jobs:
       - id: model-cache
         uses: actions/cache@v6
         with:
-          path: .models/potion-base-8M
-          key: model-potion-base-8M-bf8b056651a2c21b8d2565580b8569da283cab23
+          path: .models/default
+          key: model-default-ee7c2cb71e6948246b2bf45ef47083d215d69f2a
       - if: steps.model-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
@@ -139,15 +139,17 @@ jobs:
       UNIVO_EXPECT_INSTALLED: "1"
       UNIVO_EXPECT_MACHINE: ${{ matrix.machine }}
       UNIVO_PERF_SLACK: "2.0"
-      UNIVO_TEST_MODEL_DIR: ${{ github.workspace }}/.models/potion-base-8M
-      MODEL_URL: https://huggingface.co/minishlab/potion-base-8M/resolve/bf8b056651a2c21b8d2565580b8569da283cab23
+      # Downloads the pinned default model from the real hub into an empty cache.
+      UNIVO_TEST_HUB: "1"
+      UNIVO_TEST_MODEL_DIR: ${{ github.workspace }}/.models/default
+      MODEL_URL: https://huggingface.co/univo-models/static-similarity-mrl-multilingual-int8-128/resolve/ee7c2cb71e6948246b2bf45ef47083d215d69f2a
     steps:
       - uses: actions/checkout@v7
       - id: model-cache
         uses: actions/cache@v6
         with:
-          path: .models/potion-base-8M
-          key: model-potion-base-8M-bf8b056651a2c21b8d2565580b8569da283cab23
+          path: .models/default
+          key: model-default-ee7c2cb71e6948246b2bf45ef47083d215d69f2a
       - if: steps.model-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |

@@ -71,3 +71,11 @@ The standalone spike additionally uses hnsw_rs 0.3.5 (MIT OR Apache-2.0,
 default features disabled) as a reference; it is not a production dependency.
 See [ADR 0015](adr/0015-explicit-partition-ann.md) for maturity risks, alternatives
 and evidence. Model footprint and default budget do not change.
+
+## Default model (ADR 0021)
+
+The default model is data, not a package dependency.
+- **What it is:** `univo-models/static-similarity-mrl-multilingual-int8-128`, which is `sentence-transformers/static-similarity-mrl-multilingual-v1` (Apache-2.0) reduced to int8 and 128 dimensions.
+- **Delivery:** downloaded on first semantic use and verified against checksums compiled into the release. It is not shipped in the wheels: they gain no file, license text or native code.
+- **License obligations:** its published repository carries the Apache-2.0 license, the attribution and the list of modifications.
+- **Build tool:** [`tools/build_default_model.py`](../tools/build_default_model.py) uses only the Python standard library.

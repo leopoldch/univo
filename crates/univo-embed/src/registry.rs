@@ -14,9 +14,10 @@ pub struct PinnedModel {
     pub files: Vec<FileExpectation>,
 }
 
-/// The default model, proposed by ADR 0007: `minishlab/potion-base-8M`,
-/// MIT, 256 dimensions, English. Checksums computed from the files of this
-/// commit and checked against the hub's published LFS hash and Git blob ids.
+/// The default model (ADR 0021): `sentence-transformers/static-similarity-mrl-multilingual-v1`
+/// reduced to int8 and 128 dimensions, Apache-2.0, 50 languages. The files
+/// are rebuilt byte for byte by `tools/build_default_model.py`, which checks
+/// the same checksums.
 ///
 /// # Panics
 ///
@@ -29,25 +30,25 @@ pub fn default_model() -> PinnedModel {
     };
     PinnedModel {
         repository: Repository {
-            organization: "minishlab".to_owned(),
-            name: "potion-base-8M".to_owned(),
+            organization: "univo-models".to_owned(),
+            name: "static-similarity-mrl-multilingual-int8-128".to_owned(),
         },
-        revision: "bf8b056651a2c21b8d2565580b8569da283cab23",
+        revision: "ee7c2cb71e6948246b2bf45ef47083d215d69f2a",
         files: vec![
             file(
                 "config.json",
-                202,
-                "2a6ac0e9aaa356a68a5688070db78fc3a464fefe85d2f06a1905ce3718687553",
+                79,
+                "78f117ff0287650054a2a596313e72fe2e3dec4e4cc0d6348985a6e50cc19028",
             ),
             file(
                 "model.safetensors",
-                30_236_760,
-                "f65d0f325faadc1e121c319e2faa41170d3fa07d8c89abd48ca5358d9a223de2",
+                13_552_600,
+                "73e3c5e5496b5ddf9070238139b701839d763a479ab8023ec25bc951f780b6fc",
             ),
             file(
                 "tokenizer.json",
-                683_666,
-                "e67e803f624fb4d67dea1c730d06e1067e1b14d830e2c2202569e3ef0f70bb50",
+                1_715_270,
+                "88d69c30a2a4395cf169631e47f3c4fbb95d300650028d541ec531ed18eb0ff1",
             ),
         ],
     }

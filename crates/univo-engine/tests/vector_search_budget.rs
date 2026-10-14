@@ -10,7 +10,7 @@ use univo_core::{FieldPath, Map, Schema, Text, TextMode, Value, prepare};
 use univo_embed::{Embedder, Embeddings, ModelDescriptor, ModelSource};
 use univo_engine::{embed_records, top_k};
 
-const DIMENSION: usize = 256;
+const DIMENSION: usize = 128;
 
 /// A deterministic pseudo-random unit vector per text.
 struct RandomEmbedder(ModelDescriptor);

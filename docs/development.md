@@ -40,17 +40,15 @@ Budgets live in [benchmarks/budgets.toml](../benchmarks/budgets.toml). Python te
 
 Dense exact-index insertion: `cargo test -p univo-engine --release --locked --test perf_budget -- --nocapture` reports one-batch and single-record insertion at 10k/20k/40k, with and without IDs, and enforces the insertion budget in CI.
 
-Embedding: tests that need the default model run only when `UNIVO_TEST_MODEL_DIR` names a directory holding its `config.json`, `model.safetensors` and `tokenizer.json`; they verify the pinned checksums first. CI downloads the pinned revision. Locally:
+Embedding: tests that need the default model run only when `UNIVO_TEST_MODEL_DIR` names a directory holding its `config.json`, `model.safetensors` and `tokenizer.json`; they verify the pinned checksums first. CI downloads the pinned revision. Locally, rebuild it from its upstream source (a 434 MB download, about 7 s of conversion, checked against the same checksums):
 
 ```sh
-export UNIVO_TEST_MODEL_DIR=.models/potion-base-8M
-mkdir -p "$UNIVO_TEST_MODEL_DIR"
-for file in config.json model.safetensors tokenizer.json; do
-  curl -fsSL -o "$UNIVO_TEST_MODEL_DIR/$file" \
-    "https://huggingface.co/minishlab/potion-base-8M/resolve/bf8b056651a2c21b8d2565580b8569da283cab23/$file"
-done
+export UNIVO_TEST_MODEL_DIR=.models/default
+python tools/build_default_model.py --output "$UNIVO_TEST_MODEL_DIR"
 cargo test -p univo-embed --release --locked --test perf_budget -- --nocapture
 ```
+
+`UNIVO_TEST_HUB=1` enables the one test that uses the network. It downloads the pinned default model from the real Hugging Face hub into an empty cache with `python -m univo.models download`. It then checks the compiled checksums and runs a semantic `Finder` offline, with sockets forbidden. CI's wheel tests set it on every platform.
 
 ## Test models
 

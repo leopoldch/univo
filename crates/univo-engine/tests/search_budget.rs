@@ -13,7 +13,7 @@ use univo_core::{FieldPath, Map, PreparedRecord, Schema, Text, TextMode, Value, 
 use univo_embed::{Embedder, Embeddings, ModelDescriptor, ModelSource};
 use univo_engine::{SearchIndex, SearchOptions};
 
-const DIMENSION: usize = 256;
+const DIMENSION: usize = 128;
 
 const SYLLABLES: &[&str] = &[
     "ka", "lo", "mi", "ne", "ra", "to", "vi", "su", "dor", "pel", "ban", "tri", "gon", "zu", "fa",

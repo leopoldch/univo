@@ -185,9 +185,9 @@ fn a_malformed_manifest_is_reported() {
 
 #[test]
 fn the_pinned_default_model_loads_when_present_locally() {
-    // Runs only where the default model was downloaded, for example by
-    // `huggingface-cli download minishlab/potion-base-8M`; the files are
-    // verified against the pinned checksums before loading.
+    // Runs only where the default model was downloaded or rebuilt with
+    // `tools/build_default_model.py`; the files are verified against the
+    // pinned checksums before loading.
     let Some(directory) = std::env::var_os("UNIVO_TEST_MODEL_DIR") else {
         return;
     };
@@ -197,7 +197,7 @@ fn the_pinned_default_model_loads_when_present_locally() {
         univo_embed::files::verify_file("default", &directory.join(&file.name), file).unwrap();
     }
     let embedder = StaticEmbedder::load_directory(&directory).unwrap();
-    assert_eq!(embedder.descriptor().dimension, 256);
+    assert_eq!(embedder.descriptor().dimension, 128);
     let embeddings = embedder
         .encode_batch(&["Amazon", "Amazon.com Inc.", "Banana"])
         .unwrap();

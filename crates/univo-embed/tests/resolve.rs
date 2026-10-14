@@ -226,7 +226,9 @@ fn oversized_models_and_invalid_endpoints_are_refused_before_downloading() {
 struct Impostor;
 impl Transport for Impostor {
     fn fetch(&self, url: &str, destination: &Path, _: u64) -> Result<(), TransportError> {
-        assert!(url.starts_with("http://127.0.0.1:9/minishlab/potion-base-8M/resolve/"));
+        assert!(url.starts_with(
+            "http://127.0.0.1:9/univo-models/static-similarity-mrl-multilingual-int8-128/resolve/"
+        ));
         let file = url.rsplit('/').next().unwrap();
         std::fs::copy(tiny_model().join(file), destination).unwrap();
         Ok(())
