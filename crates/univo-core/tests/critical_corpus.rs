@@ -1,13 +1,11 @@
 //! Differential test against the critical corpus: the Rust normalizers and
-//! the exact rule must reproduce every label of tests/fixtures/critical,
-//! whose consistency with docs/duplicate-definitions.md is checked by an
-//! independent Python oracle in tests/corpus.
+//! the exact rule must reproduce every label of `tests/fixtures/critical`,
+//! whose consistency with `docs/reference/duplicate-definitions.md` is
+//! checked by an independent Python oracle,
+//! `tests/tools/test_critical_corpus.py`.
 
-#[path = "../../../tests/rust/corpus.rs"]
-mod corpus;
-
-use corpus::{BATCH_LEVEL_CASES, cases, error_name, path, prepare_pair, schema};
 use univo_core::{Map, Schema, Text, Transforms, Value, exact_match, is_exact_match, prepare};
+use univo_testkit::corpus::{BATCH_LEVEL_CASES, cases, error_name, path, prepare_pair, schema};
 
 #[test]
 fn reproduces_every_label_of_the_critical_corpus() {

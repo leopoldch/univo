@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/univo-core", "crates/univo-embed", "crates/univo-engine", "crates/univo-python"]
+members = [
+    "crates/univo-core",
+    "crates/univo-embed",
+    "crates/univo-engine",
+    "crates/univo-python",
+    "crates/univo-testkit",
+]
 exclude = ["benchmarks"]
 
 [workspace.package]
@@ -9,6 +15,7 @@ edition = "2024"
 rust-version = "1.89"
 license = "MIT"
 repository = "https://github.com/leopoldch/univo"
+homepage = "https://github.com/leopoldch/univo"
 authors = ["Léopold Chappuis"]
 
 [workspace.dependencies]

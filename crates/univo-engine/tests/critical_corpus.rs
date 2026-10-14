@@ -1,9 +1,6 @@
-#[path = "../../../tests/rust/corpus.rs"]
-mod corpus;
-
-use corpus::{BATCH_LEVEL_CASES, cases, error_name, prepare_pair, schema};
 use univo_core::exact_match;
 use univo_engine::ExactIndex;
+use univo_testkit::corpus::{BATCH_LEVEL_CASES, cases, error_name, prepare_pair, schema};
 
 #[test]
 fn indexed_search_reproduces_the_versioned_critical_corpus() {

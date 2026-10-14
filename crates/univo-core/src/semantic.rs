@@ -1,4 +1,4 @@
-//! Semantic similarity of embeddings, as defined in `docs/scoring.md`.
+//! Semantic similarity of embeddings, as defined in `docs/reference/scoring.md`.
 
 use wide::f32x4;
 

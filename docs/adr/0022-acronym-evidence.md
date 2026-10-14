@@ -14,7 +14,7 @@ The benchmark could not measure the risk, so the analysis started there.
 - **Protocol v1 had no traps.** Its negatives pair display names; none pairs an acronym with another organization.
 - **Acronyms collide.** ROR itself lists the same acronym for several organizations: "SPF" names Sun Protection Foundation, South Plains Foundation and Swiss Paraplegic Foundation.
 
-Protocol `ror-alias-v2` therefore adds a negative family, `shared_acronym`, built by `tools/build_quality_corpus.py`.
+Protocol `ror-alias-v2` therefore adds a negative family, `shared_acronym`, built by `tools/quality/build_quality_corpus.py`.
 - **What it pairs.** Each acronym alias of a sampled organization meets the display names of up to two other **active organizations of the same split** that ROR lists with the same acronym, chosen in hash order across the whole dump.
 - **Why it is independent of this rule.** It uses ROR's own acronym annotations, not the rule being evaluated.
 - **Size.** It adds 189 validation and 207 test negatives. Every v1 pair is kept unchanged.

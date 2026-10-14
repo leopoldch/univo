@@ -37,7 +37,7 @@ def cases(path: Path) -> list[dict[str, Any]]:
 
 
 def univo_scores(rows: list[dict[str, Any]], mode: str, model: str | None) -> list[float | None]:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools" / "quality"))
     from quality_profiles import schema
     from univo import Finder
 

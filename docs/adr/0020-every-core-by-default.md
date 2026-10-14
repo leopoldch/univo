@@ -47,7 +47,7 @@ Tests (`tests/python/test_concurrency.py`):
 
 ## Consequences
 
-- A program that starts one Univo process per core, such as `multiprocessing` workers, now runs up to cores² threads unless it passes `threads=1` or its share. The [concurrency guide](../concurrency.md) says so.
+- A program that starts one Univo process per core, such as `multiprocessing` workers, now runs up to cores² threads unless it passes `threads=1` or its share. The [concurrency guide](../guide/concurrency.md) says so.
 - Concurrent `find` calls on one Finder share its workers instead of each having its own.
 - Measurements in this repository state their thread count; earlier one-thread results stay valid with `threads=1`.
 

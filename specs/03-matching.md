@@ -63,7 +63,7 @@ S(a,b)=\frac{\sum_{j\in O(a,b)}w_j s_j(a,b)}{\sum_{j\in O(a,b)}w_j},
 C(a,b)=\frac{\sum_{j\in O(a,b)}w_j}{\sum_j w_j}.
 \]
 
-`O` contient les champs informatifs présents des deux côtés ; `C` mesure la couverture. Un champ objet comparé clé par clé ne pèse que pour sa part d’information présente des deux côtés (voir [scoring](../docs/scoring.md)) : des clés présentes d’un seul côté réduisent la couverture. Refuser la décision automatique lorsque la couverture est insuffisante. Si le dénominateur est nul, le score est absent, jamais égal à 1.
+`O` contient les champs informatifs présents des deux côtés ; `C` mesure la couverture. Un champ objet comparé clé par clé ne pèse que pour sa part d’information présente des deux côtés (voir [scoring](../docs/reference/scoring.md)) : des clés présentes d’un seul côté réduisent la couverture. Refuser la décision automatique lorsque la couverture est insuffisante. Si le dénominateur est nul, le score est absent, jamais égal à 1.
 
 La transformation éventuelle du cosinus en score de champ est documentée et versionnée. Les signaux corrélés ne sont pas des preuves indépendantes. Les poids et seuils se règlent sur validation, jamais sur test.
 
@@ -83,7 +83,7 @@ Candidate keys include the partition and every normalized field state, with type
 
 `search(query, limit)` is read-only and excludes the query's typed ID. Output sorts by ID (strings before integers, lexicographic then numeric order), or by slot without IDs. Every bucket candidate is verified: `total_matches` is complete for normalized equality, `candidates_examined` counts visited entries including the excluded ID, and `truncated()` reports only the output limit. This result does not claim exhaustive lexical or semantic search from U-010.
 
-The capacity bounds record count, not total RAM. The index owns prepared values; engine byte estimates and memory budgeting remain to be implemented. Fingerprints are internal and non-persistent. See the [detailed contract](../docs/exact-index.md).
+The capacity bounds record count, not total RAM. The index owns prepared values; engine byte estimates and memory budgeting remain to be implemented. Fingerprints are internal and non-persistent. See the [detailed contract](../docs/design/exact-index.md).
 
 ### Référence exacte
 
@@ -117,7 +117,7 @@ Groupes optionnels, après stabilisation des paires :
 - groupes candidats : graphe explicite, sans statut « entité unique » ;
 - regroupement conservateur : ajout seulement si toutes les paires nécessaires satisfont la politique, avec ordre stable et limite de taille ; documenter la dépendance possible à l’ordre de construction et le coût O(g²).
 
-U-018 implémente `Finder.group` : groupes exacts par égalité normalisée vérifiée, groupes conservateurs où chaque paire interne atteint le seuil sans veto, ordre stable (score décroissant puis position), taille et nombre de paires bornés, paires scindées comptées et signalées. Voir [groupes](../docs/groups.md) et [ADR 0017](../docs/adr/0017-conservative-groups.md).
+U-018 implémente `Finder.group` : groupes exacts par égalité normalisée vérifiée, groupes conservateurs où chaque paire interne atteint le seuil sans veto, ordre stable (score décroissant puis position), taille et nombre de paires bornés, paires scindées comptées et signalées. Voir [groupes](../docs/guide/groups.md) et [ADR 0017](../docs/adr/0017-conservative-groups.md).
 
 Pas de fusion métier automatique en 1.0. Une future fonction `plan_merge` doit conserver la provenance par champ, exposer les conflits, choisir un représentant de façon déterministe et produire un plan réversible. Ne pas utiliser union-find sur toutes les paires similaires comme une preuve d’identité.
 
@@ -128,4 +128,4 @@ des partitions avant traversée, slots inactifs/ID exclus avant plafond.
 Fallback complet sous 10 000 slots retenus, sans promettre un crossover
 optimal ni ajouter `auto`. Approximation observable indépendamment de
 saturation, oracle conservé. [ADR 0015](../docs/adr/0015-explicit-partition-ann.md)
-et [mesures](../benchmarks/spikes/u016/README.md).
+et [mesures](../benchmarks/spikes/ann-backends/README.md).

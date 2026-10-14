@@ -3,7 +3,7 @@ name: Release
 # Publishing a GitHub release whose tag is v<workspace version> runs the full
 # CI, builds and tests the source distribution, and uploads the wheels and the
 # sdist with PyPI trusted publishing: no token is stored. A release marked as
-# a pre-release goes to TestPyPI instead. See docs/releasing.md.
+# a pre-release goes to TestPyPI instead. See docs/development/releasing.md.
 on:
   release:
     types: [published]
@@ -32,7 +32,7 @@ jobs:
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          version=$(python tools/check_release.py version "$TAG")
+          version=$(python tools/checks/check_release.py version "$TAG")
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: The tagged commit is on main
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
@@ -95,7 +95,7 @@ jobs:
           name: sdist
           path: dist
       - name: Exactly one sdist and one wheel per platform
-        run: python3 tools/check_release.py dist "${{ needs.version.outputs.version }}" dist
+        run: python3 tools/checks/check_release.py dist "${{ needs.version.outputs.version }}" dist
       - if: ${{ github.event.release.prerelease }}
         uses: pypa/gh-action-pypi-publish@release/v1
         with:

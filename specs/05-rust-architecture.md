@@ -46,7 +46,7 @@ Traits internes à limiter aux vrais points de substitution : `Embedder`, `Candi
 
 Erreurs publiques : `InvalidRecordError`, `InvalidSchemaError`, `DuplicateIdError`, `ModelUnavailableError`, `ModelIntegrityError`, `IndexCompatibilityError`, `IndexCorruptionError`, `ResourceLimitError`, `IndexLockedError`, `SchemaMismatchError`, sous une base commune `UnivoError`. Conversion Rust vers exceptions Python stable et documentée. Pas de panic à travers la FFI.
 
-Modèle d’erreur commun à tous les langages ([catalogue](../docs/errors.md), [ADR 0004](../docs/adr/0004-error-model.md)) : chaque erreur porte une catégorie (un type d’exception par catégorie et par langage), un code stable (`record.wrong_type`), un message complet, une indication de correction, le chemin du champ, des détails structurés et, pour un lot, la position de l’enregistrement. Tout est construit dans le cœur Rust ; les bindings ne composent aucun message. Les messages nomment chemins, types et tailles, jamais les valeurs des champs.
+Modèle d’erreur commun à tous les langages ([catalogue](../docs/reference/errors.md), [ADR 0004](../docs/adr/0004-error-model.md)) : chaque erreur porte une catégorie (un type d’exception par catégorie et par langage), un code stable (`record.wrong_type`), un message complet, une indication de correction, le chemin du champ, des détails structurés et, pour un lot, la position de l’enregistrement. Tout est construit dans le cœur Rust ; les bindings ne composent aucun message. Les messages nomment chemins, types et tailles, jamais les valeurs des champs.
 
 ## 16. Mutations, concurrence et check_or_add
 
@@ -70,4 +70,4 @@ safe et portable. Les graphes copient les vecteurs distincts ; la recherche
 alloue un visited set par graphe parcouru. Construction de graphes seulement
 pour le profil explicite et les partitions assez grandes ; compaction et
 restauration reconstruisent depuis les vecteurs, sans inférence.
-Voir [ANN](../docs/ann.md).
+Voir [ANN](../docs/guide/ann.md).

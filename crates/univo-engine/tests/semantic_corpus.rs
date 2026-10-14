@@ -3,14 +3,10 @@
 //! `UNIVO_TEST_MODEL_DIR` names the default model's files. The corpus is a
 //! regression set: nothing here tunes a weight or a threshold.
 
-#[path = "../../../tests/rust/corpus.rs"]
-#[allow(dead_code)]
-mod corpus;
-
-use corpus::{cases, prepare_pair, schema};
 use univo_core::{compare, compare_with_vectors};
 use univo_embed::StaticEmbedder;
 use univo_engine::embed_records;
+use univo_testkit::corpus::{cases, prepare_pair, schema};
 
 /// The AUC with embeddings was 0.776 when this guard was set (U-010), 0.763
 /// without; the floor leaves 0.02 for deliberate changes, and a lower value

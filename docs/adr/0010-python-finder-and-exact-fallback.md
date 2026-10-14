@@ -26,7 +26,7 @@ Search now retains a pair whose ordinary score is absent when the Rust whole-rec
 
 ## Validation and trade-offs
 
-Rust and installed-wheel tests cover the synthetic zero-vector model, equality versus distinct unknown texts, exhaustive/candidate agreement, bounded global ranking, partition pair budgets, typed values/IDs, vetoes, failed batches and concurrent serialized adds. Model, wheel, offline and performance checks use the existing tools; local measurements are recorded in [performance](../performance.md).
+Rust and installed-wheel tests cover the synthetic zero-vector model, equality versus distinct unknown texts, exhaustive/candidate agreement, bounded global ranking, partition pair budgets, typed values/IDs, vetoes, failed batches and concurrent serialized adds. Model, wheel, offline and performance checks use the existing tools; local measurements are recorded in [performance](../development/performance.md).
 
 The Python layer holds a lock across model resolution and computation, favoring consistent generations over concurrent reads. Input/output conversion holds the interpreter; long Rust indexing, encoding and search detach it. Index estimates exclude records and weights, and no total RSS limit is claimed. No snapshot format changes: persistence has not shipped.
 

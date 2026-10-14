@@ -1,0 +1,18 @@
+[package]
+name = "univo-testkit"
+description = "Test helpers shared by the Univo crates."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+publish = false
+
+[dependencies]
+serde_json = "1.0.151"
+univo-core.workspace = true
+
+[lints]
+workspace = true

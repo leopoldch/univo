@@ -20,7 +20,7 @@ Append unidentified records to a slot vector. Slots already increase with insert
 
 ## Evidence
 
-The reproducible release benchmark covers 10k, 20k and 40k records, one batch versus single-record batches, and both no IDs and decreasing integer IDs. A 25 ms budget at 40k leaves room above the measured approximately 2 ms without IDs and 7 ms with IDs. Results verify counts and ordered search after insertion; existing tests retain typed-ID, partition, collision and rollback coverage. See [performance measurements](../performance.md).
+The reproducible release benchmark covers 10k, 20k and 40k records, one batch versus single-record batches, and both no IDs and decreasing integer IDs. A 25 ms budget at 40k leaves room above the measured approximately 2 ms without IDs and 7 ms with IDs. Results verify counts and ordered search after insertion; existing tests retain typed-ID, partition, collision and rollback coverage. See [performance measurements](../development/performance.md).
 
 ## Consequences
 

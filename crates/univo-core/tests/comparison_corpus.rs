@@ -2,14 +2,10 @@
 //! case, and the ranking quality of the score as a regression guard. The
 //! corpus is a regression set; nothing here tunes a weight or a threshold.
 
-#[path = "../../../tests/rust/corpus.rs"]
-#[allow(dead_code)]
-mod corpus;
-
 use serde_json::Value as Json;
 use univo_core::{Comparison, Schema, compare, score_with_vectors};
 
-use corpus::{cases, prepare_pair, schema};
+use univo_testkit::corpus::{cases, prepare_pair, schema};
 
 /// The score's AUC on the corpus was 0.763 when this guard was set (U-008);
 /// the floor leaves 0.02 for deliberate changes, and a lower value is a

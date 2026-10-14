@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use sha1::Digest as _;
 use univo_embed::{MODEL_FILES, Repository};
 
-/// The tiny model built by `tools/build_tiny_model.py`.
+/// The tiny model built by `tools/fixtures/build_tiny_model.py`.
 pub(crate) fn tiny_model() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/models/tiny")
 }

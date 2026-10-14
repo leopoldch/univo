@@ -6,7 +6,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+keywords = ["embeddings", "model2vec", "deduplication", "offline"]
+categories = ["text-processing"]
 
 [dependencies]
 univo-core.workspace = true

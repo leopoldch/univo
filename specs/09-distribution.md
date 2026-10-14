@@ -70,4 +70,4 @@ supplémentaires, 115 noms liés contre 112. Wheel macOS arm64 : 1,789 Mio
 contre 1,762 Mio U-015. Licence MIT déclarée par Cargo/README, notices à
 traiter avec les autres dépendances en U-019 ; la petite distribution locale
 ne remplace pas les validations des six plateformes CI.
-[Registre](../docs/dependencies.md), [ADR 0015](../docs/adr/0015-explicit-partition-ann.md).
+[Registre](../docs/development/dependencies.md), [ADR 0015](../docs/adr/0015-explicit-partition-ann.md).

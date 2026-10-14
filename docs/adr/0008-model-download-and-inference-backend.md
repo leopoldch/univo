@@ -13,7 +13,7 @@ A download needs an HTTP client and a TLS stack. The core is shared by every bin
 ## Decision
 
 - **A separate crate, `univo-embed`**, holds models: references, the release registry, download plans, the cache and inference. `univo-core` does not depend on it.
-- **No network access in Rust.** The crate builds URLs and validates what comes back; the binding performs the HTTP GET requests with its language's standard library (`urllib` in Python) and writes each response into the staging path Rust gives it. No HTTP, TLS or async crate is linked, which `tools/check_native_dependencies.py` enforces in CI.
+- **No network access in Rust.** The crate builds URLs and validates what comes back; the binding performs the HTTP GET requests with its language's standard library (`urllib` in Python) and writes each response into the staging path Rust gives it. No HTTP, TLS or async crate is linked, which `tools/checks/check_native_dependencies.py` enforces in CI.
 - **Policy in Rust, shared by every binding**:
   - `ModelSpec::parse` reads `default`, `org/name[@revision]` and local paths (absolute, `./`, `../`, `~`, `file://`); names and revisions are restricted to characters that are safe in a URL and a path.
   - The default model's commit, file sizes and SHA-256 are compiled into the release (`registry::default_model`); its plan needs no metadata request.

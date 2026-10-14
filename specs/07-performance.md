@@ -49,7 +49,7 @@ Protocole : warmup, au moins 1 000 requêtes pour p95, volume supérieur pour p9
 
 La vitesse ANN est comparée à rappel équivalent. Pour un profil ANN viser recall@k ≥ 99 % contre l’oracle exact sur les requêtes d’évaluation, et mesurer séparément le rappel final des doublons hybrides. Un bon recall vectoriel ne prouve pas un bon rappel métier.
 
-Les budgets appliqués par les tests sont centralisés dans [benchmarks/budgets.toml](../benchmarks/budgets.toml) ; la politique de mesure est décrite dans [docs/performance.md](../docs/performance.md).
+Les budgets appliqués par les tests sont centralisés dans [benchmarks/budgets.toml](../benchmarks/budgets.toml) ; la politique de mesure est décrite dans [docs/development/performance.md](../docs/development/performance.md).
 
 U-007 adds a dense-insertion regression budget: 40,000 records in one equality group, one thread, median of five after one warmup. Full `ExactIndex.add` must take at most 25 ms on the reference machine, for both one batch and single-record batches, with no IDs or decreasing integer IDs. Preparation and index destruction are measured outside this interval. The test also reports 10k and 20k scaling and verifies complete counts and ordered search results. The previous full-bucket sort took about 718 ms at 40k without IDs; incremental postings bring this to approximately 2 ms, or 7 ms with IDs. Shared CI applies the documented time slack. This budget covers insertion only, not end-to-end raw-input ingestion, model inference or search latency.
 
@@ -63,4 +63,4 @@ U-016 mesure le backend vectoriel séparément de la recherche Finder complète
 reconstruction sont déclarés ; `ann_bytes` est une estimation retenue, pas
 un plafond RSS. Le défaut reste dense : les mesures ne justifient pas encore
 un `auto` et le budget incrémental de 512 Mio reste ouvert.
-[Protocole et données](../benchmarks/spikes/u016/README.md).
+[Protocole et données](../benchmarks/spikes/ann-backends/README.md).

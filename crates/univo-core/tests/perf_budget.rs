@@ -1,7 +1,7 @@
 //! Resource budgets for record preparation, from `benchmarks/budgets.toml`.
 //!
 //! Budgets apply to release builds on the reference machine described in
-//! `docs/performance.md`; shared CI runners multiply time budgets by
+//! `docs/development/performance.md`; shared CI runners multiply time budgets by
 //! `UNIVO_PERF_SLACK`.
 
 use std::path::PathBuf;

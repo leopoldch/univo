@@ -30,7 +30,7 @@ The [U-003 comparison](../../benchmarks/comparison/README.md) measured SemHash 9
 
 ## Evidence
 
-Measured on the U-003 workload, Apple M2, release build ([performance](../performance.md#parallel-all-pairs-reports-adr-0018)):
+Measured on the U-003 workload, Apple M2, release build ([performance](../development/performance.md#parallel-all-pairs-reports-adr-0018)):
 
 | 100,000 records, one partition | Before | 1 thread | 8 threads |
 | --- | --- | --- | --- |

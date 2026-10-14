@@ -11,3 +11,6 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 /.models/
+.DS_Store
+# Copies iCloud Drive makes of files changed by a checkout: "name 2.ext".
+* [0-9].*
