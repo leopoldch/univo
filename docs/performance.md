@@ -432,3 +432,34 @@ Apple M2 on battery, release wheels outside the source tree, one partition, mini
 - **Cost.** The signatures take 16 bytes per record and lexical field. They add no dependency and change neither the scores, nor the snapshot format, nor the comparator, which still verifies every candidate the bounds admit.
 - **Origin.** The approach comes from an external prototype: 3.50–3.78 s for the native engine on synthetic names, against 29.1–32.6 s.
 
+## Lexical character counts
+
+The summary of each short text adds its character counts in 32 hashed buckets to its trigram signature. The bag distance of two texts, the larger of the characters each has in excess, bounds their edit distance from below. It completes the q-gram bound, which edit distances let through on names that share words ([lexical candidates](lexical-search.md#how-the-search-stays-complete)).
+
+**Profile on ROR names.** 100,000 ROR names, minimum score 0.8, on `main`.
+- **Where the time went.** About 70% of the busy time was scoring candidates and 20% reading postings; the signature check took 2%.
+- **Candidates.** The signatures rejected 109 million candidates. 67 million more were scored for 84,000 matches.
+- **What a stronger bound would remove.** Of the scored pairs that did not match:
+  - a 256-bit signature would have rejected 78%;
+  - the exact trigram counts, 94%;
+  - the 128-bit signature with character counts in 16 buckets, 91%;
+  - with 32 buckets, 97.8%;
+  - with exact character counts, 99.2%.
+- **Choice.** 32 buckets with the existing signature: 48 bytes per record, and no second pass over the trigrams.
+
+Apple M2 on battery, release builds, one partition, minimum score 0.8, every core, `main` and the change alternated in ABBA order:
+
+| 100,000 names | `main` | Change | Speed-up |
+| --- | --- | --- | --- |
+| `find`, ROR names, wheel | 8.9–9.2 s, 63 s CPU | **2.2–2.3 s**, 15 s CPU | ×4.0 |
+| `group`, ROR names, wheel | 8.9–9.0 s | **2.4 s** | ×3.7 |
+| `find`, synthetic names, wheel | 3.22 s, 23 s CPU | **1.86–1.89 s**, 13 s CPU | ×1.7 |
+| `group`, synthetic names, wheel | 3.34–3.39 s | **2.08–2.09 s** | ×1.6 |
+| `find`, ROR names, native engine | 9.6–10.7 s | **2.26–2.31 s** | ×4.4 |
+
+- **Same results.** Six `find` and `group` configurations return identical pairs, scores to the bit, explanations, candidate counts and groups: synthetic and ROR names, at 0.8 over 100,000 records, 0.6 over 30,000 and 0.5 exhaustively over 5,000. The native engine's whole report hashes the same.
+- **Memory.** Peak memory grows by 1 to 3 MiB at 100,000 names.
+- **One search.** One thread, at 0.7, takes 1.21 ms instead of 11.3 ms at the median.
+- **Index build.** It takes 35 ms instead of 29 ms.
+- **Reproduce.** `cargo run --release -p univo-engine --example lexical_all_pairs -- names.txt 100000 8` prints the time and a hash of the report. The ROR sample is 100,000 distinct names from the ROR v2.14 dump, shuffled with seed 0.
+
