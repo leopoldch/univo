@@ -1,4 +1,4 @@
-# Development tasks. Run `just` to list them; each recipe is the command CI runs.
+# Development tasks. Run `just` to list them; recipes run the same commands as CI.
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
@@ -46,7 +46,8 @@ test-python: develop
 # Every test.
 test: test-rust test-python
 
-# Every check CI runs before a pull request.
+# Local checks and tests. CI also builds and tests the wheels on every platform,
+# and runs the tests that need the default model (UNIVO_TEST_MODEL_DIR, UNIVO_TEST_HUB).
 check: lint test
 
 # Build a release wheel into dist/ and check its size and layout.

@@ -4,7 +4,7 @@
 
 - Rust stable (minimum supported version: 1.89).
 - Python 3.11 or later and [uv](https://docs.astral.sh/uv/).
-- Optionally [just](https://just.systems): the [justfile](../../justfile) names the commands below (`just check` runs every check CI runs).
+- Optionally [just](https://just.systems): the [justfile](../../justfile) names the commands below (`just check` runs the local checks and tests; CI also builds and tests the wheels on every platform).
 
 ## Setup
 

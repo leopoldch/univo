@@ -6,8 +6,10 @@ Requires Rust 1.89+, Python 3.11+, [uv](https://docs.astral.sh/uv/) and [just](h
 
 ```bash
 just setup   # create .venv and build the extension
-just check   # everything CI checks
+just check   # local checks and tests
 ```
+
+CI also builds and tests the wheels on every platform, and runs the tests that need the default model, which are skipped locally unless `UNIVO_TEST_MODEL_DIR` is set.
 
 `just` lists the other tasks. Details: [development setup](docs/development/setup.md).
 

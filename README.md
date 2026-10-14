@@ -7,7 +7,7 @@ Univo finds duplicate candidates among strings and records, from exact, lexical 
 > **Pre-alpha.** Not on PyPI yet; APIs and formats may change.
 
 - **Fast.** 100,000 names deduplicated in 4.8 s semantically (SemHash: 8.7 s) and in about 2 s lexically, on a laptop. [Measurements](docs/development/performance.md).
-- **Exact.** Search finds every pair above the threshold. Approximate search is opt-in.
+- **Exact.** Search finds every pair above the threshold, unless a work or output limit is reached, which reports flag ([limits](docs/guide/quickstart.md#limits-and-reports)). Approximate search is opt-in.
 - **Local.** A 15 MB multilingual model, verified and cached; strict offline mode.
 - **Explained.** Every match comes with its per-field evidence. Records are never merged or deleted for you.
 
