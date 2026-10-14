@@ -78,3 +78,49 @@ def test_loader_rejects_labels_inconsistent_with_entities(tmp_path: Path) -> Non
     path.write_text("".join(json.dumps(row) + "\n" for row in rows))
     with pytest.raises(ValueError, match="conflicts"):
         load_pairs(path)
+
+
+def acronym_source(entity: str, display: str, acronym: str) -> dict[str, Any]:
+    return {
+        "id": entity,
+        "status": "active",
+        "names": [
+            {"value": display, "lang": "en", "types": ["ror_display"]},
+            {"value": acronym, "lang": None, "types": ["acronym"]},
+        ],
+    }
+
+
+def test_shared_acronyms_become_negatives_within_the_split() -> None:
+    entities = [f"ror-{i}" for i in range(400)]
+    sources = [acronym_source(e, f"Institute {e}", "SHARED") for e in entities]
+    rows = build(sources, 400)
+    negatives = [r for r in rows if r["family"] == "shared_acronym"]
+    for row in negatives:
+        assert row["label"] is False
+        assert row["left"] == "SHARED"
+        assert row["left_entity"] != row["right_entity"]
+        assert split(row["left_entity"]) == split(row["right_entity"]) == row["split"]
+    # Every entity gets its two closest organizations by hash, never itself.
+    assert len(negatives) == 2 * len(entities)
+    assert len({(r["left_entity"], r["right_entity"]) for r in negatives}) == len(negatives)
+    assert rows == build(list(reversed(sources)), 400)
+    # Other negatives and positives are unchanged by the new family.
+    plain = build([source(f"ror-{i}") for i in range(100)], 100)
+    assert {r["family"] for r in plain} == {"alias", "other_entity"}
+
+
+def test_inactive_organizations_never_lend_their_name() -> None:
+    first = "ror-0"
+    second = next(f"ror-{i}" for i in range(1, 100) if split(f"ror-{i}") == split(first))
+    active = acronym_source(first, "Open Institute", "SOLO")
+    closed = {**acronym_source(second, "Closed Institute", "SOLO"), "status": "inactive"}
+    rows = build([active, closed], 2)
+    assert [r["family"] for r in rows if not r["label"]] == []
+    closed["status"] = "active"
+    rows = build([active, closed], 2)
+    assert any(r["family"] == "shared_acronym" for r in rows)
+    # Only names ROR types as acronyms are paired, not labels spelled alike.
+    active["names"][1]["types"] = ["label"]
+    rows = build([active, closed], 2)
+    assert [r for r in rows if r["family"] == "shared_acronym"] == []

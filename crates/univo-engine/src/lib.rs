@@ -10,6 +10,7 @@
 //! - [`dense`]: exhaustive nearest-neighbour search over those embeddings,
 //!   the reference for any approximate index.
 
+mod acronyms;
 pub mod ann;
 mod blocks;
 pub use ann::AnnOptions;

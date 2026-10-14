@@ -130,6 +130,13 @@ const NAMES: &[&str] = &[
     "société générale",
     "societe generale",
     "zz",
+    // Acronyms, found by the acronym lane only: their lexical similarity
+    // to the long names is low.
+    "national institute for occupational safety and health",
+    "NIOSH",
+    "N.I.O.S.H.",
+    "international business machines corporation america",
+    "IBMCA",
 ];
 const DOMAINS: &[&str] = &["acme.com", "ACME.com.", "globex.io", "initech.fr", "  "];
 const DESCRIPTIONS: &[&str] = &[
@@ -139,6 +146,8 @@ const DESCRIPTIONS: &[&str] = &[
     "retail banking",
     "zzz",
     "industrial chemicals",
+    "global retail and cloud hosting services",
+    "GRCHS",
 ];
 
 /// A record of `tenant` with random, often missing, values.
@@ -525,4 +534,62 @@ fn a_large_group_of_duplicates_keeps_only_the_best_matches() {
         assert_eq!(exhaustive.matches, limited.matches);
     }
     assert!(all.total_matches >= 999);
+}
+
+#[test]
+fn acronyms_are_found_through_their_own_lane() {
+    let schema = schema();
+    let mut index = SearchIndex::new(schema.clone(), 100, Some(GridEmbedder::shared())).unwrap();
+    let record = |id: i64, name: &str, description: &str| {
+        let value = Value::Map(
+            Map::new(vec![
+                ("id".to_owned(), Value::Int(id)),
+                ("tenant".to_owned(), Value::Str("north".into())),
+                ("name".to_owned(), Value::Str(name.into())),
+                ("description".to_owned(), Value::Str(description.into())),
+            ])
+            .unwrap(),
+        );
+        prepare(&schema, &value).unwrap()
+    };
+    index
+        .add(vec![
+            record(1, "N.I.O.S.H.", "GRCHS"),
+            record(2, "umbrella", "retail stores"),
+        ])
+        .unwrap();
+    let query = record(
+        3,
+        "National Institute for Occupational Safety and Health",
+        "global retail and cloud hosting services",
+    );
+    for min_score in [0.5, 0.9] {
+        let found = index.search(&query, options(min_score)).unwrap();
+        same(
+            &found,
+            &index.search_exhaustive(&query, options(min_score)).unwrap(),
+        );
+        assert_eq!(found.matches.len(), 1);
+        let comparison = &found.matches[0].comparison;
+        assert_eq!(comparison.fields[0].signal, univo_core::Signal::Acronym);
+        assert_eq!(comparison.fields[4].signal, univo_core::Signal::Acronym);
+        assert!(found.lanes.acronyms >= 1);
+        assert_eq!(found.lanes.lexical, 0);
+    }
+    // Above the acronym similarity the lane is not read.
+    let found = index.search(&query, options(0.95)).unwrap();
+    assert_eq!(found.total_matches, 0);
+    assert_eq!(found.lanes.acronyms, 0);
+    // Another partition never matches.
+    let other = Value::Map(
+        Map::new(vec![
+            ("id".to_owned(), Value::Int(4)),
+            ("tenant".to_owned(), Value::Str("south".into())),
+            ("name".to_owned(), Value::Str("NIOSH".into())),
+        ])
+        .unwrap(),
+    );
+    index.add(vec![prepare(&schema, &other).unwrap()]).unwrap();
+    let found = index.search(&query, options(0.5)).unwrap();
+    assert_eq!(found.matches.len(), 1);
 }

@@ -8,6 +8,9 @@
 //! - lexical and hybrid text: the trigram index of [`crate::lexical`];
 //! - semantic text: exhaustive vector search in the query's partition;
 //! - exact values: equal values, or for objects one equal leaf;
+//! - every text field, when the minimum allows it: the acronym of the
+//!   query's words, or the words whose acronym the query is, from
+//!   [`crate::acronyms`];
 //!
 //! Lanes lower the minimum by a relative 10⁻⁶ against rounding, and
 //! records equal to the query on every field are always included
@@ -21,11 +24,12 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use univo_core::{
-    Comparison, Error, FieldKind, PreparedRecord, RecordId, Result, Schema, Signal, TextMode,
-    compare_with_vectors, has_value, is_exact_match, partition_fingerprint,
+    ACRONYM_SIMILARITY, Comparison, Error, FieldKind, PreparedRecord, RecordId, Result, Schema,
+    Signal, TextMode, compare_with_vectors, has_value, is_exact_match, partition_fingerprint,
 };
 use univo_embed::Embedder;
 
+use crate::acronyms::AcronymIndex;
 use crate::dense::within;
 use crate::exact::ExactIndex;
 use crate::lexical::LexicalIndex;
@@ -72,6 +76,7 @@ pub struct LaneCounts {
     pub lexical: usize,
     pub semantic: usize,
     pub values: usize,
+    pub acronyms: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -98,6 +103,7 @@ pub struct SearchIndex {
     ann: crate::ann::AnnIndex,
     lexical: Vec<LexicalIndex>,
     values: Vec<ValueIndex>,
+    acronyms: Vec<AcronymIndex>,
     /// Semantic fields, by schema index.
     pub(crate) semantic: Vec<usize>,
     embedder: Option<Arc<dyn Embedder>>,
@@ -165,13 +171,16 @@ impl SearchIndex {
         let exact = ExactIndex::new(schema, max_records);
         let mut lexical = Vec::new();
         let mut values = Vec::new();
+        let mut acronyms = Vec::new();
         for (index, field) in exact.schema().fields().iter().enumerate() {
             match field.kind {
-                FieldKind::Text(text) if text.mode != TextMode::Semantic => {
-                    lexical.push(LexicalIndex::new(exact.store(), index)?);
+                FieldKind::Text(text) => {
+                    if text.mode != TextMode::Semantic {
+                        lexical.push(LexicalIndex::new(exact.store(), index)?);
+                    }
+                    acronyms.push(AcronymIndex::new(index));
                 }
                 FieldKind::Exact(_) => values.push(ValueIndex::new(index)),
-                FieldKind::Text(_) => {}
             }
         }
         if let Some(model) = &embedder
@@ -197,6 +206,7 @@ impl SearchIndex {
             ann: crate::ann::AnnIndex::default(),
             lexical,
             values,
+            acronyms,
             semantic,
             embedder,
             vectors,
@@ -427,6 +437,9 @@ impl SearchIndex {
         for index in &mut self.values {
             index.update(store)?;
         }
+        for index in &mut self.acronyms {
+            index.update(store)?;
+        }
         for slot in slots {
             let partition = partition_fingerprint(&store.records()[slot]);
             self.partitions
@@ -474,6 +487,11 @@ impl SearchIndex {
                 .values
                 .iter()
                 .map(ValueIndex::heap_bytes)
+                .sum::<usize>()
+            + self
+                .acronyms
+                .iter()
+                .map(AcronymIndex::heap_bytes)
                 .sum::<usize>()
             + self.vectors.as_ref().map_or(0, RecordVectors::heap_bytes)
             + self
@@ -778,6 +796,23 @@ impl SearchIndex {
                     read += 1;
                     result.lanes.values += 1;
                     candidates.push(slot as usize);
+                }
+            }
+        }
+
+        if threshold <= ACRONYM_SIMILARITY {
+            for index in &self.acronyms {
+                let mut read = 0usize;
+                'lists: for slots in index.lists(self.store(), query.record) {
+                    for &slot in slots {
+                        if read == options.max_entries {
+                            result.truncated = true;
+                            break 'lists;
+                        }
+                        read += 1;
+                        result.lanes.acronyms += 1;
+                        candidates.push(slot as usize);
+                    }
                 }
             }
         }

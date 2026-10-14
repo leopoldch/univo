@@ -211,3 +211,13 @@ def test_giant_metadata_is_rejected_before_json_copy_or_model_load(tmp_path: pat
     ):
         finder.save(tmp_path / "index")
     assert not (tmp_path / "index").exists()
+
+
+def test_acronyms_still_match_after_a_reload(tmp_path: pathlib.Path) -> None:
+    # Snapshots keep case-folded text only: the acronym keys are rebuilt from it.
+    finder = Finder(schema=Schema(id_field="id", fields={"name": Text()}))
+    finder.add([{"id": "long", "name": "National Institute for Occupational Safety and Health"}])
+    finder.save(tmp_path / "index")
+    loaded = Finder.load(tmp_path / "index", offline=True)
+    report = loaded.search({"id": "short", "name": "NIOSH"})
+    assert [(m.right_id, m.reasons) for m in report.matches] == [("long", ["name: Acronym"])]

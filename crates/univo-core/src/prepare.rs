@@ -1,6 +1,7 @@
 //! Validation and normalization of one record against a schema: steps 1 to 3
 //! of the comparison pipeline in `specs/03-matching.md`.
 
+use crate::acronym::AcronymKeys;
 use crate::budget::Budget;
 use crate::error::{Error, Result};
 use crate::fingerprint::{self, Stages};
@@ -41,6 +42,8 @@ pub struct PreparedField {
     pub(crate) stages: Stages,
     /// Sorted character trigrams of normalized text compared lexically.
     pub(crate) trigrams: Option<Box<[u64]>>,
+    /// Acronym and initials of normalized text, zero for other values.
+    pub(crate) acronyms: AcronymKeys,
 }
 
 impl PreparedField {
@@ -48,6 +51,11 @@ impl PreparedField {
     /// for text fields compared lexically.
     pub fn trigrams(&self) -> Option<&[u64]> {
         self.trigrams.as_deref()
+    }
+
+    /// Hashes of the acronym and initials of the normalized text.
+    pub fn acronym_keys(&self) -> AcronymKeys {
+        self.acronyms
     }
 }
 
@@ -145,6 +153,7 @@ pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
                     transforms: Transforms::NONE,
                     stages: Stages::default(),
                     trigrams: None,
+                    acronyms: AcronymKeys::default(),
                 });
                 continue;
             }
@@ -234,6 +243,7 @@ fn prepare_text(input: &str, options: Text) -> PreparedField {
     }
     let trigrams = (options.mode != TextMode::Semantic).then(|| lexical::trigrams(&out));
     PreparedField {
+        acronyms: AcronymKeys::of(&out),
         state: FieldState::Text(out.into_boxed_str()),
         transforms,
         stages,
@@ -263,6 +273,7 @@ fn prepare_exact(
             transforms,
             stages,
             trigrams: None,
+            acronyms: AcronymKeys::default(),
         });
     }
 
@@ -280,6 +291,7 @@ fn prepare_exact(
         transforms,
         stages,
         trigrams: None,
+        acronyms: AcronymKeys::default(),
     })
 }
 

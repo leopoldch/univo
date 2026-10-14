@@ -3,6 +3,7 @@
 //! This crate has no dependency on Python, on network clients or on an
 //! inference runtime. Bindings and the engine build on top of it.
 
+mod acronym;
 mod budget;
 mod compare;
 mod error;
@@ -17,6 +18,10 @@ mod semantic;
 pub mod snapshot;
 mod value;
 
+pub use acronym::{
+    ACRONYM_SIMILARITY, AcronymKeys, MAX_ACRONYM_CHARS, MIN_ACRONYM_CHARS, acronym,
+    acronym_similarity, initials,
+};
 pub use compare::{
     Comparison, FieldComparison, SCORING_VERSION, Signal, compare, compare_with_vectors, has_value,
     lexical_similarity,
