@@ -330,3 +330,58 @@ def test_the_default_model_downloads_from_a_mirror_and_loads(tmp_path: pathlib.P
     assert (info.revision, info.dimension) == (mirror.commit, 128)
     assert not any(path.startswith("/api/") for path in mirror.requests)
     assert inspect("default", cache_dir=tmp_path) == info
+
+
+DEFAULT_DIGESTS = {
+    "config.json": "sha256:78f117ff0287650054a2a596313e72fe2e3dec4e4cc0d6348985a6e50cc19028",
+    "model.safetensors": "sha256:73e3c5e5496b5ddf9070238139b701839d763a479ab8023ec25bc951f780b6fc",
+    "tokenizer.json": "sha256:88d69c30a2a4395cf169631e47f3c4fbb95d300650028d541ec531ed18eb0ff1",
+}
+
+OFFLINE_FIND = """
+import json, sys
+
+events = []
+
+def forbid(event, args):
+    if event.startswith("socket."):
+        events.append(event)
+        raise RuntimeError("network access is forbidden in this test")
+
+sys.addaudithook(forbid)
+from univo import Finder, Schema, Text
+
+finder = Finder(
+    schema=Schema(fields={{"name": Text(mode="semantic")}}), offline=True, cache_dir={cache!r}
+)
+names = ["Universität Wien", "University of Vienna", "Banana Republic"]
+report = finder.find([{{"name": name}} for name in names])
+pairs = [[match.left_id, match.right_id] for match in report.matches]
+http_loaded = "urllib.request" in sys.modules or "http.client" in sys.modules
+print(json.dumps({{"pairs": pairs, "events": events, "http_loaded": http_loaded}}))
+"""
+
+
+@pytest.mark.skipif(
+    os.environ.get("UNIVO_TEST_HUB") != "1", reason="UNIVO_TEST_HUB=1 enables the real hub"
+)
+def test_the_default_model_downloads_from_the_hub_and_runs_offline(tmp_path: pathlib.Path) -> None:
+    # The real Hugging Face hub, an empty cache and the pinned revision: what a
+    # new user's first semantic use does.
+    downloaded = run_cli("download", "--cache-dir", str(tmp_path), "--json")
+    assert downloaded.returncode == 0, downloaded.stderr
+    info = json.loads(downloaded.stdout)
+    assert info["repository"] == "univo-models/static-similarity-mrl-multilingual-int8-128"
+    assert (info["revision"], info["dimension"]) == (
+        "ee7c2cb71e6948246b2bf45ef47083d215d69f2a",
+        128,
+    )
+    assert {file["name"]: file["digest"] for file in info["files"]} == DEFAULT_DIGESTS
+
+    completed = subprocess.run(
+        [sys.executable, "-I", "-c", OFFLINE_FIND.format(cache=str(tmp_path))],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    assert json.loads(completed.stdout) == {"pairs": [[0, 1]], "events": [], "http_loaded": False}

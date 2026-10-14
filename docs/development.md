@@ -48,6 +48,8 @@ python tools/build_default_model.py --output "$UNIVO_TEST_MODEL_DIR"
 cargo test -p univo-embed --release --locked --test perf_budget -- --nocapture
 ```
 
+`UNIVO_TEST_HUB=1` enables the one test that uses the network. It downloads the pinned default model from the real Hugging Face hub into an empty cache with `python -m univo.models download`. It then checks the compiled checksums and runs a semantic `Finder` offline, with sockets forbidden. CI's wheel tests set it on every platform.
+
 ## Test models
 
 `tests/fixtures/models/tiny` is an 8-dimension Model2Vec model with a 13-word vocabulary, built by `python -I tools/build_tiny_model.py`. It exercises loading, encoding and the cache without a download.
