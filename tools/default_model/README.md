@@ -102,16 +102,19 @@ Any Model2Vec runtime reads the files too, for example `StaticModel.from_pretrai
 
 All figures were measured by the Univo project on an Apple M2 with release builds. They are not the original authors' results.
 
-- **Benchmark.** Organization names against their aliases and acronyms, from the public [ROR](https://ror.org) registry (CC0). The threshold was chosen on a validation split, and the figures below come from a held-out test split of 1,341 duplicate pairs and 1,173 distinct pairs.
+- **Benchmark.** Organization names against their aliases and acronyms, from the public [ROR](https://ror.org) registry (CC0).
+- **Selection.** This variant (int8, 128 dimensions) was chosen among several on a validation split: the highest recall at a threshold calibrated for at least 98% precision.
+- **Test split.** The test split (1,341 duplicate and 1,173 distinct pairs) was also seen while comparing variants, so its figures are exploratory. Confirmation on an unseen set is pending.
 - **Model compared.** The table compares this model with Univo's previous default, `minishlab/potion-base-8M`, which is English only.
 
 | | This model | potion-base-8M |
 | --- | --- | --- |
-| Test recall, all languages | 30.9% | 17.9% |
-| Test recall, English names | 54.6% | 44.0% |
-| Test recall, other languages | 24.4% | 10.7% |
-| Test precision | 95.6% | 96.8% |
-| False matches between distinct organizations | 19 of 1,173 | 8 of 1,173 |
+| Validation recall at ≥ 98% precision | 32.9% | 19.6% |
+| Validation false matches (of 1,173) | 9 | 5 |
+| Exploratory test recall, all languages | 30.9% | 17.9% |
+| Exploratory test recall, English names | 54.6% | 44.0% |
+| Exploratory test recall, other languages | 24.4% | 10.7% |
+| Exploratory test precision (false matches of 1,173) | 95.6% (19) | 96.8% (8) |
 | Files | 15 MB | 31 MB |
 | Load time | 72 ms | 18 ms |
 | Texts per second, 1 / 8 threads | 89k / 176k | 78k / 141k |

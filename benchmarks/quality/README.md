@@ -47,6 +47,8 @@ The 12,972 pairs are a name-alias benchmark, not a representative deployment dis
 
 The default model's row was measured on 2026-10-13 with the same protocol: the same machine and CPython, a release wheel from the ADR 0021 branch installed outside the tree, and Rust absent from PATH. Its gain comes mostly from cross-language aliases, a display name and an alias tagged with different languages: 177 of 363 found, against 30 for potion-base-8M. In English it finds 159 of 291, against 128. It also accepts 19 distinct pairs, against 8. Its test AUC is lower because more pairs score at or below zero and count as unreturned.
 
+These test figures are exploratory for the model choice. The spike printed test results for several variants (64 to 1,024 dimensions) before ADR 0021 fixed the selection rule. The rule picks the 128-dimension variant on validation alone: 32.9% validation recall, against 30.9% at 1,024 dimensions, 30.0% at 256 and 29.3% at 64. An unseen held-out set must still confirm the gain.
+
 No comparator meets the proposed 98% precision / 90% recall gates on test. Exact normalized names return one true and two false positives: identical names are not proof of organization identity. This baseline has tiny support and demonstrates homonyms, not a universal exact-match precision estimate.
 
 Scores come from exhaustive `search`, with output limit one because each query has exactly one eligible target in its pair partition. Scores not returned at `1e-12` remain in the denominator, below all returned scores for AUC; this includes zero scores and absent evidence. They are not discarded as an easier subset.
