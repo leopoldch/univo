@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # release.yml runs the whole suite and reuses its wheels.
+  workflow_call:
 
 permissions:
   contents: read
