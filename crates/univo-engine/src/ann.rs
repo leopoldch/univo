@@ -258,11 +258,35 @@ impl AnnIndex {
         }
         let ceiling = options.max_candidates.min(nodes);
         let mut requested = ceiling.min(32);
+        // The search explores `max(k, ef_search)` nodes and returns the
+        // first `k`: every request up to `ef_search` is a prefix of one
+        // traversal, which is done once.
+        let mut traversal = None;
         loop {
-            let found = graph.index.search(vector, requested, options.ef_search);
+            let searched;
+            let found = if requested <= options.ef_search {
+                let all = traversal.get_or_insert_with(|| {
+                    graph
+                        .index
+                        .search(vector, ceiling.min(options.ef_search), options.ef_search)
+                });
+                &all[..requested.min(all.len())]
+            } else {
+                searched = graph.index.search(vector, requested, options.ef_search);
+                &searched[..]
+            };
+            debug_assert_eq!(
+                found.iter().map(|point| point.id).collect::<Vec<_>>(),
+                graph
+                    .index
+                    .search(vector, requested, options.ef_search)
+                    .iter()
+                    .map(|point| point.id)
+                    .collect::<Vec<_>>()
+            );
             let mut slots = Vec::new();
             let mut saturated = false;
-            for point in &found {
+            for point in found {
                 if semantic_similarity(vector, graph.index.get_vector(point.id)) < threshold {
                     continue;
                 }

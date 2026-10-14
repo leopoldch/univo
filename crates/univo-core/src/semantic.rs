@@ -45,30 +45,121 @@ pub fn dot(left: &[f32], right: &[f32]) -> f32 {
 ///
 /// When a query and the row differ in length.
 pub fn dots<const N: usize>(queries: [&[f32]; N], row: &[f32]) -> [f32; N] {
-    let (row_chunks, row_rest) = row.as_chunks::<LANES>();
-    let chunks = queries.map(|query| {
-        assert_eq!(query.len(), row.len(), "vectors of different lengths");
-        &query.as_chunks::<LANES>().0[..row_chunks.len()]
-    });
-    let mut sums = [[f32x4::ZERO; 2]; N];
-    for (index, chunk) in row_chunks.iter().enumerate() {
-        let (low, high) = halves(chunk);
-        for (sum, query) in sums.iter_mut().zip(&chunks) {
-            let (query_low, query_high) = halves(&query[index]);
-            sum[0] += query_low * low;
-            sum[1] += query_high * high;
+    let mut blocked = Blocked::new(queries, row);
+    blocked.accumulate(blocked.chunks());
+    blocked.totals()
+}
+
+/// [`dots`], or `None` when none of the queries can reach `threshold`,
+/// which is decided after the first `prefix` lanes chunks of the row.
+///
+/// The dot product of the remaining dimensions is at most the product of
+/// their norms (Cauchy–Schwarz), given as `rest_norms` for the queries and
+/// `row_rest_norm` for the row. A margin of `4 · n · ε` covers the rounding
+/// of an `n`-term float sum of unit vectors, so a query whose dot product
+/// reaches `threshold` is never left out. Otherwise the products continue
+/// from the same partial sums: the result is bit for bit that of [`dots`].
+///
+/// # Panics
+///
+/// As [`dots`].
+pub fn dots_reaching<const N: usize>(
+    queries: [&[f32]; N],
+    rest_norms: [f32; N],
+    row: &[f32],
+    row_rest_norm: f32,
+    prefix: usize,
+    threshold: f32,
+) -> Option<[f32; N]> {
+    let mut blocked = Blocked::new(queries, row);
+    let prefix = prefix.min(blocked.chunks());
+    blocked.accumulate(prefix);
+    #[allow(clippy::cast_precision_loss)]
+    let margin = 4.0 * row.len() as f32 * f32::EPSILON;
+    let reachable = blocked
+        .sums
+        .iter()
+        .zip(rest_norms)
+        .any(|([low, high], rest)| {
+            let (low, high) = (low.to_array(), high.to_array());
+            let partial = ((low[0] + high[0]) + (low[1] + high[1]))
+                + ((low[2] + high[2]) + (low[3] + high[3]));
+            partial + rest * row_rest_norm + margin >= threshold
+        });
+    if !reachable {
+        return None;
+    }
+    blocked.accumulate(blocked.chunks());
+    Some(blocked.totals())
+}
+
+/// The norm of `vector` after its first `prefix` lanes chunks, the part
+/// [`dots_reaching`] bounds: the dimensions after the last whole chunk are
+/// always in it.
+pub fn rest_norm(vector: &[f32], prefix: usize) -> f32 {
+    let rest = &vector[prefix.min(vector.len() / LANES) * LANES..];
+    dot(rest, rest).sqrt()
+}
+
+/// The partial sums of [`dots`], accumulated chunk by chunk.
+struct Blocked<'a, const N: usize> {
+    queries: [&'a [f32]; N],
+    query_chunks: [&'a [[f32; LANES]]; N],
+    row: &'a [f32],
+    row_chunks: &'a [[f32; LANES]],
+    row_rest: &'a [f32],
+    sums: [[f32x4; 2]; N],
+    done: usize,
+}
+
+impl<'a, const N: usize> Blocked<'a, N> {
+    fn new(queries: [&'a [f32]; N], row: &'a [f32]) -> Self {
+        let (row_chunks, row_rest) = row.as_chunks::<LANES>();
+        let query_chunks = queries.map(|query| {
+            assert_eq!(query.len(), row.len(), "vectors of different lengths");
+            &query.as_chunks::<LANES>().0[..row_chunks.len()]
+        });
+        Self {
+            queries,
+            query_chunks,
+            row,
+            row_chunks,
+            row_rest,
+            sums: [[f32x4::ZERO; 2]; N],
+            done: 0,
         }
     }
-    let mut totals = [0.0f32; N];
-    for ((total, [low, high]), query) in totals.iter_mut().zip(sums).zip(queries) {
-        let (low, high) = (low.to_array(), high.to_array());
-        *total =
-            ((low[0] + high[0]) + (low[1] + high[1])) + ((low[2] + high[2]) + (low[3] + high[3]));
-        for (a, b) in query[row.len() - row_rest.len()..].iter().zip(row_rest) {
-            *total += a * b;
-        }
+
+    fn chunks(&self) -> usize {
+        self.row_chunks.len()
     }
-    totals
+
+    /// Adds the products of chunks `done..end`, in order.
+    fn accumulate(&mut self, end: usize) {
+        for index in self.done..end {
+            let (low, high) = halves(&self.row_chunks[index]);
+            for (sum, query) in self.sums.iter_mut().zip(&self.query_chunks) {
+                let (query_low, query_high) = halves(&query[index]);
+                sum[0] += query_low * low;
+                sum[1] += query_high * high;
+            }
+        }
+        self.done = self.done.max(end);
+    }
+
+    fn totals(&self) -> [f32; N] {
+        let mut totals = [0.0f32; N];
+        let start = self.row.len() - self.row_rest.len();
+        for ((total, [low, high]), query) in totals.iter_mut().zip(self.sums).zip(self.queries) {
+            let (low, high) = (low.to_array(), high.to_array());
+            *total = ((low[0] + high[0]) + (low[1] + high[1]))
+                + ((low[2] + high[2]) + (low[3] + high[3]));
+            for (a, b) in query[start..].iter().zip(self.row_rest) {
+                *total += a * b;
+            }
+        }
+        totals
+    }
 }
 
 /// Lanes 0 to 3 and 4 to 7 of a chunk.
@@ -104,6 +195,74 @@ mod tests {
                 "{length}"
             );
         }
+    }
+
+    /// A unit vector from a seed, possibly with its first `zeros` values 0.
+    fn unit(length: usize, seed: u64, zeros: usize) -> Vec<f32> {
+        let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        let mut vector: Vec<f32> = (0..length)
+            .map(|i| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                if i < zeros {
+                    0.0
+                } else {
+                    f32::from(u16::try_from(state % 2001).unwrap()) / 1000.0 - 1.0
+                }
+            })
+            .collect();
+        let norm = dot(&vector, &vector).sqrt();
+        if norm > 0.0 {
+            for value in &mut vector {
+                *value /= norm;
+            }
+        }
+        vector
+    }
+
+    #[test]
+    fn early_exit_never_drops_a_reachable_product() {
+        let mut skipped = 0;
+        for length in [8, 16, 63, 64, 128, 130, 256] {
+            for seed in 0..300u64 {
+                let queries: Vec<Vec<f32>> = (0..8)
+                    .map(|i| unit(length, seed * 8 + i, (seed % 3) as usize * length / 3))
+                    .collect();
+                // Rows close to a query, far from all, or carried by the
+                // dimensions after the prefix only.
+                let row = match seed % 4 {
+                    0 => {
+                        let mut row = queries[(seed % 8) as usize].clone();
+                        row[length / 2] += 0.05;
+                        let norm = dot(&row, &row).sqrt();
+                        for value in &mut row {
+                            *value /= norm;
+                        }
+                        row
+                    }
+                    1 => unit(length, seed + 10_000, length / 2),
+                    _ => unit(length, seed + 20_000, 0),
+                };
+                let queries: [&[f32]; 8] = std::array::from_fn(|i| queries[i].as_slice());
+                let full = dots(queries, &row);
+                for prefix in [0, 1, length / 16, length / 8 + 1] {
+                    let rest = queries.map(|query| rest_norm(query, prefix));
+                    let row_rest = rest_norm(&row, prefix);
+                    for threshold in [0.1, 0.5, 0.8, 0.9, 0.99, 1.0] {
+                        if let Some(found) =
+                            dots_reaching(queries, rest, &row, row_rest, prefix, threshold)
+                        {
+                            assert_eq!(found.map(f32::to_bits), full.map(f32::to_bits));
+                        } else {
+                            skipped += 1;
+                            assert!(full.iter().all(|&value| value < threshold));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(skipped > 1000, "the bound must also skip: {skipped}");
     }
 
     #[test]

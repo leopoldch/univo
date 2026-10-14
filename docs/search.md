@@ -45,7 +45,7 @@ Every candidate is then scored with `compare_with_vectors`:
   - `limit` bounds the matches returned, while `total_matches` counts them all;
   - `max_entries` bounds the index entries each lexical, value or acronym lane reads. When a lane reaches it, `truncated` is set and matches may be missing. The exact lane and the semantic scan are not limited.
 - **Order:** highest score first, then typed ID (strings before integers), then slot.
-- **Memory:** every match is counted, but only the best `limit` are kept, in a bounded heap. A group of 100,000 duplicates with `limit = 10` keeps ten explanations, not 100,000; ranking costs `O(M log limit)` for `M` matches.
+- **Memory:** every match is counted, but only the best `limit` are kept, in a bounded heap, and only those are explained: candidates are scored without per-field explanations. A group of 100,000 duplicates with `limit = 10` keeps ten explanations, not 100,000; ranking costs `O(M log limit)` for `M` matches.
 - **Diagnostics:** `candidates` counts the records scored; `lanes` counts the candidates each lane proposed.
 - **Adding records:** `add(records)` embeds the batch and makes every check before storing anything, so on error the index is unchanged. The checks are: schema, unique typed IDs, the record limit, and the model of the new embeddings against the stored ones (`state.model_mismatch` if the embedder changed).
 - **Queries:** a query's embeddings are checked against the model of the stored ones in the same way. Slots beyond the records return `limit.index_capacity`.

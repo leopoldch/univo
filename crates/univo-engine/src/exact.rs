@@ -21,13 +21,72 @@ pub struct ExactIndex {
 #[derive(Debug, Default)]
 struct Bucket {
     slots: Vec<usize>,
-    ids: BTreeMap<RecordId, usize>,
+    ids: Ids,
+}
+
+/// The slots of a bucket's records by typed ID. Most buckets hold one
+/// record: it is stored inline, and a tree is built for the second.
+#[derive(Debug, Default)]
+enum Ids {
+    #[default]
+    None,
+    One(RecordId, usize),
+    Many(BTreeMap<RecordId, usize>),
+}
+
+impl Ids {
+    fn insert(&mut self, id: &RecordId, slot: usize) {
+        match self {
+            Self::None => *self = Self::One(id.clone(), slot),
+            Self::One(only, only_slot) if only == id => *only_slot = slot,
+            Self::One(..) => {
+                let Self::One(only, only_slot) = std::mem::take(self) else {
+                    unreachable!("matched above")
+                };
+                *self = Self::Many(BTreeMap::from([(only, only_slot), (id.clone(), slot)]));
+            }
+            Self::Many(ids) => {
+                ids.insert(id.clone(), slot);
+            }
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        matches!(self, Self::None)
+    }
+
+    /// Slots in typed ID order, without allocating.
+    fn values(&self) -> impl Iterator<Item = usize> + '_ {
+        let (one, many) = match self {
+            Self::None => (None, None),
+            Self::One(_, slot) => (Some(*slot), None),
+            Self::Many(ids) => (None, Some(ids.values().copied())),
+        };
+        one.into_iter().chain(many.into_iter().flatten())
+    }
+
+    fn keys(&self) -> impl Iterator<Item = &RecordId> + '_ {
+        let (one, many) = match self {
+            Self::None => (None, None),
+            Self::One(id, _) => (Some(id), None),
+            Self::Many(ids) => (None, Some(ids.keys())),
+        };
+        one.into_iter().chain(many.into_iter().flatten())
+    }
+
+    /// Heap bytes beyond the bucket itself: tree nodes for several IDs.
+    fn heap_bytes(&self) -> usize {
+        match self {
+            Self::Many(ids) => ids.len() * (size_of::<RecordId>() + size_of::<usize>()) * 3 / 2,
+            Self::None | Self::One(..) => 0,
+        }
+    }
 }
 
 impl Bucket {
     fn insert(&mut self, slot: usize, id: Option<&RecordId>) {
         if let Some(id) = id {
-            self.ids.insert(id.clone(), slot);
+            self.ids.insert(id, slot);
         } else {
             self.slots.push(slot);
         }
@@ -87,7 +146,7 @@ impl ExactIndex {
             .values()
             .map(|bucket| {
                 bucket.slots.capacity() * size_of::<usize>()
-                    + bucket.ids.len() * (size_of::<RecordId>() + size_of::<usize>()) * 3 / 2
+                    + bucket.ids.heap_bytes()
                     + id_text_bytes(bucket.ids.keys())
             })
             .sum();
@@ -152,7 +211,7 @@ impl ExactIndex {
         };
         let records = self.store.records();
         let mut slots = Vec::new();
-        for slot in bucket.slots.iter().chain(bucket.ids.values()).copied() {
+        for slot in bucket.slots.iter().copied().chain(bucket.ids.values()) {
             if !self.store.is_active(slot) {
                 continue;
             }
@@ -178,7 +237,7 @@ impl ExactIndex {
             Some(bucket) if bucket.ids.is_empty() => {
                 self.search_slots(query, bucket.slots.iter().copied(), limit)
             }
-            Some(bucket) => self.search_slots(query, bucket.ids.values().copied(), limit),
+            Some(bucket) => self.search_slots(query, bucket.ids.values(), limit),
             None => Ok(ExactSearch::default()),
         }
     }
@@ -224,6 +283,29 @@ mod tests {
             ])
             .unwrap(),
         )
+    }
+
+    #[test]
+    fn ids_stay_inline_until_a_second_one_arrives() {
+        let (a, b, c) = (
+            RecordId::Str("a".into()),
+            RecordId::Int(2),
+            RecordId::Str("c".into()),
+        );
+        let mut ids = Ids::default();
+        assert!(ids.is_empty());
+        ids.insert(&c, 7);
+        ids.insert(&c, 8);
+        assert!(matches!(ids, Ids::One(_, 8)));
+        assert_eq!(ids.heap_bytes(), 0);
+        ids.insert(&a, 1);
+        ids.insert(&b, 2);
+        ids.insert(&a, 3);
+        assert!(matches!(ids, Ids::Many(_)));
+        // Typed ID order: strings before integers.
+        assert_eq!(ids.values().collect::<Vec<_>>(), [3, 8, 2]);
+        assert_eq!(ids.keys().cloned().collect::<Vec<_>>(), [a, c, b]);
+        assert!(ids.heap_bytes() > 0);
     }
 
     #[test]

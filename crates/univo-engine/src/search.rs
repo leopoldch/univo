@@ -26,6 +26,7 @@ use std::sync::Arc;
 use univo_core::{
     ACRONYM_SIMILARITY, Comparison, Error, FieldKind, PreparedRecord, RecordId, Result, Schema,
     Signal, TextMode, compare_with_vectors, has_value, is_exact_match, partition_fingerprint,
+    score_with_vectors,
 };
 use univo_embed::Embedder;
 
@@ -628,30 +629,6 @@ impl SearchIndex {
             .fold(0, usize::saturating_add)
     }
 
-    /// `dense`, from [`Self::dense_block`], replaces the dense lane's scan.
-    pub(crate) fn search_pairs(
-        &self,
-        slot: usize,
-        options: SearchOptions,
-        exhaustive: bool,
-        dense: Option<&[Vec<u32>]>,
-    ) -> Result<SearchResult> {
-        check_options(options)?;
-        let mut query = self.stored_query(slot)?;
-        query.min_slot = slot + 1;
-        query.dense = dense;
-        if !exhaustive {
-            return self.search_candidates(&query, options);
-        }
-        let slots = self
-            .partition(query.record)
-            .iter()
-            .map(|&slot| slot as usize);
-        let mut result = SearchResult::default();
-        self.score(&query, slots, options, &mut result)?;
-        Ok(result)
-    }
-
     fn stored_query(&self, slot: usize) -> Result<Query<'_>> {
         let record = self
             .store()
@@ -822,10 +799,16 @@ impl SearchIndex {
         Ok(candidates)
     }
 
-    /// What `slot` is against the query. Records equal to the query
-    /// without a score, such as unknown semantic texts, score as exact
-    /// (ADR 0010).
-    fn qualifying(&self, query: &Query<'_>, slot: usize) -> Result<Candidate> {
+    /// What `slot` is against the query, scored without explanations.
+    /// Records equal to the query without a score, such as unknown semantic
+    /// texts, score as exact (ADR 0010). `vectors` is a buffer reused across
+    /// candidates.
+    fn qualifying<'a>(
+        &'a self,
+        query: &Query<'_>,
+        slot: usize,
+        vectors: &mut Vec<Option<&'a [f32]>>,
+    ) -> Result<Candidate> {
         if !self.store().is_active(slot) || slot < query.min_slot || Some(slot) == query.slot {
             return Ok(Candidate::Excluded);
         }
@@ -833,48 +816,76 @@ impl SearchIndex {
         if query.record.id().is_some() && query.record.id() == record.id() {
             return Ok(Candidate::Excluded);
         }
+        match &self.vectors {
+            Some(stored) => stored.record_into(slot, vectors),
+            None => vectors.clear(),
+        }
+        let Some(scored) =
+            score_with_vectors(self.schema(), query.record, &query.vectors, record, vectors)?
+        else {
+            return Ok(Candidate::NoMatch);
+        };
+        let score = match scored.score {
+            Some(score) => score,
+            None if is_exact_match(self.schema(), query.record, record)? => 1.0,
+            None => return Ok(Candidate::NoMatch),
+        };
+        Ok(if scored.vetoed {
+            Candidate::NoMatch
+        } else {
+            Candidate::Scored(score)
+        })
+    }
+
+    /// The explanation of a match [`Self::qualifying`] scored, computed
+    /// again: only the matches kept are explained.
+    fn explain(&self, query: &Query<'_>, slot: usize, score: f32) -> Result<Comparison> {
+        let record = &self.store().records()[slot];
         let vectors = self
             .vectors
             .as_ref()
             .map_or_else(Vec::new, |vectors| vectors.record(slot));
-        let Some(mut comparison) = compare_with_vectors(
+        // Same inputs as the score: same partition, so never `None`.
+        let mut comparison = compare_with_vectors(
             self.schema(),
             query.record,
             &query.vectors,
             record,
             &vectors,
         )?
-        else {
-            return Ok(Candidate::NoMatch);
-        };
+        .ok_or_else(Error::schema_mismatch)?;
         if comparison.score.is_none() && is_exact_match(self.schema(), query.record, record)? {
             exact_evidence(self.schema(), query.record, &mut comparison);
         }
-        Ok(match comparison.score {
-            Some(score) if !comparison.vetoed => Candidate::Scored(score, comparison),
-            _ => Candidate::NoMatch,
-        })
+        debug_assert_eq!(comparison.score.map(f32::to_bits), Some(score.to_bits()));
+        Ok(comparison)
+    }
+
+    /// The explanation of the match of stored records `left` and `right`.
+    pub(crate) fn explain_pair(&self, left: usize, right: usize, score: f32) -> Result<Comparison> {
+        self.explain(&self.stored_query(left)?, right, score)
     }
 
     /// Scores `slots`, each given once, against the query, and hands each
-    /// match to `visit` without keeping it.
+    /// match to `visit` without explaining it.
     fn score_each(
         &self,
         query: &Query<'_>,
         slots: impl Iterator<Item = usize>,
         min_score: f32,
         result: &mut SearchResult,
-        visit: &mut dyn FnMut(usize, f32, Comparison) -> Result<()>,
+        visit: &mut dyn FnMut(usize, f32) -> Result<()>,
     ) -> Result<()> {
+        let mut vectors = Vec::new();
         for slot in slots {
-            match self.qualifying(query, slot)? {
+            match self.qualifying(query, slot, &mut vectors)? {
                 Candidate::Excluded => {}
                 Candidate::NoMatch => result.candidates += 1,
-                Candidate::Scored(score, comparison) => {
+                Candidate::Scored(score) => {
                     result.candidates += 1;
                     if score >= min_score {
                         result.total_matches += 1;
-                        visit(slot, score, comparison)?;
+                        visit(slot, score)?;
                     }
                 }
             }
@@ -883,9 +894,9 @@ impl SearchIndex {
     }
 
     /// Scores `slots`, each given once, against the query. Every match is
-    /// counted, and only the best `limit` are kept, in a bounded heap: a
-    /// large group of duplicates costs `O(limit)` memory, not one
-    /// explanation per match.
+    /// counted, and only the best `limit` are kept, in a bounded heap, then
+    /// explained: a large group of duplicates costs `O(limit)` memory and
+    /// explanations, not one per match.
     fn score(
         &self,
         query: &Query<'_>,
@@ -901,11 +912,11 @@ impl SearchIndex {
             slots,
             options.min_score,
             result,
-            &mut |slot, score, comparison| {
+            &mut |slot, score| {
                 let candidate = Ranked {
                     score,
                     id: records[slot].id(),
-                    found: SearchMatch { slot, comparison },
+                    slot,
                 };
                 if kept.len() < options.limit {
                     kept.push(candidate);
@@ -919,8 +930,13 @@ impl SearchIndex {
         result.matches = kept
             .into_sorted_vec()
             .into_iter()
-            .map(|ranked| ranked.found)
-            .collect();
+            .map(|ranked| {
+                Ok(SearchMatch {
+                    slot: ranked.slot,
+                    comparison: self.explain(query, ranked.slot, ranked.score)?,
+                })
+            })
+            .collect::<Result<_>>()?;
         Ok(())
     }
 
@@ -954,7 +970,7 @@ impl SearchIndex {
             slots.into_iter(),
             options.min_score,
             &mut result,
-            &mut |slot, score, _| visit(slot, score),
+            visit,
         )?;
         Ok(result)
     }
@@ -963,8 +979,8 @@ impl SearchIndex {
     /// them, or `None` when they cannot match: no score, or a veto.
     pub(crate) fn pair_score(&self, left: usize, right: usize) -> Result<Option<f32>> {
         let query = self.stored_query(left)?;
-        Ok(match self.qualifying(&query, right)? {
-            Candidate::Scored(score, _) => Some(score),
+        Ok(match self.qualifying(&query, right, &mut Vec::new())? {
+            Candidate::Scored(score) => Some(score),
             Candidate::Excluded | Candidate::NoMatch => None,
         })
     }
@@ -976,7 +992,7 @@ enum Candidate {
     Excluded,
     /// Compared, but it cannot match: no score, or a veto.
     NoMatch,
-    Scored(f32, Comparison),
+    Scored(f32),
 }
 
 /// A kept match. The greatest is the worst: lowest score, then highest
@@ -984,7 +1000,7 @@ enum Candidate {
 struct Ranked<'a> {
     score: f32,
     id: Option<&'a RecordId>,
-    found: SearchMatch,
+    slot: usize,
 }
 
 impl Ord for Ranked<'_> {
@@ -993,7 +1009,7 @@ impl Ord for Ranked<'_> {
             .score
             .total_cmp(&self.score)
             .then_with(|| self.id.cmp(&other.id))
-            .then_with(|| self.found.slot.cmp(&other.found.slot))
+            .then_with(|| self.slot.cmp(&other.slot))
     }
 }
 

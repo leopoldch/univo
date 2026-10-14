@@ -365,3 +365,33 @@ Release builds, same reference machine, median of five runs, alternating `main` 
 - **What the cost buys.** The acronym and initials of each text are hashed once, at preparation, so that a comparison usually costs a few integer comparisons.
 - **Preparation.** A first version that built them as strings doubled preparation (2,500 ns per record) and added 36 ns per compared pair.
 - **The end-to-end runs.** They ran on battery and removed the same records. Their synthetic names contain no acronyms, so the acronym lane stays empty.
+
+## Performance audit fixes
+
+Apple M2, release wheels outside the source tree, `main` and the change alternated. Measured on battery from 35% down to 16%, low-power mode off.
+- **Same results.** Five `find` and `group` configurations (lexical and semantic, minimum scores 0.6 to 0.9) return identical pairs, scores to the bit, explanations and groups. Snapshots are byte for byte identical.
+
+| Measure | `main` | Change |
+| --- | --- | --- |
+| Semantic all-pairs, 100,000 names, every core | 7.45–7.76 s, 52–55 s CPU, 301 MiB | **4.75–4.84 s**, 32–33 s CPU, 270 MiB |
+| Lexical all-pairs, 100,000 names, every core | 24.9–25.0 s, 182 MiB | 24.4 s, **159 MiB** |
+| Add 100,000 records with IDs: peak RSS | 157.5 MiB | **135.0 MiB** |
+| Save a 100,000-record semantic snapshot | 0.28–0.38 s | **0.20 s** |
+| Load it | 0.29 s, 460 MiB | **0.23 s**, 403 MiB |
+| 2,000 HNSW searches over 30,000 records | 1.20 s | 1.10 s |
+| Search p95, group of 10,000 identical records | 6.45 ms | 6.22 ms |
+| `find`, `group` and search at 30,000 records | — | within noise (±3%) |
+
+With the same model, SemHash 0.5.0 takes 8.72 s on the 100,000-name semantic run ([multilingual default](#multilingual-default-model-adr-0021)).
+
+- **Blocked dense scan.** For each group of eight queries and each row, the products of the first half of the dimensions come first. The rest is bounded by the product of the norms of the remaining dimensions (Cauchy–Schwarz), plus a rounding margin of `4·n·ε`.
+  - **Skip.** When no query of the group can reach the lane threshold, the row is skipped.
+  - **Otherwise.** The products continue from the same partial sums, so similarities are bit for bit those of the full kernel, and the dense lane keeps returning what the oracle returns.
+- **Scoring without explanations.** Candidates are scored without building per-field explanations and with one vector buffer per query.
+  - **Search** explains only the `limit` matches it keeps.
+  - **`find`** feeds each worker's bounded heap directly and explains the kept pairs once the report is complete.
+  - **`group`** explains none.
+- **Exact buckets.** A bucket holding one ID stores it inline; a tree is built for the second, instead of one tree per distinct record.
+- **Snapshots.** Records and vectors are written and read a few bytes at a time; they are now hashed and written in 64 KiB chunks. The digest and the format are unchanged.
+- **HNSW.** The search explores `max(k, ef_search)` nodes and returns the first `k`. Every request up to `ef_search` is a prefix of one traversal, which is now done once instead of once per doubling of `k`.
+- **Lexical all-pairs.** Posting lists hold slots in increasing order. The entries below the query's slot are skipped by binary search, yet still counted against `max_entries`, so truncation is unchanged.

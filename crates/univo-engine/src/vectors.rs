@@ -211,10 +211,20 @@ impl RecordVectors {
     /// The embedding of each field of the record at `slot`, in schema order,
     /// as [`univo_core::compare_with_vectors`] takes them.
     pub fn record(&self, slot: usize) -> Vec<Option<&[f32]>> {
-        self.fields
-            .iter()
-            .map(|field| field.as_ref().and_then(|field| field.get(slot)))
-            .collect()
+        let mut vectors = Vec::new();
+        self.record_into(slot, &mut vectors);
+        vectors
+    }
+
+    /// [`Self::record`] into `vectors`, replacing its content, so that
+    /// scoring many candidates reuses one buffer.
+    pub fn record_into<'a>(&'a self, slot: usize, vectors: &mut Vec<Option<&'a [f32]>>) {
+        vectors.clear();
+        vectors.extend(
+            self.fields
+                .iter()
+                .map(|field| field.as_ref().and_then(|field| field.get(slot))),
+        );
     }
 
     /// Checks that [`RecordVectors::extend`] would accept `other`, without

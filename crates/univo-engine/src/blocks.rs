@@ -11,7 +11,7 @@
 
 use std::collections::HashMap;
 
-use univo_core::{Result, dot, dots, partition_fingerprint};
+use univo_core::{Result, dot, dots_reaching, partition_fingerprint, rest_norm};
 
 use crate::SearchIndex;
 use crate::search::lane_threshold;
@@ -45,6 +45,15 @@ struct Member<'a> {
     index: usize,
     slot: usize,
     vector: &'a [f32],
+    /// Norm of the dimensions after the prefix [`dots_reaching`] reads first.
+    rest: f32,
+}
+
+/// Chunks of eight dimensions read before deciding whether a row can reach
+/// the threshold for any query of a group: half of them. On ROR names with
+/// the default model, about four rows in five are then skipped at 0.8.
+fn prefix_chunks(dimension: usize) -> usize {
+    dimension / 16
 }
 
 impl SearchIndex {
@@ -125,14 +134,17 @@ impl SearchIndex {
             let Some(field_vectors) = vectors.field(field) else {
                 continue;
             };
+            let prefix = prefix_chunks(field_vectors.dimension());
             let members: Vec<Member<'_>> = block
                 .iter()
                 .enumerate()
                 .filter_map(|(index, &slot)| {
+                    let vector = field_vectors.get(slot)?;
                     Some(Member {
                         index,
                         slot,
-                        vector: field_vectors.get(slot)?,
+                        vector,
+                        rest: rest_norm(vector, prefix),
                     })
                 })
                 .collect();
@@ -157,8 +169,24 @@ impl SearchIndex {
                     return Dense::OverBudget;
                 }
                 let (eights, rest) = members[..ready].as_chunks::<8>();
+                let row_rest = if eights.is_empty() {
+                    0.0
+                } else {
+                    rest_norm(row, prefix)
+                };
                 for group in eights {
-                    let similarities = dots(group.each_ref().map(|member| member.vector), row);
+                    // Exact: a group is skipped only when no query can reach
+                    // the threshold, and computed otherwise as `dots` does.
+                    let Some(similarities) = dots_reaching(
+                        group.each_ref().map(|member| member.vector),
+                        group.each_ref().map(|member| member.rest),
+                        row,
+                        row_rest,
+                        prefix,
+                        threshold,
+                    ) else {
+                        continue;
+                    };
                     for (member, similarity) in group.iter().zip(similarities) {
                         if similarity.clamp(0.0, 1.0) >= threshold {
                             found[member.index][position].push(row_slot);
