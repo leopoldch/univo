@@ -101,7 +101,7 @@ impl PreparedRecord {
 /// partition key is missing; of kind [`crate::ErrorKind::ResourceLimit`]
 /// when a selected value is nested too deeply or the selected values,
 /// identifier and partition keys included, are too large. The error names
-/// the field path and carries a hint; see `docs/errors.md`.
+/// the field path and carries a hint; see `docs/reference/errors.md`.
 pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
     let root = FieldPath::root();
     let mut budget = Budget::new(schema.limits());

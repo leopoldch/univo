@@ -4,7 +4,7 @@ Speed is the main promise of Univo, so resource budgets are tested, not only doc
 
 ## Budgets
 
-[benchmarks/budgets.toml](../benchmarks/budgets.toml) is the single source of enforced budgets. Its values implement the table in [specs/07-performance.md](../specs/07-performance.md). Changing a budget requires updating that specification in the same change, with the reason.
+[benchmarks/budgets.toml](../../benchmarks/budgets.toml) is the single source of enforced budgets. Its values implement the table in [specs/07-performance.md](../../specs/07-performance.md). Changing a budget requires updating that specification in the same change, with the reason.
 
 ## Reference machine
 
@@ -49,12 +49,12 @@ Measured on 2026-10-07: Apple M2, 16 GiB, macOS 27.0.1, Rust 1.99.0, release, on
 | 20,000 | 182.4 ms | 0.521 ms | 0.851 ms | 2.662 ms | 3.055 ms |
 | 40,000 | 718.0 ms | 1.146 ms | 1.739 ms | 5.406 ms | 6.199 ms |
 
-At 40k, current single-addition samples ranged from 1.735 to 1.780 ms without IDs and 6.088 to 6.448 ms with decreasing IDs. The 25 ms insertion budget leaves room for allocator/runtime noise while rejecting the previous dense-bucket sorting cost, including the normal CI slack. It is not an end-to-end ingestion or search-latency target. Ordered ID postings add tree-node storage and another owned ID key; total RSS and byte budgeting remain separate work. See [ADR 0006](adr/0006-incremental-exact-postings.md).
+At 40k, current single-addition samples ranged from 1.735 to 1.780 ms without IDs and 6.088 to 6.448 ms with decreasing IDs. The 25 ms insertion budget leaves room for allocator/runtime noise while rejecting the previous dense-bucket sorting cost, including the normal CI slack. It is not an end-to-end ingestion or search-latency target. Ordered ID postings add tree-node storage and another owned ID key; total RSS and byte budgeting remain separate work. See [ADR 0006](../adr/0006-incremental-exact-postings.md).
 
 
 ## Python Finder (U-011)
 
-[Reproduction script](../benchmarks/performance/python_finder.py), [raw measurements](../benchmarks/performance/finder-macos-arm64.json). On 2026-10-11: Apple M2, 16 GiB RAM, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0; portable CPU release wheel installed outside the repository. Fixed seed 11, 100,000 random 20-character ASCII names and integer IDs, one lexical field, one partition, one thread. Five repeats, 20 warmup queries then 1,000 newly converted queries per repeat (new IDs, one changed character); no model loaded, model footprint zero. Input generation, construction and index destruction are outside add/search timers. The full Python-to-Rust-to-Python path is timed. The final run starts after build/test processes finish; `pmset` reports AC power. Search uses `min_score=0.8`, output limit 10.
+[Reproduction script](../../benchmarks/performance/python_finder.py), [raw measurements](../../benchmarks/performance/finder-macos-arm64.json). On 2026-10-11: Apple M2, 16 GiB RAM, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0; portable CPU release wheel installed outside the repository. Fixed seed 11, 100,000 random 20-character ASCII names and integer IDs, one lexical field, one partition, one thread. Five repeats, 20 warmup queries then 1,000 newly converted queries per repeat (new IDs, one changed character); no model loaded, model footprint zero. Input generation, construction and index destruction are outside add/search timers. The full Python-to-Rust-to-Python path is timed. The final run starts after build/test processes finish; `pmset` reports AC power. Search uses `min_score=0.8`, output limit 10.
 
 | Measurement | Result |
 | --- | --- |
@@ -72,7 +72,7 @@ All query assertions passed; candidate lanes were untruncated and returned the i
 
 ## Python pair report review (#15)
 
-[Reproduction script](../benchmarks/performance/python_find_report.py), [raw comparison](../benchmarks/performance/find-report-macos-arm64.json). On 2026-10-11, Apple M2 with 16 GiB RAM, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, portable CPU release wheels installed outside the repository. The baseline is commit `0e3d491`; the correction retains global output in a bounded heap and sorts once. Each of five repeats starts with a new temporary index: 10,000 records, first 150 identical names, then random 20-character ASCII names (seed 15), integer IDs, one lexical field, one partition, one thread, threshold 1, output limit 10,000. No model is loaded (zero model bytes). Input generation and Finder construction are outside timing; conversion, indexing, retrieval and report conversion are included. Build/test processes finished before measurement.
+[Reproduction script](../../benchmarks/performance/python_find_report.py), [raw comparison](../../benchmarks/performance/find-report-macos-arm64.json). On 2026-10-11, Apple M2 with 16 GiB RAM, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, portable CPU release wheels installed outside the repository. The baseline is commit `0e3d491`; the correction retains global output in a bounded heap and sorts once. Each of five repeats starts with a new temporary index: 10,000 records, first 150 identical names, then random 20-character ASCII names (seed 15), integer IDs, one lexical field, one partition, one thread, threshold 1, output limit 10,000. No model is loaded (zero model bytes). Input generation and Finder construction are outside timing; conversion, indexing, retrieval and report conversion are included. Build/test processes finished before measurement.
 
 Median full `find` falls from 746.7 ms to 98.8 ms. Both versions count 11,175 pairs, retain 10,000 and report no candidate truncation. Process peak RSS (including Python inputs and repeat lifetimes) is 61.5 MiB before and 62.2 MiB after. This measures an early dense group followed by a sparse tail, not semantic scans, quality or a universal latency guarantee.
 
@@ -80,16 +80,16 @@ The corrected macOS arm64 wheel is 1.663 MiB compressed, with no dependency chan
 
 ## Semantic embedding reuse (U-013)
 
-[Reproduction script](../benchmarks/performance/python_embedding_cache.py), [raw measurements](../benchmarks/performance/embedding-cache-macos-arm64.json). Apple M2 (8 cores), 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, portable CPU release macOS arm64 wheel installed outside the repository. The pinned default potion-base-8M model is local (29.49 MiB for the three required files), with files already in OS cache. One thread, five repeats per cache setting, fresh Finder per repeat, 1,000 synthetic English descriptions of about 30 words with integer IDs, 1,000 partitions (one target each). Input generation and construction are outside timing. Full add includes local model loading and conversion. Each repeat warms 20 queries, then times 1,000 complete search calls with reused selected text, new query IDs and changed unselected metadata, threshold 0.8, output limit 10.
+[Reproduction script](../../benchmarks/performance/python_embedding_cache.py), [raw measurements](../../benchmarks/performance/embedding-cache-macos-arm64.json). Apple M2 (8 cores), 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, portable CPU release macOS arm64 wheel installed outside the repository. The pinned default potion-base-8M model is local (29.49 MiB for the three required files), with files already in OS cache. One thread, five repeats per cache setting, fresh Finder per repeat, 1,000 synthetic English descriptions of about 30 words with integer IDs, 1,000 partitions (one target each). Input generation and construction are outside timing. Full add includes local model loading and conversion. Each repeat warms 20 queries, then times 1,000 complete search calls with reused selected text, new query IDs and changed unselected metadata, threshold 0.8, output limit 10.
 
 Median of five search p95 values: 0.0721 ms with cache disabled, 0.0218 ms with the default 4 MiB cache. Median full add including local model load is 59.2 ms without cache and 59.9 ms with cache; this small difference is within measurement noise. The cache retains 1,000 entries in 1,475,218 accounted bytes, with 1,000 misses, 1,020 hits and zero evictions in the final repeat. All queries return the expected record without truncation.
 
-This workload isolates semantic-text reuse rather than large-partition retrieval. It does not imply that cache hits accelerate every 100k search by the same ratio or improve quality. Process peak RSS across both settings/repeat lifetimes is recorded in the raw file; cache bytes are a conservative retained estimate, not an isolated RSS delta or peak bound. The measured compressed wheel is approximately 1.672 MiB; no dependency is added. The real-model U-012 threshold, held-out/group metrics, candidate/oracle results and critical regression measurements remain exactly equal. See the [cache contract](embedding-cache.md).
+This workload isolates semantic-text reuse rather than large-partition retrieval. It does not imply that cache hits accelerate every 100k search by the same ratio or improve quality. Process peak RSS across both settings/repeat lifetimes is recorded in the raw file; cache bytes are a conservative retained estimate, not an isolated RSS delta or peak bound. The measured compressed wheel is approximately 1.672 MiB; no dependency is added. The real-model U-012 threshold, held-out/group metrics, candidate/oracle results and critical regression measurements remain exactly equal. See the [cache contract](../guide/embedding-cache.md).
 
 ## Explicit snapshots (U-014)
 
-[Reproduction script](../benchmarks/performance/python_snapshots.py),
-[raw measurements](../benchmarks/performance/snapshots-macos-arm64.json). On
+[Reproduction script](../../benchmarks/performance/python_snapshots.py),
+[raw measurements](../../benchmarks/performance/snapshots-macos-arm64.json). On
 2026-10-12: Apple M2, 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0,
 AC power, portable CPU release wheel installed outside the repository. Local
 system temporary storage, OS-cache warm files, one thread, five fresh Finder
@@ -131,14 +131,14 @@ transitive/native dependency). Installed-wheel tests pass 1,095 tests on each of
 CPython 3.12 and 3.14 outside the source tree with Rust absent from PATH; one
 conditional skip each. Rust codec/property tests and affected engine suites pass
 in release, including abrupt process exits at twelve boundaries and a real-model
-whole-batch versus chunked-row oracle. The [persistence contract](persistence.md)
+whole-batch versus chunked-row oracle. The [persistence contract](../guide/persistence.md)
 documents Windows directory-sync and retained-generation limitations. Other
 platform results await native CI; no release is published by U-014.
 
 ## U-015 mutations and compaction
 
-[Reproduction script](../benchmarks/performance/python_mutations.py) and
-[raw samples](../benchmarks/performance/mutations-macos-arm64.json). Release abi3 wheel,
+[Reproduction script](../../benchmarks/performance/python_mutations.py) and
+[raw samples](../../benchmarks/performance/mutations-macos-arm64.json). Release abi3 wheel,
 Apple M2 / 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, one thread.
 Five fresh processes per size, warm local potion-base-8M files at the U-014
 pinned revision (29.49 MiB, dimension 256), cache disabled. Synthetic integer
@@ -171,7 +171,7 @@ indexes, matrices and allocator high-water effects. It does **not** demonstrate
 the 512 MiB incremental engine target. That budget remains unchanged and open;
 compaction latency and peak memory need profiling before release. Removal only
 masks data immediately; obsolete records/vectors are reclaimed on a later
-mutation's compaction. See the [mutation contract](mutations.md).
+mutation's compaction. See the [mutation contract](../guide/mutations.md).
 
 Validation: 208 Rust workspace tests pass (nine performance-budget tests ignored
 in debug); seven mutation tests and engine snapshot units pass in release.
@@ -186,9 +186,9 @@ no release or merge is performed by this implementation.
 
 ## U-016 explicit HNSW
 
-[Protocol and vector recall](../benchmarks/spikes/ann-backends/README.md),
-[script](../benchmarks/performance/python_ann.py) and
-[raw samples](../benchmarks/performance/ann-macos-arm64.json). Release abi3
+[Protocol and vector recall](../../benchmarks/spikes/ann-backends/README.md),
+[script](../../benchmarks/performance/python_ann.py) and
+[raw samples](../../benchmarks/performance/ann-macos-arm64.json). Release abi3
 wheel, Apple M2 / 16 GiB RAM, macOS 27.0.1, Python 3.14.7, Rust 1.99.0.
 Pinned local potion-base-8M (29.49 MiB, dimension 256), no downloads,
 embedding cache disabled. Synthetic ID/tenant/20-character name/32-word
@@ -278,7 +278,7 @@ CI success is claimed. No model change, release or merge.
 
 ## Parallel all-pairs reports (ADR 0018)
 
-[Script](../benchmarks/comparison/scale.py), [raw results](../benchmarks/performance/all-pairs-macos-arm64.jsonl), U-003 protocol: synthetic company names in one partition, one record in ten a near-duplicate with a typo, `min_score=0.8`, pairs turned into removals by SemHash's rule inside the timed section. Apple M2 (4 performance and 4 efficiency cores), 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, release build, potion-base-8M at `bf8b0566` in OS cache, one run per line, one process at a time. Wall time includes model loading; CPU time covers deduplication on every thread.
+[Script](../../benchmarks/comparison/scale.py), [raw results](../../benchmarks/performance/all-pairs-macos-arm64.jsonl), U-003 protocol: synthetic company names in one partition, one record in ten a near-duplicate with a typo, `min_score=0.8`, pairs turned into removals by SemHash's rule inside the timed section. Apple M2 (4 performance and 4 efficiency cores), 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, release build, potion-base-8M at `bf8b0566` in OS cache, one run per line, one process at a time. Wall time includes model loading; CPU time covers deduplication on every thread.
 
 | Records | Configuration | Before (U-003) | 1 thread | 8 threads | CPU, 8 threads | Peak RSS, 8 threads |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -292,16 +292,16 @@ CI success is claimed. No model change, release or merge.
 | 100,000 | semantic, exact | 251 s | 126 s | **66.5 s** | 485 s | 314 MiB |
 | 100,000 | semantic, HNSW | 220 s | | 113 s | 343 s | 518 MiB |
 
-Every configuration removes the same records as before. For reference, SemHash 0.5.0 takes 1.0 s, 2.5 s and 14 s on the same data with every core ([U-003](../benchmarks/comparison/README.md)).
+Every configuration removes the same records as before. For reference, SemHash 0.5.0 takes 1.0 s, 2.5 s and 14 s on the same data with every core ([U-003](../../benchmarks/comparison/README.md)).
 
 - **Half the comparisons.** An all-pairs query now scans only the records after it, in the lexical verification and the dense semantic scan: one thread is about twice as fast.
-- **Threads.** Lexical reports scale to 5.1× on 8 threads at 100,000 records. Dense semantic reports stop at 1.9× there: each query streams every later vector from memory, up to 100 MB at 100,000 records, so memory bandwidth, not arithmetic, bounds them from about 4 threads. [ADR 0019](adr/0019-blocked-dense-all-pairs.md) measures this cause in isolation and compares blocks of queries with each vector read.
+- **Threads.** Lexical reports scale to 5.1× on 8 threads at 100,000 records. Dense semantic reports stop at 1.9× there: each query streams every later vector from memory, up to 100 MB at 100,000 records, so memory bandwidth, not arithmetic, bounds them from about 4 threads. [ADR 0019](../adr/0019-blocked-dense-all-pairs.md) measures this cause in isolation and compares blocks of queries with each vector read.
 - **HNSW** stays slower than the exhaustive scan up to 30,000 records; its graph is still built on one thread.
 - **Small calls.** With `threads=1`, a lexical index creates no pool: `find` of 20 records takes 483 µs against 510 µs before, and `group` 83 µs against 85 µs (median of five runs of 2,000 calls). With `threads=4`, creating the index's pool adds about 25 µs to `find` and 50 µs to `group`.
 
 ## Blocked dense all-pairs (ADR 0019)
 
-**Cause, in isolation.** [`dense_bandwidth`](../crates/univo-engine/examples/dense_bandwidth.rs) times the scoring cosine of 256-dimensional vectors, query by query or in blocks of 64 queries sharing each row read, with the vectors in cache (1 MB) or in memory (100 MB, a 100,000-record partition). [Raw output](../benchmarks/performance/dense-bandwidth-macos-arm64.csv); best of three, Apple M2 on battery at full charge, low-power mode off.
+**Cause, in isolation.** [`dense_bandwidth`](../../crates/univo-engine/examples/dense_bandwidth.rs) times the scoring cosine of 256-dimensional vectors, query by query or in blocks of 64 queries sharing each row read, with the vectors in cache (1 MB) or in memory (100 MB, a 100,000-record partition). [Raw output](../../benchmarks/performance/dense-bandwidth-macos-arm64.csv); best of three, Apple M2 on battery at full charge, low-power mode off.
 
 | Vectors | Mode | 1 thread | 4 threads | 8 threads | Read on 8 threads |
 | --- | --- | --- | --- | --- | --- |
@@ -312,7 +312,7 @@ Every configuration removes the same records as before. For reference, SemHash 0
 
 Query by query, the in-memory scan stops near the M2's nominal 100 GB/s from 4 threads, and 8 threads are slower than 4; in cache the same work scales to 4.7×. In blocks, cache and memory give the same times: the scan no longer depends on memory bandwidth.
 
-**End to end.** U-003 workload (synthetic names, one partition, `min_score=0.8`, [script](../benchmarks/comparison/scale.py)), model load included, same conditions; [raw results](../benchmarks/performance/blocked-dense-macos-arm64.jsonl).
+**End to end.** U-003 workload (synthetic names, one partition, `min_score=0.8`, [script](../../benchmarks/comparison/scale.py)), model load included, same conditions; [raw results](../../benchmarks/performance/blocked-dense-macos-arm64.jsonl).
 
 | Records | Before, 1 thread | Blocked, 1 thread | Before, 8 threads | Blocked, 8 threads | CPU, 8 threads | Peak RSS, 8 threads | SemHash 0.5.0 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -324,11 +324,11 @@ Every run removes the same records as before. Univo's search is exact; SemHash's
 
 **Memory of similar data.** Blocks hold at most 2^20 candidates and split when they would hold more. 100,000 records with identical vectors, `groups(max_pairs=1)` on 8 threads, peak RSS above the index: 1,385 MiB with 16 semantic fields before the bound, 129 MiB with it; 153 MiB and 62 MiB with one field.
 
-The all-pairs harness [`all_pairs`](../crates/univo-engine/examples/all_pairs.rs) gives 11.2 ns per pair on one thread at 20,000 records, against 26.5 ns for the same kernel left to the compiler's vectorizer.
+The all-pairs harness [`all_pairs`](../../crates/univo-engine/examples/all_pairs.rs) gives 11.2 ns per pair on one thread at 20,000 records, against 26.5 ns for the same kernel left to the compiler's vectorizer.
 
 ## Multilingual default model (ADR 0021)
 
-The default model now has 128 dimensions instead of 256 ([ADR 0021](adr/0021-multilingual-default-model.md)). Model-level budgets, release build, same reference machine:
+The default model now has 128 dimensions instead of 256 ([ADR 0021](../adr/0021-multilingual-default-model.md)). Model-level budgets, release build, same reference machine:
 
 | Measure | potion-base-8M | New default |
 | --- | --- | --- |
@@ -340,7 +340,7 @@ The default model now has 128 dimensions instead of 256 ([ADR 0021](adr/0021-mul
 
 Loading is slower because the tokenizer and the vocabulary are larger (105,879 tokens); it happens once per Finder, at the first semantic use.
 
-**End to end.** Same U-003 workload as above, every core, model load included. Both tools use the new default model. Release wheel installed outside the tree, SemHash 0.5.0, on battery at 96%, low-power mode off; [raw results](../benchmarks/performance/default-model-macos-arm64.jsonl).
+**End to end.** Same U-003 workload as above, every core, model load included. Both tools use the new default model. Release wheel installed outside the tree, SemHash 0.5.0, on battery at 96%, low-power mode off; [raw results](../../benchmarks/performance/default-model-macos-arm64.jsonl).
 
 | Records | Univo, potion-base-8M | Univo, new default | CPU | Peak RSS | SemHash, new default |
 | --- | --- | --- | --- | --- | --- |
@@ -416,7 +416,7 @@ Same machine, the change as first published against the change with the review f
 
 ## Lexical signatures
 
-Each record of a lexical field keeps a 128-bit signature of its trigrams. Before the scoring function verifies a candidate, upper bounds of its Jaccard index and edit similarity, derived from the signatures, must allow the threshold ([lexical candidates](lexical-search.md#how-the-search-stays-complete)). The search stays exact.
+Each record of a lexical field keeps a 128-bit signature of its trigrams. Before the scoring function verifies a candidate, upper bounds of its Jaccard index and edit similarity, derived from the signatures, must allow the threshold ([lexical candidates](../design/lexical-search.md#how-the-search-stays-complete)). The search stays exact.
 
 Apple M2 on battery, release wheels outside the source tree, one partition, minimum score 0.8, every core. The change before and after alternated in ABBA order:
 
@@ -434,7 +434,7 @@ Apple M2 on battery, release wheels outside the source tree, one partition, mini
 
 ## Lexical character counts
 
-The summary of each short text adds its character counts in 32 hashed buckets to its trigram signature. The bag distance of two texts, the larger of the characters each has in excess, bounds their edit distance from below. It completes the q-gram bound, which edit distances let through on names that share words ([lexical candidates](lexical-search.md#how-the-search-stays-complete)).
+The summary of each short text adds its character counts in 32 hashed buckets to its trigram signature. The bag distance of two texts, the larger of the characters each has in excess, bounds their edit distance from below. It completes the q-gram bound, which edit distances let through on names that share words ([lexical candidates](../design/lexical-search.md#how-the-search-stays-complete)).
 
 **Profile on ROR names.** 100,000 ROR names, minimum score 0.8, on `main`.
 - **Where the time went.** About 70% of the busy time was scoring candidates and 20% reading postings; the signature check took 2%.

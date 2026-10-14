@@ -1,6 +1,6 @@
 //! All-pairs `find` over one partition of lexical names read from a file,
 //! one per line, at minimum score 0.8 on a given number of threads: the
-//! cost of the lexical lane and its bounds (`docs/lexical-search.md`).
+//! cost of the lexical lane and its bounds (`docs/design/lexical-search.md`).
 //! Prints the time, the matches and a hash of the whole report, so that
 //! two builds can be checked for identical results.
 //!

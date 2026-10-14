@@ -1,6 +1,6 @@
-# Exact index (U-007)
+# Exact index
 
-`univo-engine` indexes prepared Rust records for equality after normalization. It does not yet provide lexical or semantic search, Python `Finder`, persistence or replacement/removal. Its prerequisite is U-006. Acceptance is agreement with the exhaustive `exact_match` oracle, no false match under forced hash collisions, no cross-partition match and no partial insertion on an invalid batch.
+`univo-engine` indexes prepared Rust records for equality after normalization: the exact lane of [search](search.md). Its acceptance is agreement with the exhaustive `exact_match` oracle, no false match under forced hash collisions, no cross-partition match and no partial insertion on an invalid batch.
 
 ```rust
 use univo_core::{Schema, Value, prepare};

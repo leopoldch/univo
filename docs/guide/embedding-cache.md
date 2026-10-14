@@ -1,4 +1,4 @@
-# Embedding cache (U-013)
+# Embedding cache
 
 Each Finder has a lazy, Rust-only cache shared by its persistent index and temporary `find` indexes. Only semantic fields use it. The default retained budget is 4 MiB; disable retention with `Finder(embedding_cache_bytes=0)`. Construction and import create no cache storage, load no model and access no network.
 
@@ -44,10 +44,8 @@ Atomic add and read-only search describe the record index, not the memoization c
 
 Counting Rust encoders prove reuse across add/query/indexes, normalized Unicode equality, absent vectors, FIFO re-encoding and synchronized warm reads. Budget tests exercise tiny limits, container growth and oversized keys; compatibility tests change file digests, dimensions, backend and source. Plain, cold and warm vectors agree exactly. Installed-wheel tests cover field-local changes, unselected data, disabled retention, limits, diagnostics and normalization explanations.
 
-The real default-model quality evaluator reproduces the merged U-012 threshold, held-out/group metrics, candidate/oracle counts and critical regression results exactly. [Performance measurements](performance.md) isolate repeated semantic text reuse; they do not imply a speedup for every large-partition search.
+The real default-model quality evaluator reproduces the merged U-012 threshold, held-out/group metrics, candidate/oracle counts and critical regression results exactly. [Performance measurements](../development/performance.md) isolate repeated semantic text reuse; they do not imply a speedup for every large-partition search.
 
-Final installed macOS arm64 wheel validation: 1,080 Python/tool/corpus tests pass on CPython 3.12 and 3.14 outside the source tree with Rust absent from PATH (three conditional skips). The workspace Rust suite passes, as do 25 affected release cache/vector/oracle tests. Formatting, clippy, mypy, ruff, documentation links, wheel layout/size and native dependency checks pass. No new transitive dependency or network crate is linked.
+Temporary field encoding is bounded to at most 1,024 distinct texts per call and approximately 1 MiB of float output (one row minimum), instead of retaining a corpus-sized encoder matrix and Arc row list. Deduplication/row references remain global and a late failure leaves the index unchanged; earlier cache publication may remain. This controls active inference buffers, not the whole index or RSS. See the [snapshot measurements](../development/performance.md).
 
-U-014 bounds temporary field encoding to at most 1,024 distinct texts per call and approximately 1 MiB of float output (one row minimum), instead of retaining a corpus-sized encoder matrix and Arc row list. Deduplication/row references remain global and a late failure leaves the index unchanged; earlier cache publication may remain. This controls active inference buffers, not the whole index or RSS. See the [snapshot measurements](performance.md).
-
-U-015 upsert additionally reuses stored vectors for unchanged normalized semantic fields, independently of cache contents or eviction. Removed records disappear from search immediately, but compatible text entries may remain in the bounded cache until eviction; no secure-erasure guarantee is made. See [mutations](mutations.md).
+`upsert` also reuses stored vectors for unchanged normalized semantic fields, independently of cache contents or eviction. Removed records disappear from search immediately, but compatible text entries may remain in the bounded cache until eviction; no secure-erasure guarantee is made. See [mutations](mutations.md).

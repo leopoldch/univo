@@ -1,6 +1,6 @@
 //! Differential test against the critical corpus: the Rust normalizers and
 //! the exact rule must reproduce every label of tests/fixtures/critical,
-//! whose consistency with docs/duplicate-definitions.md is checked by an
+//! whose consistency with docs/reference/duplicate-definitions.md is checked by an
 //! independent Python oracle in tests/corpus.
 
 use univo_core::{Map, Schema, Text, Transforms, Value, exact_match, is_exact_match, prepare};

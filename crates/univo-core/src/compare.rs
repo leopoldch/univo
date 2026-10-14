@@ -1,6 +1,6 @@
 //! Pairwise comparison of prepared records: a similarity per field, a
 //! weighted score, its coverage, and the contradictions found. The rules are
-//! in `docs/scoring.md`; scores rank pairs and are not probabilities.
+//! in `docs/reference/scoring.md`; scores rank pairs and are not probabilities.
 
 use std::cmp::Ordering;
 

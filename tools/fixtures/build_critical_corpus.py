@@ -3,7 +3,7 @@
 The table is the reviewed source of truth. Case identifiers are written by
 hand and never reused or renumbered: a new case takes the next free number of
 its family, and a retired case keeps its number out of circulation. Labels
-follow docs/duplicate-definitions.md. All records are synthetic.
+follow docs/reference/duplicate-definitions.md. All records are synthetic.
 
 Usage:
     python tools/fixtures/build_critical_corpus.py          # rewrite fixture and README coverage

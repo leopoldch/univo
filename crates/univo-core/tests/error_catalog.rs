@@ -2,7 +2,7 @@
 //!
 //! The examples check that each code is reachable, that messages name paths
 //! and types but never field values, and they generate the catalog in
-//! `docs/errors.md`, which bindings for every language share. Regenerate it
+//! `docs/reference/errors.md`, which bindings for every language share. Regenerate it
 //! with `UNIVO_UPDATE_DOCS=1 cargo test -p univo-core --test error_catalog`.
 
 use std::collections::BTreeSet;
@@ -357,7 +357,7 @@ fn catalog() -> String {
 
 #[test]
 fn documentation_matches_the_catalog() {
-    let docs = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/errors.md");
+    let docs = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/reference/errors.md");
     let current = std::fs::read_to_string(&docs).unwrap();
     let start = current.find(START).unwrap() + START.len();
     let end = current.find(END).unwrap();
@@ -368,6 +368,6 @@ fn documentation_matches_the_catalog() {
     }
     assert!(
         current == expected,
-        "docs/errors.md is stale; run UNIVO_UPDATE_DOCS=1 cargo test -p univo-core --test error_catalog"
+        "docs/reference/errors.md is stale; run UNIVO_UPDATE_DOCS=1 cargo test -p univo-core --test error_catalog"
     );
 }

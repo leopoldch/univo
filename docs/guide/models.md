@@ -1,6 +1,6 @@
 # Models, cache and offline use
 
-Univo computes text embeddings locally with a static [Model2Vec](https://github.com/MinishLab/model2vec) model ([ADR 0007](adr/0007-default-embedding-model.md), [ADR 0021](adr/0021-multilingual-default-model.md)). Records never leave the machine. The only network access is the download of model files, on first use, and it can be done in advance or forbidden.
+Univo computes text embeddings locally with a static [Model2Vec](https://github.com/MinishLab/model2vec) model ([ADR 0007](../adr/0007-default-embedding-model.md), [ADR 0021](../adr/0021-multilingual-default-model.md)). Records never leave the machine. The only network access is the download of model files, on first use, and it can be done in advance or forbidden.
 
 ## Choosing a model
 
@@ -66,4 +66,4 @@ Private or gated repositories are not supported yet: download them with your own
 | `model.integrity` | `ModelIntegrityError` | A file differs from its expected size or digest |
 | `model.corrupt` | `ModelIntegrityError` | The files cannot be read as a model |
 
-See the [error catalog](errors.md) for messages and hints.
+See the [error catalog](../reference/errors.md) for messages and hints.

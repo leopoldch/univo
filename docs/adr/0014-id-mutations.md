@@ -23,7 +23,7 @@ indépendamment de l'ancien. Les représentations lexicales préparées du nouve
 record restent produites lors de la conversion/normalisation bornée.
 
 Reconstruire périodiquement les lanes et matrices sans inference, selon le
-[contrat de mutations](../mutations.md). Une mutation courante travaille sur son
+[contrat de mutations](../guide/mutations.md). Une mutation courante travaille sur son
 lot et ses champs ; la reconstruction amortit le coût global et borne les slots
 à deux fois la capacité active. Exposer les tombstones et slots retenus.
 Les snapshots écrivent une vue active dense au format v1, sans copie de toute
@@ -51,7 +51,7 @@ Des encodeurs comptants vérifient l'absence d'inférence sur champs inchangés,
 résultats sans tokens, compaction et restauration, avec cache désactivé.
 Les tests couvrent capacité, IDs répétés/typés, échec d'inférence, snapshots
 actifs et génération épuisée. Les mesures release de mutation et les résultats
-de validation sont consignés dans [performance](../performance.md).
+de validation sont consignés dans [performance](../development/performance.md).
 
 ## Consequences
 

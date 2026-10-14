@@ -3,7 +3,7 @@
 //! These tests need the default model's files: they run only when
 //! `UNIVO_TEST_MODEL_DIR` names a directory holding them, and verify the
 //! files against the pinned checksums first. Budgets apply to release builds
-//! on the reference machine described in `docs/performance.md`; shared CI
+//! on the reference machine described in `docs/development/performance.md`; shared CI
 //! runners multiply time budgets by `UNIVO_PERF_SLACK`.
 
 use std::path::PathBuf;

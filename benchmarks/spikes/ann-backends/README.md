@@ -90,4 +90,4 @@ L'option `--snapshot` mesure aussi save/load et reconstruction ; les résultats
 bruts indiquent les processus qui incluent ces phases. Leur RSS maximal inclut
 l'ancien Finder et le nouveau pendant load, les inputs Python et le modèle ;
 il ne démontre pas le budget incrémental moteur de 512 Mio.
-Les [mesures](../../../docs/performance.md) publient médiane et dispersion.
+Les [mesures](../../../docs/development/performance.md) publient médiane et dispersion.

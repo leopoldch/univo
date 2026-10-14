@@ -70,7 +70,7 @@ outside the supported concurrency contract.
 
 Completed old generations are retained so open readers remain valid. Ordinary
 failed saves clean up their unpublished generation; a terminated process can
-leave an orphan. There is no automatic garbage collection in U-014. Repeated
+leave an orphan. There is no automatic garbage collection. Repeated
 saves therefore consume cumulative disk space; remove obsolete generations only
 when no readers/writers use the snapshot directory, keeping CURRENT and its
 referenced generation.
@@ -95,7 +95,7 @@ Incompatible state is refused with an instruction to rebuild from original
 records. There is no migration or silent model/normalizer substitution. Thresholds
 are search-call options and may change without reencoding; a previously truncated
 report cannot recover missing candidates by itself. Error codes are listed in the
-[error catalogue](errors.md). See [ADR 0013](adr/0013-versioned-snapshots.md).
+[error catalogue](../reference/errors.md). See [ADR 0013](../adr/0013-versioned-snapshots.md).
 
 ## Version-1 wire layout
 
@@ -131,9 +131,9 @@ this version, never the sole proof of compatibility.
 
 ## Mutations et vue active
 
-U-015 snapshots contain only active records and referenced vector rows, preserving external typed IDs and the logical generation. Row remapping streams the original float buffers; no full matrix copy is needed for save. Format v1 remains unchanged and old snapshots remain readable. Load drops in-memory tombstones and supports further upsert/remove without reencoding unchanged semantic fields. Older saved generations can still contain records removed afterward; no automatic disk erasure is promised. See [mutations](mutations.md).
+Snapshots contain only active records and referenced vector rows, preserving external typed IDs and the logical generation. Row remapping streams the original float buffers; no full matrix copy is needed for save. Format v1 remains unchanged and old snapshots remain readable. Load drops in-memory tombstones and supports further upsert/remove without reencoding unchanged semantic fields. Older saved generations can still contain records removed afterward; no automatic disk erasure is promised. See [mutations](mutations.md).
 
-## U-016 ANN metadata
+## Approximate index metadata
 
 The v1 manifest optionally stores `ann` with the complete versioned routing
 identity. Dense snapshots omit it. Readers unaware of this property reject

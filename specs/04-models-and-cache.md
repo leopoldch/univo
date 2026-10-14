@@ -45,7 +45,7 @@ Un changement de description n’invalide pas les vecteurs des autres objets. Un
 
 Cache en mémoire borné en octets, avec éviction documentée ; cache disque optionnel ensuite. Compteurs hits/misses et octets estimés. Ne pas accumuler des références Python pour conserver ce cache.
 
-U-013 implements a Finder-scoped, lazy Rust cache shared with temporary find indexes. The immutable namespace verifies the complete model descriptor; only normalized semantic text enters this process-local cache. FIFO eviction defaults to 4 MiB of conservative retained allocation estimates, configurable with `embedding_cache_bytes` or disabled at zero. Payload and container capacity are accounted, with separate hit/miss/eviction/entry/byte counters. No Python references or disk state are retained. See the [cache contract](../docs/embedding-cache.md) and [ADR 0012](../docs/adr/0012-bounded-embedding-cache.md).
+U-013 implements a Finder-scoped, lazy Rust cache shared with temporary find indexes. The immutable namespace verifies the complete model descriptor; only normalized semantic text enters this process-local cache. FIFO eviction defaults to 4 MiB of conservative retained allocation estimates, configurable with `embedding_cache_bytes` or disabled at zero. Payload and container capacity are accounted, with separate hit/miss/eviction/entry/byte counters. No Python references or disk state are retained. See the [cache contract](../docs/guide/embedding-cache.md) and [ADR 0012](../docs/adr/0012-bounded-embedding-cache.md).
 
 ### Téléchargement
 

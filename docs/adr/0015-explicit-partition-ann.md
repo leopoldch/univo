@@ -37,7 +37,7 @@ ne construit aucun graphe ANN.
 Ne pas utiliser le format persistant/mmap de la dépendance : snapshots
 Univo validés, vecteurs conservés, identité ANN versionnée dans le manifest,
 reconstruction sans inférence. Les paramètres entrent dans le fingerprint.
-Le [contrat](../ann.md) décrit flags, plafonds, mutations, coûts et
+Le [contrat](../guide/ann.md) décrit flags, plafonds, mutations, coûts et
 variations du rappel après reconstruction.
 
 ## Alternatives
@@ -82,7 +82,7 @@ manifest incompatible, reconstruction sans inférence et oracle conservé.
 La wheel arm64 macOS mesure 1,789 Mio contre 1,762 Mio U-015 : environ
 27 Kio supplémentaires compressés. Aucun runtime Python ni C++ ajouté ;
 115 noms de crates liés contre 112, sept versions de packages supplémentaires.
-Les mesures complètes installed-wheel sont dans [performance](../performance.md).
+Les mesures complètes installed-wheel sont dans [performance](../development/performance.md).
 
 ## Consequences
 

@@ -1,5 +1,5 @@
 //! Normalization of compared values, as defined in
-//! `docs/duplicate-definitions.md`.
+//! `docs/reference/duplicate-definitions.md`.
 //!
 //! Every function reports which [`Transforms`] changed its input, so that an
 //! exact match can explain what it ignored.

@@ -1,12 +1,12 @@
 # Pairwise scoring
 
-How two prepared records are compared, field by field, into a score, a coverage and a list of contradictions. This implements [specs/03-matching.md §10](../specs/03-matching.md) with the lexical signals of U-008 and the semantic similarity of U-010 ([ADR 0009](adr/0009-semantic-evidence-in-scoring.md)). The rules are versioned by `SCORING_VERSION`, now 3: any change in a similarity, a signal or a score increments it. Version 3 adds acronym evidence ([ADR 0022](adr/0022-acronym-evidence.md)); snapshots saved with an earlier version are refused and must be rebuilt from the records.
+How two prepared records are compared, field by field, into a score, a coverage and a list of contradictions. This implements [specs/03-matching.md §10](../../specs/03-matching.md) with the lexical signals of U-008 and the semantic similarity of U-010 ([ADR 0009](../adr/0009-semantic-evidence-in-scoring.md)). The rules are versioned by `SCORING_VERSION`, now 3: any change in a similarity, a signal or a score increments it. Version 3 adds acronym evidence ([ADR 0022](../adr/0022-acronym-evidence.md)); snapshots saved with an earlier version are refused and must be rebuilt from the records.
 
 Scores rank pairs. **They are not probabilities**, and no threshold is defined here: thresholds are calibrated on a separate dataset (U-012).
 
 ## Comparing two records
 
-`compare(schema, left, right)` takes two records prepared with the same schema; `compare_with_vectors` also takes the embeddings of their semantic fields, as the engine computes them (see [vector search](vector-search.md)). Without embeddings, semantic fields give no evidence.
+`compare(schema, left, right)` takes two records prepared with the same schema; `compare_with_vectors` also takes the embeddings of their semantic fields, as the engine computes them (see [vector search](../design/vector-search.md)). Without embeddings, semantic fields give no evidence.
 
 - Records of different partitions are never compared: the result is `None`.
 - Records prepared with another schema are refused with `state.schema_mismatch`.
@@ -36,7 +36,7 @@ Both work on the normalized text: NFC, case folded unless the field disables it.
   - It catches typos in short strings, where trigrams are least informative.
 - **Trigram similarity**: Jaccard index of the sets of character trigrams of the text padded with two spaces at each end.
 
-`lexical_similarity` is this rule, shared with the lexical index ([lexical candidates](lexical-search.md)), so that candidates and scores never disagree.
+`lexical_similarity` is this rule, shared with the lexical index ([lexical candidates](../design/lexical-search.md)), so that candidates and scores never disagree.
   - Trigrams are extracted once, when a record is prepared, and kept sorted, so a comparison is a linear merge.
   - Only lexical and hybrid text fields keep them, which is why the text mode belongs to the schema's preparation fingerprint.
 
@@ -49,13 +49,13 @@ A text is the acronym of another when it is one word of 5 to 10 letters or digit
 - **Names, not descriptions.** A text with 20 spaces or more has no initials.
 - **Cost.** The acronym and the initials are hashed once, when the record is prepared, and when a snapshot is loaded. A comparison first compares these hashes, then confirms on the texts.
 
-The rule applies to lexical, hybrid and semantic fields alike, and the [acronym lane](search.md) finds these pairs whatever their lexical or semantic similarity. The measurements are in [ADR 0022](adr/0022-acronym-evidence.md).
+The rule applies to lexical, hybrid and semantic fields alike, and the [acronym lane](../design/search.md) finds these pairs whatever their lexical or semantic similarity. The measurements are in [ADR 0022](../adr/0022-acronym-evidence.md).
 
 ## Semantic signal
 
-A semantic field compares the unit embeddings of its two normalized texts, from the model chosen for the index ([models](models.md)). The similarity is their cosine clamped to `[0, 1]`: opposite and unrelated texts are equally dissimilar. A text without any token the model knows has no embedding, and the field then gives no evidence rather than a made-up similarity.
+A semantic field compares the unit embeddings of its two normalized texts, from the model chosen for the index ([models](../guide/models.md)). The similarity is their cosine clamped to `[0, 1]`: opposite and unrelated texts are equally dissimilar. A text without any token the model knows has no embedding, and the field then gives no evidence rather than a made-up similarity.
 
-Hybrid fields are scored lexically. On the critical corpus, adding their cosine to the score, as the larger or the mean of both signals, lowered the ranking quality; the measurements are in [ADR 0009](adr/0009-semantic-evidence-in-scoring.md).
+Hybrid fields are scored lexically. On the critical corpus, adding their cosine to the score, as the larger or the mean of both signals, lowered the ranking quality; the measurements are in [ADR 0009](../adr/0009-semantic-evidence-in-scoring.md).
 
 ## Score and coverage
 
@@ -91,4 +91,4 @@ The comparison lists, for each field in schema order, its similarity, its signal
 - Release budgets: one million comparisons of standard records in 550 ms (311 ms measured at U-008, 333 ms with acronym evidence) and of configurations with nested parameters in 250 ms (143 ms, then 158 ms).
 
 
-U-011 search preserves verified whole-record equality when the pairwise score is absent because semantic tokens have no embedding. This is engine `SEARCH_VERSION=1`, independent of `SCORING_VERSION=2`; it assigns exact evidence only after the complete equality oracle succeeds, and does not turn partial unknown-token equality into semantic evidence. See [ADR 0010](adr/0010-python-finder-and-exact-fallback.md).
+Search preserves verified whole-record equality when the pairwise score is absent because semantic tokens have no embedding. This is engine `SEARCH_VERSION=1`, independent of `SCORING_VERSION=2`; it assigns exact evidence only after the complete equality oracle succeeds, and does not turn partial unknown-token equality into semantic evidence. See [ADR 0010](../adr/0010-python-finder-and-exact-fallback.md).

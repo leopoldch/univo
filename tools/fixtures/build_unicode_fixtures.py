@@ -2,7 +2,7 @@
 
 CPython's unicodedata and str.casefold are an independent implementation of
 NFC and full case folding. The fixtures pin the expected output of the text
-and hostname normalizers defined in docs/duplicate-definitions.md:
+and hostname normalizers defined in docs/reference/duplicate-definitions.md:
 
 - text_codepoints.tsv: every code point whose folded text form differs from
   itself;

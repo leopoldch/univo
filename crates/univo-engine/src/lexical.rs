@@ -3,7 +3,7 @@
 //! index of character trigrams instead of comparing every pair.
 //!
 //! The search is complete for the field's similarity, the larger of the
-//! edit similarity and the trigram Jaccard index (`docs/scoring.md`), unless
+//! edit similarity and the trigram Jaccard index (`docs/reference/scoring.md`), unless
 //! the work limit truncates it, which the result reports. Two filters give
 //! the guarantee, where `A` is the query's trigram set:
 //!

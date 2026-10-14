@@ -1,4 +1,4 @@
-# Groups (U-018)
+# Groups
 
 The basic result of Univo is a pair: two records and the evidence that they match. Groups are an optional view on top of pairs, and they are **never presented as entities**: similarity is not transitive, so A close to B and B close to C does not make A close to C.
 
@@ -61,7 +61,7 @@ Groups never merge or change records. A future `plan_merge` (after 1.0) would ch
 | 10,000 | 2.6 s | 2.6 s | 1,007 | 1,012 | 5 |
 | 20,000 | 10.3 s | 11.0 s | 2,041 | 2,062 | 13 |
 
-Both grow faster than linearly in one partition, because every record is searched against the others; partitions and higher thresholds reduce the work. Since [ADR 0018](adr/0018-parallel-all-pairs.md), each pair is scanned once and the searches run on the `threads` budget, with the same groups: see [performance](performance.md#parallel-all-pairs-reports-adr-0018).
+Both grow faster than linearly in one partition, because every record is searched against the others; partitions and higher thresholds reduce the work. Since [ADR 0018](../adr/0018-parallel-all-pairs.md), each pair is scanned once and the searches run on the `threads` budget, with the same groups: see [performance](../development/performance.md#parallel-all-pairs-reports-adr-0018).
 
 ## Validation
 

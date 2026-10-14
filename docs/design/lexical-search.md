@@ -1,4 +1,4 @@
-# Lexical candidates (U-010)
+# Lexical candidates
 
 `univo-engine` finds the records whose text is lexically similar to a query's, through an inverted index of character trigrams, without comparing every pair. One `LexicalIndex` covers one lexical or hybrid text field. [Search](search.md) combines it with the exact, semantic and value lanes.
 
@@ -11,7 +11,7 @@ Records live in a `RecordStore`, bound to one schema, with unique typed IDs and 
 
 The search returns every record of the query's partition whose lexical similarity to the query is at least `threshold`, most similar first, then by slot.
 - **Threshold:** it must satisfy `0 < threshold ≤ 1`; any other value, NaN included, is refused with `parameter.threshold` (`InvalidParameterError`, also a `ValueError`, in Python).
-- **Similarity** is the scoring rule itself (`lexical_similarity`, see [scoring](scoring.md)): the larger of the edit similarity, for texts of at most 64 characters, and the trigram Jaccard index.
+- **Similarity** is the scoring rule itself (`lexical_similarity`, see [scoring](../reference/scoring.md)): the larger of the edit similarity, for texts of at most 64 characters, and the trigram Jaccard index.
 - **Completeness:** without a work limit, the result is exactly what comparing the query with every record would give.
 - **Work limit:** `max_entries` caps the index entries read. When it stops the search, `truncated` is set and matches may be missing; the matches returned are still correct.
 - **Counters:** `entries_read` and `candidates_verified` report the work done. A candidate rejected by its signature counts as verified, as it was before the signature existed.

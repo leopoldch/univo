@@ -14,7 +14,7 @@ Errors are what users see when something goes wrong; they must say what happened
 - Each `ErrorCode` has a stable string (`record.wrong_type`), a kind, a title and a hint, declared once in a table in `crates/univo-core/src/error.rs`. Kinds map to one exception type per language (`InvalidRecord` to `univo.InvalidRecordError` in Python and to an `InvalidRecordException` in Java), under a common base.
 - Messages, hints and details are built only in Rust, by one constructor per code. Bindings copy them into exception attributes and never compose text; bindings that convert foreign values use the public constructors (`unsupported_type`, `non_finite_number`, `integer_out_of_range`, `duplicate_key`).
 - Messages and details name paths, types, sizes and limits, never field values. Record identifiers are kept as an attribute and are not printed.
-- `docs/errors.md` is generated from real calls by `crates/univo-core/tests/error_catalog.rs`, which fails when a code has no example, when a message leaks a value, or when the document is stale.
+- `docs/reference/errors.md` is generated from real calls by `crates/univo-core/tests/error_catalog.rs`, which fails when a code has no example, when a message leaks a value, or when the document is stale.
 
 ## Alternatives
 

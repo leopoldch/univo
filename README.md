@@ -6,11 +6,11 @@ Univo is a library under construction for finding duplicate candidates in string
 
 ## Project status
 
-The library is under construction and not published yet. Rust provides types, schemas, normalization, errors, pairwise exact matching and an [exact index](docs/exact-index.md). Rust also provides [search](docs/search.md) by score across exact, lexical and semantic evidence. Python exposes [Finder](docs/quickstart.md), typed errors and [model download, cache and offline use](docs/models.md). See the [development guide](docs/development.md). API examples and performance budgets in the specifications describe targets unless explicitly validated.
+The library is under construction and not published yet. Rust provides types, schemas, normalization, errors, pairwise exact matching and an [exact index](docs/design/exact-index.md). Rust also provides [search](docs/design/search.md) by score across exact, lexical and semantic evidence. Python exposes [Finder](docs/guide/quickstart.md), typed errors and [model download, cache and offline use](docs/guide/models.md). See the [development guide](docs/development/setup.md). API examples and performance budgets in the specifications describe targets unless explicitly validated.
 
 ## Quickstart
 
-With a locally built wheel ([development](docs/development.md)):
+With a locally built wheel ([development](docs/development/setup.md)):
 
 ```python
 from univo import Finder
@@ -20,7 +20,7 @@ for match in report.matches:
     print(match.left_id, match.right_id, match.score)
 ```
 
-The Amazon/Amiazon pair is returned as a candidate. Default hybrid fields use lexical evidence and need no model. Explicit semantic fields load a local model lazily. Scores are not probabilities; [limits and structured examples](docs/quickstart.md).
+The Amazon/Amiazon pair is returned as a candidate. Default hybrid fields use lexical evidence and need no model. Explicit semantic fields load a local model lazily. Scores are not probabilities; [limits and structured examples](docs/guide/quickstart.md).
 
 ## Specifications
 
@@ -34,18 +34,18 @@ The Amazon/Amiazon pair is returned as a candidate. Default hybrid fields use le
 - [Implementation roadmap and acceptance criteria](specs/10-roadmap.md)
 - [Repository instructions](AGENTS.md)
 - [Architecture decision records](docs/adr/README.md)
-- [Duplicate definitions per profile](docs/duplicate-definitions.md)
-- [Dependency register](docs/dependencies.md)
-- [Error catalog](docs/errors.md)
-- [Models, cache and offline use](docs/models.md)
-- [Pairwise scoring](docs/scoring.md)
-- [Vector search](docs/vector-search.md)
-- [Lexical candidates](docs/lexical-search.md)
-- [Search](docs/search.md)
-- [Concurrency and check_or_add](docs/concurrency.md)
-- [Groups](docs/groups.md)
+- [Duplicate definitions per profile](docs/reference/duplicate-definitions.md)
+- [Dependency register](docs/development/dependencies.md)
+- [Error catalog](docs/reference/errors.md)
+- [Models, cache and offline use](docs/guide/models.md)
+- [Pairwise scoring](docs/reference/scoring.md)
+- [Vector search](docs/design/vector-search.md)
+- [Lexical candidates](docs/design/lexical-search.md)
+- [Search](docs/design/search.md)
+- [Concurrency and check_or_add](docs/guide/concurrency.md)
+- [Groups](docs/guide/groups.md)
 - [Comparison with SemHash](benchmarks/comparison/README.md)
-- [Releasing](docs/releasing.md)
+- [Releasing](docs/development/releasing.md)
 
 ## Design priorities
 

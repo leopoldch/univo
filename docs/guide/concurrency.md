@@ -1,4 +1,4 @@
-# Concurrency and check_or_add (U-017)
+# Concurrency and check_or_add
 
 ## One Finder, many threads
 
@@ -9,9 +9,9 @@ A `Finder` can be shared by the threads of one process.
 - **Encoding happens outside the lock:** the semantic fields of searches, `add` and `check_or_add` are encoded before the lock is taken, so a slow model run does not block readers. `upsert` still encodes under the lock.
 - **No lock is ever held while waiting for the Python interpreter:** long Rust work releases the interpreter, so other Python threads keep running.
 
-On the reference machine, a lexical `Finder` of 100,000 names serves about 257 searches per second on one thread, 510 on two and 968 on four. Before U-017, a Python lock kept it at 256 whatever the number of threads ([ADR 0016](adr/0016-local-concurrency-and-check-or-add.md)).
+On the reference machine, a lexical `Finder` of 100,000 names serves about 257 searches per second on one thread, 510 on two and 968 on four. Before U-017, a Python lock kept it at 256 whatever the number of threads ([ADR 0016](../adr/0016-local-concurrency-and-check-or-add.md)).
 
-`threads` is the size of the Finder's worker pool, which runs semantic encoding and the all-pairs reports `find` and `group` ([ADR 0018](adr/0018-parallel-all-pairs.md)); their results do not depend on it. By default it is every core the process may use ([ADR 0020](adr/0020-every-core-by-default.md)). The pool is created once per Finder and shared by its indexes, so concurrent `find` calls on one Finder share its workers. Its threads start only at the first semantic encoding or the first report large enough to run in parallel. A single search (`search`, `check_or_add`) runs on the calling thread, and so do reports over fewer than 512 records.
+`threads` is the size of the Finder's worker pool, which runs semantic encoding and the all-pairs reports `find` and `group` ([ADR 0018](../adr/0018-parallel-all-pairs.md)); their results do not depend on it. By default it is every core the process may use ([ADR 0020](../adr/0020-every-core-by-default.md)). The pool is created once per Finder and shared by its indexes, so concurrent `find` calls on one Finder share its workers. Its threads start only at the first semantic encoding or the first report large enough to run in parallel. A single search (`search`, `check_or_add`) runs on the calling thread, and so do reports over fewer than 512 records.
 
 Processes that each run a Finder, such as `multiprocessing` workers, should pass `threads=1` (or their share of the cores) to avoid running more threads than cores.
 

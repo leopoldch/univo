@@ -89,7 +89,7 @@ The 234 critical cases never choose a threshold. Full profile evaluation checks 
 
 The raw files also include pure lexical/semantic text-view AUC per language, family and view (234 views), plus test metrics per ROR language/family. Other critical languages have at most four record pairs; some have only one class, so AUC is null. Three cross-language record pairs cannot establish cross-language quality. The French difference does not establish a multilingual advantage and does not justify exceeding the 100 MiB default-model budget.
 
-SemHash and a full 100k semantic Finder performance workload remain unmeasured in U-012; the earlier [U-004 model spike](../spikes/model-selection/README.md) and [U-011 lexical measurements](../../docs/performance.md) are separate protocols. Supervised Dedupe/Splink comparisons are not applicable to this unsupervised name-only setup without introducing a separately declared training protocol. Alpha publication and the release quality decision remain pending.
+SemHash and a full 100k semantic Finder performance workload remain unmeasured in U-012; the earlier [U-004 model spike](../spikes/model-selection/README.md) and [U-011 lexical measurements](../../docs/development/performance.md) are separate protocols. Supervised Dedupe/Splink comparisons are not applicable to this unsupervised name-only setup without introducing a separately declared training protocol. Alpha publication and the release quality decision remain pending.
 
 ## Validation
 

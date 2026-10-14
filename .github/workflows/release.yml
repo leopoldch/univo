@@ -3,7 +3,7 @@ name: Release
 # Publishing a GitHub release whose tag is v<workspace version> runs the full
 # CI, builds and tests the source distribution, and uploads the wheels and the
 # sdist with PyPI trusted publishing: no token is stored. A release marked as
-# a pre-release goes to TestPyPI instead. See docs/releasing.md.
+# a pre-release goes to TestPyPI instead. See docs/development/releasing.md.
 on:
   release:
     types: [published]

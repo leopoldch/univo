@@ -36,7 +36,7 @@ python tools/checks/check_wheel.py dist/*.whl
 
 ## Performance tests
 
-Budgets live in [benchmarks/budgets.toml](../benchmarks/budgets.toml). Python tests marked `perf` enforce them (`uv run pytest -m perf`); Rust budget tests run in release builds only (`cargo test --release`). Benchmarks: `cargo bench -p univo-core`.
+Budgets live in [benchmarks/budgets.toml](../../benchmarks/budgets.toml). Python tests marked `perf` enforce them (`uv run pytest -m perf`); Rust budget tests run in release builds only (`cargo test --release`). Benchmarks: `cargo bench -p univo-core`.
 
 Dense exact-index insertion: `cargo test -p univo-engine --release --locked --test perf_budget -- --nocapture` reports one-batch and single-record insertion at 10k/20k/40k, with and without IDs, and enforces the insertion budget in CI.
 
@@ -67,8 +67,8 @@ On macOS, Python 3.13 and later skip `.pth` files that carry the `hidden` file f
 | Path | Role |
 | --- | --- |
 | `crates/univo-core` | Values, schema, normalization, record preparation and exact matching; no Python, network or inference dependency |
-| `crates/univo-embed` | Model references, pinned registry, download plans, verified cache and static inference; no network access, see [ADR 0008](adr/0008-model-download-and-inference-backend.md) |
-| `crates/univo-engine` | Schema-bound exact index, typed IDs, atomic batch insertion and bounded exact-search output ([exact index](exact-index.md)); record embeddings and exhaustive vector search ([vector search](vector-search.md)); lexical candidates ([lexical candidates](lexical-search.md)); search by score with its exhaustive oracle ([search](search.md)) |
+| `crates/univo-embed` | Model references, pinned registry, download plans, verified cache and static inference; no network access, see [ADR 0008](../adr/0008-model-download-and-inference-backend.md) |
+| `crates/univo-engine` | Schema-bound exact index, typed IDs, atomic batch insertion and bounded exact-search output ([exact index](../design/exact-index.md)); record embeddings and exhaustive vector search ([vector search](../design/vector-search.md)); lexical candidates ([lexical candidates](../design/lexical-search.md)); search by score with its exhaustive oracle ([search](../design/search.md)) |
 | `crates/univo-python` | PyO3 extension `univo._univo`; conversions only |
 | `python/univo` | Public Python package |
 | `tests/python` | Tests of the installed package, run on every platform, including `perf` budget checks |

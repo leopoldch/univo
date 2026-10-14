@@ -10,7 +10,7 @@ python -m venv /tmp/model-selection && /tmp/model-selection/bin/pip install -r r
 ```
 
 - Every model is pinned to a Hugging Face revision in `evaluate.py`.
-- The Rust benchmark in [rust/](rust/) has its own locked `Cargo.lock` and is outside Univo's workspace.
+- The Rust benchmark in [rust/](rust) has its own locked `Cargo.lock` and is outside Univo's workspace.
 - Raw numbers are in [results.json](results.json).
 
 ## Method

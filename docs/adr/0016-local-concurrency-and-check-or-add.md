@@ -62,7 +62,7 @@ Races (8 threads released together by a barrier, each submitting the same name o
 ## Consequences
 
 - One `Finder` can be shared by the threads of a server. Searches scale with threads, and writers wait for running searches before changing the index.
-- `check_or_add` is atomic for one `Finder` in one process only. Several processes, each with its own `Finder`, or an application writing to a database, must enforce uniqueness themselves: a unique constraint, a transaction, or idempotent writes ([concurrency](../concurrency.md)).
+- `check_or_add` is atomic for one `Finder` in one process only. Several processes, each with its own `Finder`, or an application writing to a database, must enforce uniqueness themselves: a unique constraint, a transaction, or idempotent writes ([concurrency](../guide/concurrency.md)).
 - `upsert` still encodes under the exclusive lock, because it decides per field which embeddings it can reuse; searches wait during its encoding.
 - The lock lives in the Python binding's native index. The engine provides the primitives (`QueryEncoder`, `search_encoded`, `add_encoded`, `check_or_add`), which a Java binding would wrap the same way.
 - The new error code `state.index_poisoned` is part of the public catalog.

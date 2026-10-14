@@ -26,7 +26,7 @@ Scoring/search versions, normalizer behavior, model selection and download budge
 
 ## Evidence and validation
 
-[Cache contract](../embedding-cache.md) and [release-wheel measurements](../performance.md) describe semantics, accounting and remaining limits. Counting encoders prove no re-encoding of retained normalized texts, including absent-token results; plain/cold/warm vectors are identical. Tests cover growth/eviction, complete model identity, failed encoding and concurrent warm readers. Real-model U-012 results remain identical. No dependency is added.
+[Cache contract](../guide/embedding-cache.md) and [release-wheel measurements](../development/performance.md) describe semantics, accounting and remaining limits. Counting encoders prove no re-encoding of retained normalized texts, including absent-token results; plain/cold/warm vectors are identical. Tests cover growth/eviction, complete model identity, failed encoding and concurrent warm readers. Real-model U-012 results remain identical. No dependency is added.
 
 The budget is a retained estimate rather than a hard RSS/peak bound. Active batches and persistent index copies remain separate memory costs. Failed record insertion can advance cache counters and populate valid entries, while the index stays unchanged.
 

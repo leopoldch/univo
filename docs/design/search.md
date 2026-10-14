@@ -1,6 +1,6 @@
-# Search (U-010)
+# Search
 
-`SearchIndex` finds the records whose score against a query reaches a minimum, using the scoring of [pairwise scoring](scoring.md). It gathers candidates through one lane per field, then scores them, and returns exactly what scoring every record of the query's partition would return. Python access arrives with `Finder` (U-011).
+`SearchIndex` finds the records whose score against a query reaches a minimum, using the scoring of [pairwise scoring](../reference/scoring.md). It gathers candidates through one lane per field, then scores them, and returns exactly what scoring every record of the query's partition would return. Python access arrives with `Finder` (U-011).
 
 ```rust
 use std::sync::Arc;
@@ -26,7 +26,7 @@ A record's score is a weighted mean of its field similarities, so a score of at 
 | Text, semantic | [Vector search](vector-search.md) over the query's partition | Scans every embedding |
 | Exact scalar or list | Records with an equal value | The similarity is 1 for an equal value, 0 otherwise |
 | Exact object | Records sharing one equal leaf, or both empty | A positive similarity needs an equal leaf |
-| Any text, when `s ≤ 0.9` | Records whose text is the acronym of the query's words, or whose words the query's text abbreviates ([ADR 0022](adr/0022-acronym-evidence.md)) | Such a pair shares one key: the acronym on one side equals the initials of the other |
+| Any text, when `s ≤ 0.9` | Records whose text is the acronym of the query's words, or whose words the query's text abbreviates ([ADR 0022](../adr/0022-acronym-evidence.md)) | Such a pair shares one key: the acronym on one side equals the initials of the other |
 
 Two more rules complete the guarantee:
 - **Rounding.** Lanes use `s·(1 − 10⁻⁶)`, so that rounding in the weighted mean never drops a record that reaches `s`. The margin is relative, so it stays positive even for the smallest positive minimum.
@@ -54,7 +54,7 @@ Every candidate is then scored with `compare_with_vectors`:
 
 ## Cost
 
-Standard workload of [specs/07-performance.md](../specs/07-performance.md):
+Standard workload of [specs/07-performance.md](../../specs/07-performance.md):
 - 100,000 records: ID, tenant, a name of about 20 characters, a semantic description of 30 words;
 - one record in ten is a near-duplicate of the previous one;
 - synthetic embeddings of 256 dimensions;
@@ -90,7 +90,7 @@ Following the specification's protocol, each scenario runs five independent repe
   - A reversed ID order in the bounded heap makes the tests fail.
 - `crates/univo-engine/tests/search_budget.rs` enforces the budget in release builds.
 
-U-016 adds optional [HNSW routing](ann.md) for semantic fields. The dense default
+Semantic fields can use optional [HNSW routing](../guide/ann.md). The dense default
 and exhaustive oracle remain complete within their declared limits. Reports
 using a graph expose `approximate` even without observed saturation; the
 exact/lexical union and core reranking remain. Snapshot reconstruction and

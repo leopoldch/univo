@@ -1,4 +1,4 @@
-"""Integrity of the critical corpus against docs/duplicate-definitions.md.
+"""Integrity of the critical corpus against docs/reference/duplicate-definitions.md.
 
 The oracle below re-implements the normalization and veto rules of the
 definitions independently of the generator, so a mislabelled case fails here

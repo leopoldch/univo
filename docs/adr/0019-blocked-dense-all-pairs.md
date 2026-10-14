@@ -12,7 +12,7 @@ Each all-pairs query scans every later vector of its partition with the scoring 
 
 ## Decision
 
-- **Measure the cause first.** [`dense_bandwidth`](../../crates/univo-engine/examples/dense_bandwidth.rs) runs the same scan with the vectors in cache or in memory. In memory, the scan stops near the M2's 100 GB/s from 4 threads; in cache it scales to 4.7× ([measurements](../performance.md#blocked-dense-all-pairs-adr-0019)). Memory bandwidth is the bound.
+- **Measure the cause first.** [`dense_bandwidth`](../../crates/univo-engine/examples/dense_bandwidth.rs) runs the same scan with the vectors in cache or in memory. In memory, the scan stops near the M2's 100 GB/s from 4 threads; in cache it scales to 4.7× ([measurements](../development/performance.md#blocked-dense-all-pairs-adr-0019)). Memory bandwidth is the bound.
 - **Blocks of queries.** `find` and `groups` cut their queries into blocks of 64 consecutive queries of one partition. For each semantic field, a block reads every later vector once and compares it with all its queries, 8 at a time. The per-query candidate lists then replace the dense lane's scan; the other lanes and the scoring are unchanged. A single search keeps the per-query scan.
 - **Bounded memory.** A block holds at most 2^20 candidates (4 MiB of slots, before the spare capacity of their vectors), over all its queries and semantic fields, plus one row. A block that would hold more is split in two and recomputed, down to one query, which holds what the per-query scan held. Without this bound, a block of similar records holds 64 queries × the partition × the semantic fields before any scoring or pair budget can stop it.
 - **Same arithmetic.** The blocked kernel `univo_core::dots` sums the same products in the same eight lanes, in the same order, as `dot`: every similarity is bit for bit the one the per-query scan computes, so the candidates, the scores and the completeness guarantee are unchanged.
@@ -42,7 +42,7 @@ Each all-pairs query scans every later vector of its partition with the scoring 
 
 ## Consequences
 
-- One new runtime dependency in `univo-core`: `wide`, with `safe_arch` and `bytemuck`. They are pure Rust, under permissive licenses, with no native code ([dependencies](../dependencies.md)).
+- One new runtime dependency in `univo-core`: `wide`, with `safe_arch` and `bytemuck`. They are pure Rust, under permissive licenses, with no native code ([dependencies](../development/dependencies.md)).
 - Memory per worker: at most 4 MiB of block candidate slots, plus the spare capacity of their growing vectors (up to as much again), or one query's candidates (the partition × the semantic fields) once a block has been split down to one query, as before blocks. Measured with 100,000 identical-vector records, `groups(max_pairs=1)` on 8 threads: without the bound, peak RSS rose by 1,385 MiB above the index with 16 semantic fields (153 MiB with one); with it, by 129 MiB (62 MiB). On the U-003 workload at 100,000 records, peak RSS on 8 threads is 347 MiB, against 314 MiB before blocks.
 - Similar data loses part of the blocking: oversized blocks are recomputed in smaller ones. Scoring the many matching pairs dominates there anyway.
 - Approximate retrieval (HNSW) keeps its per-query path.

@@ -1,4 +1,4 @@
-//! Lexical similarity of normalized text, as defined in `docs/scoring.md`.
+//! Lexical similarity of normalized text, as defined in `docs/reference/scoring.md`.
 //!
 //! Character trigrams are extracted once per prepared field and kept sorted,
 //! so that comparing two fields is a linear merge. Edit distance is computed

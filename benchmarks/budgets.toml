@@ -1,7 +1,7 @@
 # Resource budgets enforced by the perf test suites.
 #
 # Values come from specs/07-performance.md. They are upper bounds on the
-# reference machine described in docs/performance.md. Shared CI runners apply
+# reference machine described in docs/development/performance.md. Shared CI runners apply
 # the documented UNIVO_PERF_SLACK multiplier to time budgets only; size
 # budgets are never relaxed.
 

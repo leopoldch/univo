@@ -92,7 +92,7 @@ resolution and changed local files. The same release wheel is tested outside the
 repository on CPython 3.12 and 3.14, without Rust in PATH. Native six-platform/MSRV
 CI already runs these suites; cross-platform outcomes are not local evidence.
 
-See [performance measurements](../performance.md) and the
+See [performance measurements](../development/performance.md) and the
 [reproduction script](../../benchmarks/performance/python_snapshots.py) for the
 format spike on 1k/10k/100k standard-workload synthetic records. Model footprint
 and all end-to-end save/load samples, including model verification/loading and

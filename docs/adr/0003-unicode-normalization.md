@@ -6,7 +6,7 @@
 
 ## Context
 
-The normalization rules of [docs/duplicate-definitions.md](../duplicate-definitions.md) need NFC composition and Unicode default full case folding, applied to every record before comparison. They must be exactly reproducible, because the critical corpus is labelled with CPython's implementation, and fast, because every inserted or queried record goes through them.
+The normalization rules of [docs/reference/duplicate-definitions.md](../reference/duplicate-definitions.md) need NFC composition and Unicode default full case folding, applied to every record before comparison. They must be exactly reproducible, because the critical corpus is labelled with CPython's implementation, and fast, because every inserted or queried record goes through them.
 
 ## Decision
 

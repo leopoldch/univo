@@ -3,7 +3,7 @@
 //! An error carries everything a binding needs to raise an idiomatic
 //! exception without composing any text: a [`ErrorKind`] (one exception type
 //! per kind in each language), a stable [`ErrorCode`] documented in
-//! `docs/errors.md`, a complete message, a hint, the field path, structured
+//! `docs/reference/errors.md`, a complete message, a hint, the field path, structured
 //! details and, for batches, the position of the record.
 //!
 //! Messages name paths, types and sizes but never field values: errors often
@@ -234,10 +234,10 @@ error_codes! {
 }
 
 /// Base URL of the error catalog; each code has an anchor there.
-const CATALOG_URL: &str = "https://github.com/leopoldch/univo/blob/main/docs/errors.md";
+const CATALOG_URL: &str = "https://github.com/leopoldch/univo/blob/main/docs/reference/errors.md";
 
 impl ErrorCode {
-    /// Anchor of the code in `docs/errors.md`, as GitHub derives it from
+    /// Anchor of the code in `docs/reference/errors.md`, as GitHub derives it from
     /// the heading.
     pub fn anchor(self) -> String {
         self.as_str().replace('.', "")
@@ -820,7 +820,7 @@ impl Error {
 /// ```text
 /// record 12: field `name` must be a string, found an integer
 /// hint: Convert the value before passing it: ...
-/// code: record.wrong_type (https://github.com/leopoldch/univo/blob/main/docs/errors.md#recordwrong_type)
+/// code: record.wrong_type (https://github.com/leopoldch/univo/blob/main/docs/reference/errors.md#recordwrong_type)
 /// ```
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
