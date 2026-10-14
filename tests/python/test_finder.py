@@ -179,7 +179,7 @@ def test_lazy_local_model_and_thread_budget() -> None:
     assert not finder.config()["model_loaded"]
     assert finder.add([{"text": "online retail"}, {"text": "online retail"}]) == [0, 1]
     assert finder.config()["model_loaded"]
-    assert finder.config()["effective_threads"] == 2
+    assert finder.config()["threads"] == 2
     assert finder.search({"text": "online retail"}).matches[0].score == pytest.approx(1)
 
 
@@ -379,7 +379,7 @@ def test_an_acronym_matches_the_words_it_abbreviates() -> None:
         ]
     )
     report = finder.search({"id": "short", "name": "N.I.O.S.H."})
-    assert [(m.right_id, m.reasons) for m in report.matches] == [("long", ["name: Acronym"])]
+    assert [(m.right_id, m.reasons) for m in report.matches] == [("long", ["name: acronym"])]
     assert report.matches[0].score == pytest.approx(0.9)
     # Three letters name too many organizations to count as evidence.
     assert finder.search({"id": "nhs", "name": "NHS"}).matches == ()
@@ -404,6 +404,21 @@ def test_names_with_distinct_words_score_lower_and_conflict() -> None:
     assert template[0].conflicts == ["name"]
     assert extended[0].conflicts == []
     assert template[0].score < extended[0].score
+
+
+def test_search_options_are_keyword_only_and_reasons_use_documented_signals() -> None:
+    finder = Finder(fields=["name"], offline=True)
+    finder.add([{"name": "Amazon"}, {"name": "Amiazon"}])
+    with pytest.raises(TypeError):
+        finder.search({"name": "Amazon"}, 5)  # type: ignore[call-arg]
+    report = finder.search({"name": "Amazon"}, limit=5)
+    signals = {"missing", "edit_distance", "trigrams", "exact", "keys", "semantic", "acronym"}
+    reasons = [reason for match in report.matches for reason in match.reasons]
+    assert reasons
+    for reason in reasons:
+        path, _, signal = reason.partition(": ")
+        assert path == "name"
+        assert signal in signals or signal.startswith("normalized ("), reason
 
 
 def test_the_reported_versions_are_the_native_ones() -> None:

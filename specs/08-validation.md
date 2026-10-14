@@ -37,7 +37,7 @@ Comparer aux baselines : exact normalisé, lexical seul, embeddings seuls, SemHa
 
 Gates qualité proposés sur le benchmark nommé, pas garanties universelles : précision candidats ≥ 98 % et rappel ≥ 90 % ; rappel de génération des candidats ≥ 99 % ; zéro violation des veto/partitions sur la suite déterministe. Pour les profils autorisant une décision automatique, viser ≥ 99,5 % de précision et publier intervalle de confiance et support. Un petit test sans erreur ne suffit pas à démontrer ce dernier chiffre.
 
-Si ces gates échouent : publier une alpha expérimentale ou réduire les profils supportés. Ne pas simplement baisser le seuil pour afficher davantage de doublons.
+Si ces gates échouent : publier une alpha expérimentale ou réduire les profils supportés. Ne pas simplement baisser le seuil pour afficher davantage de doublons. Pour la 1.0, les gates noms seuls échouent et les profils supportés sont réduits à la recherche complète des candidats et au classement expliqué, sans décision automatique ([ADR 0024](../docs/adr/0024-version-1-scope.md)).
 
 ## 22. Tests de correction et CI
 

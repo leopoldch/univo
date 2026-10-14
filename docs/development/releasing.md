@@ -27,6 +27,17 @@ The maintainer does this once. Nothing in the repository can do it.
    A pending publisher does not reserve the name: anyone can still register `univo` until the first upload creates the project. Publish the first release soon after.
 4. **TestPyPI trusted publisher.** Do the same on [test.pypi.org](https://test.pypi.org/manage/account/publishing/), with environment `testpypi`.
 
+## Release checklist
+
+Before tagging a release, and 1.0 first of all ([ADR 0024](../adr/0024-version-1-scope.md)):
+
+- [ ] **CI is green** on every platform: Rust on six targets, and one wheel per advertised platform, installed and tested outside the source tree without Rust.
+- [ ] **Model tests pass.** `just check` with `UNIVO_TEST_MODEL_DIR` set, and `UNIVO_TEST_HUB=1` once against the real hub.
+- [ ] **Quality is re-measured.** Run the [quality benchmark](../../benchmarks/quality/README.md) with the release wheel; update its figures if they moved.
+- [ ] **Comparison is re-measured.** Run the [SemHash comparison](../../benchmarks/comparison/README.md) on the reference machine, on mains power, in ABBA order, and update the [performance](performance.md) figures.
+- [ ] **Docs are current.** The changelog has the version's section, the [stability](../reference/stability.md) page matches the API, and the README and quickstart examples run.
+- [ ] **TestPyPI first.** Publish a pre-release and install it from TestPyPI on each platform.
+
 ## Each release
 
 1. **Set the version.** Open a PR that changes `Cargo.toml`, then merge it.
