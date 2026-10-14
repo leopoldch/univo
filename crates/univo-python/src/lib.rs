@@ -3,9 +3,14 @@
 //! Converts Python inputs and outputs only; all matching logic lives in the
 //! Rust crates so that every binding shares the same decisions.
 
+mod cache;
 mod errors;
-mod finder;
+mod index;
 mod models;
+mod pool;
+mod schema;
+mod snapshot;
+mod validation;
 
 use pyo3::prelude::*;
 
@@ -18,14 +23,14 @@ fn _univo(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("NORMALIZER_VERSION", univo_core::NORMALIZER_VERSION)?;
     module.add_class::<models::Model>()?;
     module.add_function(wrap_pyfunction!(models::load_model, module)?)?;
-    module.add_class::<finder::PySchema>()?;
-    module.add_class::<finder::NativeIndex>()?;
-    module.add_class::<finder::PyEmbeddingCache>()?;
-    module.add_class::<finder::PySnapshot>()?;
-    module.add_class::<finder::PyWorkerPool>()?;
-    module.add_function(wrap_pyfunction!(finder::available_threads, module)?)?;
-    module.add_function(wrap_pyfunction!(finder::validate_model, module)?)?;
-    module.add_function(wrap_pyfunction!(finder::invalid_option, module)?)?;
-    module.add_function(wrap_pyfunction!(finder::validate_threshold, module)?)?;
+    module.add_class::<schema::PySchema>()?;
+    module.add_class::<index::NativeIndex>()?;
+    module.add_class::<cache::PyEmbeddingCache>()?;
+    module.add_class::<snapshot::PySnapshot>()?;
+    module.add_class::<pool::PyWorkerPool>()?;
+    module.add_function(wrap_pyfunction!(pool::available_threads, module)?)?;
+    module.add_function(wrap_pyfunction!(validation::validate_model, module)?)?;
+    module.add_function(wrap_pyfunction!(validation::invalid_option, module)?)?;
+    module.add_function(wrap_pyfunction!(validation::validate_threshold, module)?)?;
     Ok(())
 }
