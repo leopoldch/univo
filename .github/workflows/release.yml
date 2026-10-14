@@ -79,7 +79,9 @@ jobs:
     environment:
       name: ${{ github.event.release.prerelease && 'testpypi' || 'pypi' }}
       url: https://${{ github.event.release.prerelease && 'test.' || '' }}pypi.org/project/univo/${{ needs.version.outputs.version }}/
+    # Job permissions replace the workflow's: checkout still needs contents.
     permissions:
+      contents: read
       id-token: write
     steps:
       - uses: actions/checkout@v7

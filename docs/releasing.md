@@ -24,7 +24,7 @@ The maintainer does this once. Nothing in the repository can do it.
    - workflow `release.yml`;
    - environment `pypi`.
 
-   The pending publisher reserves the name until the first upload creates the project.
+   A pending publisher does not reserve the name: anyone can still register `univo` until the first upload creates the project. Publish the first release soon after.
 4. **TestPyPI trusted publisher.** Do the same on [test.pypi.org](https://test.pypi.org/manage/account/publishing/), with environment `testpypi`.
 
 ## Each release
