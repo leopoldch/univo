@@ -13,6 +13,9 @@ use pyo3::prelude::*;
 fn _univo(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", univo_core::VERSION)?;
     module.add("ERROR_KINDS", errors::kind_names())?;
+    module.add("SCORING_VERSION", univo_core::SCORING_VERSION)?;
+    module.add("SEARCH_VERSION", univo_engine::SEARCH_VERSION)?;
+    module.add("NORMALIZER_VERSION", univo_core::NORMALIZER_VERSION)?;
     module.add_class::<models::Model>()?;
     module.add_function(wrap_pyfunction!(models::load_model, module)?)?;
     module.add_class::<finder::PySchema>()?;

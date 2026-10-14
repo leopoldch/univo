@@ -16,6 +16,7 @@ from univo import (
     ResourceLimitError,
     Schema,
     Text,
+    _univo,
 )
 
 TINY = pathlib.Path(__file__).resolve().parents[1] / "fixtures" / "models" / "tiny"
@@ -367,3 +368,28 @@ def test_cache_budget_preserves_matches_and_can_disable_retention(budget: int) -
 def test_invalid_cache_budget_fails_at_construction(budget: int) -> None:
     with pytest.raises(InvalidParameterError):
         Finder(embedding_cache_bytes=budget)
+
+
+def test_an_acronym_matches_the_words_it_abbreviates() -> None:
+    finder = Finder(schema=Schema(id_field="id", fields={"name": Text()}))
+    finder.add(
+        [
+            {"id": "long", "name": "National Institute for Occupational Safety and Health"},
+            {"id": "other", "name": "National Health Service"},
+        ]
+    )
+    report = finder.search({"id": "short", "name": "N.I.O.S.H."})
+    assert [(m.right_id, m.reasons) for m in report.matches] == [("long", ["name: Acronym"])]
+    assert report.matches[0].score == pytest.approx(0.9)
+    # Three letters name too many organizations to count as evidence.
+    assert finder.search({"id": "nhs", "name": "NHS"}).matches == ()
+
+
+def test_the_reported_versions_are_the_native_ones() -> None:
+    config = Finder().config()
+    assert (config["scoring_version"], config["search_version"], config["normalizer_version"]) == (
+        _univo.SCORING_VERSION,
+        _univo.SEARCH_VERSION,
+        _univo.NORMALIZER_VERSION,
+    )
+    assert _univo.SCORING_VERSION == 3

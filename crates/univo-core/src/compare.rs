@@ -4,6 +4,7 @@
 
 use std::cmp::Ordering;
 
+use crate::acronym::{ACRONYM_SIMILARITY, acronym_similarity};
 use crate::error::{Error, Result};
 use crate::lexical;
 use crate::normalize::NormalizedValue;
@@ -15,7 +16,9 @@ use crate::semantic::semantic_similarity;
 /// the score for some pair must increment it.
 ///
 /// 2: semantic text fields compared by the cosine of their embeddings.
-pub const SCORING_VERSION: u32 = 2;
+/// 3: a text spelling the initials of the other's words scores at least
+/// [`ACRONYM_SIMILARITY`], in every text mode (ADR 0022).
+pub const SCORING_VERSION: u32 = 3;
 
 /// What produced a field's similarity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,6 +37,8 @@ pub enum Signal {
     /// Text of a semantic field, compared by the cosine of its embeddings;
     /// without both embeddings, no similarity.
     Semantic,
+    /// One text is the acronym of the other's words, the stronger signal.
+    Acronym,
 }
 
 /// Comparison of one field, in schema order.
@@ -223,7 +228,13 @@ fn compare_text(
     };
     // Hybrid fields are scored lexically: on the critical corpus, adding
     // their cosine lowered the ranking quality (ADR 0009).
-    let best = lexical.or(semantic);
+    let mut best = lexical.or(semantic);
+    if best.is_none_or(|(similarity, _)| similarity < ACRONYM_SIMILARITY)
+        && left_field.acronyms.may_match(&right_field.acronyms)
+        && let Some(acronym) = acronym_similarity(left, right)
+    {
+        best = Some((acronym, Signal::Acronym));
+    }
     let (similarity, signal, evidence) = match best {
         Some((similarity, signal)) => (Some(similarity), signal, 1.0),
         None => (None, Signal::Semantic, 0.0),

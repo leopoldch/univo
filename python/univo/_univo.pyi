@@ -5,6 +5,9 @@ from typing import Literal, Protocol, TypedDict
 
 __version__: str
 ERROR_KINDS: list[str]
+SCORING_VERSION: int
+SEARCH_VERSION: int
+NORMALIZER_VERSION: int
 
 class Transport(Protocol):
     def fetch(self, url: str, destination: os.PathLike[str], max_bytes: int) -> None: ...

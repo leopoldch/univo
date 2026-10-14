@@ -16,6 +16,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from build_quality_corpus import PROTOCOL
 from quality_metrics import ScoredPair, auc, choose_threshold, metrics
 from quality_profiles import evaluate, summary
 
@@ -187,7 +188,7 @@ def main() -> None:
     test_scores, exact = scores(test, finder)
     quality = metrics(test_scores, threshold)
     result = {
-        "protocol": "ror-alias-v1",
+        "protocol": PROTOCOL,
         "dataset_sha256": file_hash(args.pairs),
         "platform": platform.platform(),
         "python": platform.python_version(),

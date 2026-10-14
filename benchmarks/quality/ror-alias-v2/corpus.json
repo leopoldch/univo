@@ -1,0 +1,33 @@
+{
+  "protocol": "ror-alias-v2",
+  "source": "https://zenodo.org/records/23187250",
+  "archive_url": "https://zenodo.org/records/23187250/files/v2.14-2026-10-06-ror-data.zip?download=1",
+  "license": "CC0-1.0 (names and ROR identifiers only; no GeoNames location data)",
+  "archive_sha256": "555b38a4b586759de1fa278b0e751433a13dd541f375097db53b186cfcdc768a",
+  "pairs_sha256": "3f353af1ca0ee86ae4583b9c7d55c2b763fc9003db0ff4b3c3aa67f76c64ceaa",
+  "entities": 4000,
+  "changes_from_v1": "every v1 pair is kept; adds the shared_acronym negative family: each acronym alias paired with up to two other active organizations of the same split that ROR lists with the same acronym, in hash order",
+  "splits": {
+    "train": {
+      "pairs": 8823,
+      "positive": 4283,
+      "other_entity": 3654,
+      "shared_acronym": 886,
+      "entities": 2436
+    },
+    "validation": {
+      "pairs": 2710,
+      "positive": 1348,
+      "other_entity": 1173,
+      "shared_acronym": 189,
+      "entities": 782
+    },
+    "test": {
+      "pairs": 2721,
+      "positive": 1341,
+      "other_entity": 1173,
+      "shared_acronym": 207,
+      "entities": 782
+    }
+  }
+}

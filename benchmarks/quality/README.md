@@ -55,6 +55,26 @@ Scores come from exhaustive `search`, with output limit one because each query h
 
 Candidate generation is measured separately at the validation threshold, by checking `Report.candidates` before final scoring accepts a match. On this one-field task it equals final recall. Every model has zero oracle disagreements and zero query truncations. This proves agreement for the sampled isolated pairs, not full-registry candidate recall, ANN recall or the 99% candidate gate in a large retrieval workload. Scoring profiles and ANN are unchanged.
 
+## Protocol v2: shared acronyms
+
+Protocol `ror-alias-v2` ([corpus](ror-alias-v2/corpus.json)) keeps every v1 pair and adds one negative family, `shared_acronym`.
+- **What it pairs.** Each acronym alias of a sampled organization meets the display names of up to two other active organizations of the same split that ROR lists with the same acronym, chosen in hash order across the whole dump.
+- **Why.** "SPF" against "South Plains Foundation", when "SPF" is the alias of Sun Protection Foundation. v1 had no such pair, so it could not measure the risk of acronym evidence.
+- **Size.** 189 validation and 207 test pairs (886 train, reserved).
+
+The builder writes v2; rebuild with the command above. Results with scoring version 3, which adds acronym evidence ([ADR 0022](../../docs/adr/0022-acronym-evidence.md)), against version 2. Same machine and protocol as above, on 2026-10-14:
+
+| Comparator | Validation threshold | Test precision | Test recall | Test AUC | Shared-acronym false matches |
+| --- | --- | --- | --- | --- | --- |
+| [Lexical, scoring 2](ror-alias-v2/lexical-scoring-2.json) | 0.80000001 | 93.75% | 5.59% | 0.438 | 0 of 207 |
+| [Lexical, scoring 3](ror-alias-v2/lexical.json) | 0.74074078 | 94.12% | 10.74% | 0.468 | 1 of 207 |
+| [Default model, scoring 2](ror-alias-v2/default-model-scoring-2.json) | 0.66665548 | 95.62% | 30.95% | 0.704 | 0 of 207 |
+| [Default model, scoring 3](ror-alias-v2/default-model.json) | 0.66106427 | 95.74% | 35.20% | 0.726 | 1 of 207 |
+
+- **Selection on validation only.** The acronym rule (five characters or more, similarity 0.9) was chosen there; ADR 0022 lists the alternatives.
+- **The test split was scored once with that rule.** That was on a first v2 build, whose deduplication bug dropped some shared-acronym negatives. Mutation tests found the bug. The fixed corpus gives the same selection and the figures above.
+- **The quality gates still fail.**
+
 ## Critical regression and languages
 
 The 234 critical cases never choose a threshold. Full profile evaluation checks all veto, partition, invalid-input and exact-kind rules through Finder; all pass. AUC uses all 178 unconstrained duplicate/distinct pairs, including unavailable scores as last-ranked ties. Earlier reports excluded some unavailable scores, so their denominator differs. Plain strings/names remain lexical in these profiles; descriptions are lexical for the lexical baseline and semantic for the model runs.

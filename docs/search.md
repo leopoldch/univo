@@ -26,6 +26,7 @@ A record's score is a weighted mean of its field similarities, so a score of at 
 | Text, semantic | [Vector search](vector-search.md) over the query's partition | Scans every embedding |
 | Exact scalar or list | Records with an equal value | The similarity is 1 for an equal value, 0 otherwise |
 | Exact object | Records sharing one equal leaf, or both empty | A positive similarity needs an equal leaf |
+| Any text, when `s ≤ 0.9` | Records whose text is the acronym of the query's words, or whose words the query's text abbreviates ([ADR 0022](adr/0022-acronym-evidence.md)) | Such a pair shares one key: the acronym on one side equals the initials of the other |
 
 Two more rules complete the guarantee:
 - **Rounding.** Lanes use `s·(1 − 10⁻⁶)`, so that rounding in the weighted mean never drops a record that reaches `s`. The margin is relative, so it stays positive even for the smallest positive minimum.
@@ -42,7 +43,7 @@ Every candidate is then scored with `compare_with_vectors`:
 - **Options:**
   - `min_score` must satisfy `0 < min_score ≤ 1` (`parameter.threshold`);
   - `limit` bounds the matches returned, while `total_matches` counts them all;
-  - `max_entries` bounds the index entries each lexical or value lane reads. When a lane reaches it, `truncated` is set and matches may be missing. The exact lane and the semantic scan are not limited.
+  - `max_entries` bounds the index entries each lexical, value or acronym lane reads. When a lane reaches it, `truncated` is set and matches may be missing. The exact lane and the semantic scan are not limited.
 - **Order:** highest score first, then typed ID (strings before integers), then slot.
 - **Memory:** every match is counted, but only the best `limit` are kept, in a bounded heap. A group of 100,000 duplicates with `limit = 10` keeps ten explanations, not 100,000; ranking costs `O(M log limit)` for `M` matches.
 - **Diagnostics:** `candidates` counts the records scored; `lanes` counts the candidates each lane proposed.
@@ -78,8 +79,8 @@ Following the specification's protocol, each scenario runs five independent repe
 ## Validation
 
 - `crates/univo-engine/tests/search_oracle.rs`: search equals the exhaustive oracle, matches and counts, on stored records and new queries.
-  - **Data:** minimum scores from 0.2 to 1; a partition; typed IDs; a hybrid name with typos; a hostname with blank values; a discriminant SKU; nested objects that can be empty or null; a semantic description, some without known tokens; indexing in two batches.
-  - **Mutation checks:** removing the lexical, semantic or value lane, nested object leaves, or the empty-object key makes the tests fail.
+  - **Data:** minimum scores from 0.2 to 1; a partition; typed IDs; a hybrid name with typos and with acronyms of its words; a hostname with blank values; a discriminant SKU; nested objects that can be empty or null; a semantic description, some without known tokens; indexing in two batches.
+  - **Mutation checks:** removing the lexical, semantic, value or acronym lane, nested object leaves, or the empty-object key makes the tests fail. So does reading the acronym lane only below 0.5, looking up a key under its own role, ignoring partitions in its keys, or omitting it for semantic fields.
   - **Also covered:**
     - ranking and limits, including a group of a thousand identical records with limits from 0 to 500;
     - work limits that keep exact matches and report truncation;

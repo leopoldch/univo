@@ -614,9 +614,9 @@ class Finder:
         with self._lock:
             return {
                 "policy": "generic-v1",
-                "scoring_version": 2,
-                "search_version": 1,
-                "normalizer_version": 1,
+                "scoring_version": _univo.SCORING_VERSION,
+                "search_version": _univo.SEARCH_VERSION,
+                "normalizer_version": _univo.NORMALIZER_VERSION,
                 "fields": {"<record>": asdict(Text())}
                 if self._schema is None
                 else {path: asdict(options) for path, options in self._schema.fields.items()},

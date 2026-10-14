@@ -349,3 +349,19 @@ Loading is slower because the tokenizer and the vocabulary are larger (105,879 t
 | 100,000 | 13.7 s | **8.17 s** | 50.9 s | 301 MiB | 8.72 s, 491 MiB |
 
 Deduplication CPU time halves with the dimension. Univo's search stays exact and SemHash's approximate. Their thresholds differ, so the removal counts differ (9,688 and 4,120 at 100,000 records): this compares cost, not quality.
+
+## Acronym evidence (ADR 0022)
+
+Release builds, same reference machine, median of five runs, alternating `main` and the change three times.
+
+| Measure | `main` | With acronym evidence |
+| --- | --- | --- |
+| Prepare 100,000 standard records | 1,140 ns per record | 1,290 ns per record |
+| Compare one million standard record pairs | 327 ns per pair | 333 ns per pair |
+| Compare one million configuration pairs | 157 ns per pair | 158 ns per pair |
+| Lexical all-pairs at 100,000 records, every core | 26.4 s | 26.1 s |
+| Semantic all-pairs at 100,000 records, every core | 8.17 s | 8.15 s |
+
+- **What the cost buys.** The acronym and initials of each text are hashed once, at preparation, so that a comparison usually costs a few integer comparisons.
+- **Preparation.** A first version that built them as strings doubled preparation (2,500 ns per record) and added 36 ns per compared pair.
+- **The end-to-end runs.** They ran on battery and removed the same records. Their synthetic names contain no acronyms, so the acronym lane stays empty.
