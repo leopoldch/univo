@@ -51,7 +51,8 @@ pub fn dots<const N: usize>(queries: [&[f32]; N], row: &[f32]) -> [f32; N] {
 }
 
 /// [`dots`], or `None` when none of the queries can reach `threshold`,
-/// which is decided after the first `prefix` lanes chunks of the row.
+/// which is decided after the first `prefix` lanes chunks of the row. With
+/// no prefix, the bound is not computed and the result is [`dots`].
 ///
 /// The dot product of the remaining dimensions is at most the product of
 /// their norms (Cauchy–Schwarz), given as `rest_norms` for the queries and
@@ -73,21 +74,23 @@ pub fn dots_reaching<const N: usize>(
 ) -> Option<[f32; N]> {
     let mut blocked = Blocked::new(queries, row);
     let prefix = prefix.min(blocked.chunks());
-    blocked.accumulate(prefix);
-    #[allow(clippy::cast_precision_loss)]
-    let margin = 4.0 * row.len() as f32 * f32::EPSILON;
-    let reachable = blocked
-        .sums
-        .iter()
-        .zip(rest_norms)
-        .any(|([low, high], rest)| {
-            let (low, high) = (low.to_array(), high.to_array());
-            let partial = ((low[0] + high[0]) + (low[1] + high[1]))
-                + ((low[2] + high[2]) + (low[3] + high[3]));
-            partial + rest * row_rest_norm + margin >= threshold
-        });
-    if !reachable {
-        return None;
+    if prefix > 0 {
+        blocked.accumulate(prefix);
+        #[allow(clippy::cast_precision_loss)]
+        let margin = 4.0 * row.len() as f32 * f32::EPSILON;
+        let reachable = blocked
+            .sums
+            .iter()
+            .zip(rest_norms)
+            .any(|([low, high], rest)| {
+                let (low, high) = (low.to_array(), high.to_array());
+                let partial = ((low[0] + high[0]) + (low[1] + high[1]))
+                    + ((low[2] + high[2]) + (low[3] + high[3]));
+                partial + rest * row_rest_norm + margin >= threshold
+            });
+        if !reachable {
+            return None;
+        }
     }
     blocked.accumulate(blocked.chunks());
     Some(blocked.totals())
@@ -263,6 +266,22 @@ mod tests {
             }
         }
         assert!(skipped > 1000, "the bound must also skip: {skipped}");
+    }
+
+    #[test]
+    fn without_a_prefix_the_full_products_are_returned() {
+        // Callers pass no norm then: zero norms must not skip anything.
+        for length in [0, 4, 7, 8, 15, 16, 128] {
+            let queries: Vec<Vec<f32>> = (0..8).map(|i| unit(length, i, 0)).collect();
+            let queries: [&[f32]; 8] = std::array::from_fn(|i| queries[i].as_slice());
+            let row = unit(length, 99, 0);
+            let found = dots_reaching(queries, [0.0; 8], &row, 0.0, 0, 1.0);
+            assert_eq!(
+                found.map(|found| found.map(f32::to_bits)),
+                Some(dots(queries, &row).map(f32::to_bits)),
+                "{length}"
+            );
+        }
     }
 
     #[test]

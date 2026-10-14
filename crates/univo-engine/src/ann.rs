@@ -241,11 +241,27 @@ impl AnnIndex {
     pub(crate) fn candidates(
         &self,
         store: &RecordStore,
+        query: (&PreparedRecord, &[f32]),
+        field: usize,
+        threshold: f32,
+        options: AnnOptions,
+        exclusions: (Option<usize>, usize),
+    ) -> Option<(Vec<usize>, bool)> {
+        self.expand(store, query, field, threshold, options, exclusions, true)
+    }
+
+    /// [`Self::candidates`]. With `reuse` false, each request runs its own
+    /// traversal: the reference the reused traversal is tested against.
+    #[allow(clippy::too_many_arguments)]
+    fn expand(
+        &self,
+        store: &RecordStore,
         (query, vector): (&PreparedRecord, &[f32]),
         field: usize,
         threshold: f32,
         options: AnnOptions,
         (exclude_slot, min_slot): (Option<usize>, usize),
+        reuse: bool,
     ) -> Option<(Vec<usize>, bool)> {
         let graph = self
             .graphs
@@ -264,7 +280,7 @@ impl AnnIndex {
         let mut traversal = None;
         loop {
             let searched;
-            let found = if requested <= options.ef_search {
+            let found = if reuse && requested <= options.ef_search {
                 let all = traversal.get_or_insert_with(|| {
                     graph
                         .index
@@ -275,15 +291,6 @@ impl AnnIndex {
                 searched = graph.index.search(vector, requested, options.ef_search);
                 &searched[..]
             };
-            debug_assert_eq!(
-                found.iter().map(|point| point.id).collect::<Vec<_>>(),
-                graph
-                    .index
-                    .search(vector, requested, options.ef_search)
-                    .iter()
-                    .map(|point| point.id)
-                    .collect::<Vec<_>>()
-            );
             let mut slots = Vec::new();
             let mut saturated = false;
             for point in found {
@@ -417,6 +424,108 @@ mod tests {
         assert_eq!(graph.index.len(), 2);
         assert_eq!(graph.index.get_vector(1), [0.0, 1.0]);
         assert_eq!(graph.slots, [vec![0], vec![1]]);
+    }
+
+    /// A unit vector of dimension 8 from a seed.
+    fn unit(seed: u64) -> Vec<f32> {
+        let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        let vector: Vec<f32> = (0..8)
+            .map(|_| {
+                state ^= state << 13;
+                state ^= state >> 7;
+                state ^= state << 17;
+                f32::from(u16::try_from(state % 2001).unwrap()) / 1000.0 - 1.0
+            })
+            .collect();
+        let norm = vector.iter().map(|value| value * value).sum::<f32>().sqrt();
+        vector.into_iter().map(|value| value / norm).collect()
+    }
+
+    #[test]
+    fn reused_traversal_returns_what_one_traversal_per_request_returns() {
+        const SLOTS: u32 = 900;
+        let schema = Schema::builder()
+            .id_field(FieldPath::parse("id").unwrap())
+            .partition_by(FieldPath::parse("tenant").unwrap())
+            .text(FieldPath::parse("name").unwrap(), Text::default())
+            .build()
+            .unwrap();
+        let records: Vec<_> = (0..SLOTS)
+            .map(|slot| record(&schema, i64::from(slot), "a"))
+            .collect();
+        let mut graph = Graph::new(&records[0], 0);
+        for slot in 0..SLOTS {
+            // One slot in three shares the vector of the previous one: nodes
+            // with several slots, so that candidates can saturate mid-node.
+            let seed = if slot % 3 == 2 { slot - 1 } else { slot };
+            graph.insert(&unit(u64::from(seed)), slot);
+        }
+        assert_eq!(graph.index.len(), 600);
+        let mut ann = AnnIndex::default();
+        ann.graphs
+            .insert((0, partition_fingerprint(&records[0])), vec![graph]);
+        let mut store = RecordStore::new(schema.clone(), SLOTS as usize);
+        store.append(records).unwrap();
+        let removed: Vec<_> = (0..SLOTS)
+            .step_by(7)
+            .map(|slot| univo_core::RecordId::Int(i64::from(slot)))
+            .collect();
+        store.remove(&removed).unwrap();
+
+        let (mut compared, mut beyond_ef, mut saturated) = (0, 0, 0);
+        for seed in 0..60u32 {
+            let vector = unit(u64::from(if seed % 2 == 0 { seed } else { 10_000 + seed }));
+            // An ID shared with a stored record excludes it too.
+            let query = record(
+                &schema,
+                if seed % 3 == 0 { i64::from(seed) } else { -1 },
+                "a",
+            );
+            let slot = (seed * 13 % SLOTS) as usize;
+            for exclusions in [(None, 0), (Some(slot), 0), (Some(slot), slot + 1)] {
+                for (ef_search, max_candidates) in [
+                    (16, 1000),
+                    (64, 20),
+                    (64, 128),
+                    (64, 700),
+                    (100, 300),
+                    (512, 1024),
+                ] {
+                    let options = AnnOptions {
+                        ef_search,
+                        max_candidates,
+                    };
+                    for threshold in [0.0, 0.3, 0.6, 0.9] {
+                        let search = |reuse| {
+                            ann.expand(
+                                &store,
+                                (&query, &vector),
+                                0,
+                                threshold,
+                                options,
+                                exclusions,
+                                reuse,
+                            )
+                        };
+                        let reused = search(true).unwrap();
+                        assert_eq!(reused, search(false).unwrap());
+                        for &found in &reused.0 {
+                            assert!(store.is_active(found) && found >= exclusions.1);
+                            assert_ne!(Some(found), exclusions.0);
+                            assert_ne!(query.id(), store.records()[found].id());
+                        }
+                        compared += 1;
+                        beyond_ef += usize::from(reused.0.len() > ef_search);
+                        saturated += usize::from(reused.1);
+                    }
+                }
+            }
+        }
+        assert_eq!(compared, 4320);
+        assert!(
+            beyond_ef > 100 && saturated > 100,
+            "{beyond_ef} {saturated}"
+        );
     }
 
     #[test]

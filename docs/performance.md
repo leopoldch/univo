@@ -395,3 +395,21 @@ With the same model, SemHash 0.5.0 takes 8.72 s on the 100,000-name semantic run
 - **Snapshots.** Records and vectors are written and read a few bytes at a time; they are now hashed and written in 64 KiB chunks. The digest and the format are unchanged.
 - **HNSW.** The search explores `max(k, ef_search)` nodes and returns the first `k`. Every request up to `ef_search` is a prefix of one traversal, which is now done once instead of once per doubling of `k`.
 - **Lexical all-pairs.** Posting lists hold slots in increasing order. The entries below the query's slot are skipped by binary search, yet still counted against `max_entries`, so truncation is unchanged.
+- **Exhaustive all-pairs.** Each query streams the later slots of its partition directly, instead of copying the whole partition: `O(n²)` slot copies fewer over a report. Candidate counts are unchanged, since earlier slots were excluded anyway.
+- **Dense lane of one search.** Slots are appended to the candidate list without the sort of `within`, as the list is sorted once anyway. The public `within` still sorts.
+- **No prefix.** Below 16 dimensions, the kernel computes the products directly, with no bound and no norm.
+
+Same machine, the change as first published against the change with the review fixes, alternated three times. It ran partly on battery and the reference itself varied from 5.1 to 8.9 s on one case, so only paired runs compare.
+
+| Measure | Before review fixes | After |
+| --- | --- | --- |
+| Semantic all-pairs, 100,000 names | 5.06, 8.89, 8.03 s | 6.82, 8.24, 7.50 s |
+| Semantic groups, 100,000 names | 6.92, 7.97, 7.47 s | 7.10, 7.93, 7.48 s |
+| Exhaustive lexical all-pairs, 10,000 names | 5.87, 3.08, 3.04 s | 4.04, 2.95, 2.95 s |
+| Exhaustive semantic all-pairs, 10,000 names | 0.86, 0.69, 0.67 s | 0.73, 0.58, 0.68 s |
+| 2,000 dense searches over 100,000 names | 4.05, 3.18, 3.14 s | 3.60, 3.33, 3.30 s |
+
+- **Within noise.** None of these changes is measurable here: the copies and the sort were small next to the scoring they precede. They remove work that grows with the partition.
+- **Run order.** Alternating each pair in the same order favoured the first run by about 3% as the machine heated. In ABBA order, the semantic all-pairs run takes 8.77 s after the review fixes and 8.91 s before (means of four, with thermal throttling on both sides).
+- **Kernel call.** A first version called `dots` for fields without a prefix next to `dots_reaching` in the scan loop. Two inlined kernels in that loop slowed the 100,000-name run from 5.0 to 8.3 s; the case now lives in `dots_reaching`.
+- **Not kept.** Norms precomputed once per report, instead of once per block of 64 queries, were measured neutral (5.0–5.4 s on both sides): a row's norm costs a 64th of the products of a block. Same identical outputs as above.

@@ -45,7 +45,8 @@ struct Member<'a> {
     index: usize,
     slot: usize,
     vector: &'a [f32],
-    /// Norm of the dimensions after the prefix [`dots_reaching`] reads first.
+    /// Norm of the dimensions after the prefix [`dots_reaching`] reads
+    /// first, 0 without a prefix: the kernel then reads no norm.
     rest: f32,
 }
 
@@ -144,7 +145,11 @@ impl SearchIndex {
                         index,
                         slot,
                         vector,
-                        rest: rest_norm(vector, prefix),
+                        rest: if prefix == 0 {
+                            0.0
+                        } else {
+                            rest_norm(vector, prefix)
+                        },
                     })
                 })
                 .collect();
@@ -169,7 +174,7 @@ impl SearchIndex {
                     return Dense::OverBudget;
                 }
                 let (eights, rest) = members[..ready].as_chunks::<8>();
-                let row_rest = if eights.is_empty() {
+                let row_rest = if eights.is_empty() || prefix == 0 {
                     0.0
                 } else {
                     rest_norm(row, prefix)

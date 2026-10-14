@@ -31,7 +31,7 @@ use univo_core::{
 use univo_embed::Embedder;
 
 use crate::acronyms::AcronymIndex;
-use crate::dense::within;
+use crate::dense::extend_within;
 use crate::exact::ExactIndex;
 use crate::lexical::LexicalIndex;
 use crate::store::RecordStore;
@@ -744,7 +744,7 @@ impl SearchIndex {
                     candidates.extend(dense[position].iter().map(|&slot| slot as usize));
                     continue;
                 }
-                let found = within(
+                result.lanes.semantic += extend_within(
                     field_vectors,
                     query_vector,
                     // Partitions list slots in increasing order: all-pairs
@@ -755,10 +755,8 @@ impl SearchIndex {
                         .map(|&slot| slot as usize)
                         .filter(|&slot| self.store().is_active(slot)),
                     threshold,
-                    |slot| slot,
+                    &mut candidates,
                 );
-                result.lanes.semantic += found.len();
-                candidates.extend(found.iter().map(|neighbor| neighbor.slot));
             }
         }
 
@@ -957,21 +955,25 @@ impl SearchIndex {
         query.min_slot = slot + 1;
         query.dense = dense;
         let mut result = SearchResult::default();
-        let slots = if exhaustive {
-            self.partition(query.record)
+        if exhaustive {
+            // Partitions list slots in increasing order; the earlier ones
+            // are excluded anyway.
+            let partition = self.partition(query.record);
+            let later = partition
+                [partition.partition_point(|&slot| (slot as usize) < query.min_slot)..]
                 .iter()
-                .map(|&slot| slot as usize)
-                .collect()
+                .map(|&slot| slot as usize);
+            self.score_each(&query, later, options.min_score, &mut result, visit)?;
         } else {
-            self.candidates(&query, options, &mut result)?
-        };
-        self.score_each(
-            &query,
-            slots.into_iter(),
-            options.min_score,
-            &mut result,
-            visit,
-        )?;
+            let candidates = self.candidates(&query, options, &mut result)?;
+            self.score_each(
+                &query,
+                candidates.into_iter(),
+                options.min_score,
+                &mut result,
+                visit,
+            )?;
+        }
         Ok(result)
     }
 
