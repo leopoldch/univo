@@ -38,6 +38,9 @@ test-rust:
 
 # Python tests against a fresh build of the extension.
 test-python: develop
+    # Python 3.13+ skips hidden .pth files, which iCloud Drive and some
+    # backup tools hide on macOS (docs/development/setup.md).
+    if [ "$(uname)" = Darwin ]; then chflags -R nohidden .venv; fi
     uv run pytest
 
 # Every test.
