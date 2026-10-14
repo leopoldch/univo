@@ -54,18 +54,3 @@ assert decision.status == "review"    # similar enough to need a decision; not i
 A distributed application must enforce uniqueness where the data lives: a unique constraint, a transaction, or idempotent writes keyed by a stable ID. Univo then serves as the detector that proposes the matches, not as the arbiter.
 
 Snapshots refuse concurrent writers with an operating-system lock ([persistence](persistence.md)); that lock protects the files, not the decisions of separate processes. Do not share a `Finder` across `fork()`: create it in the child process.
-
-## Validation
-
-- **`crates/univo-engine/tests/check_or_add.rs`:**
-  - the three decisions;
-  - the query encoded once for the search and the insertion;
-  - embeddings of another model, of another schema with the same model, or covering another number of records, and existing IDs, all leaving the index unchanged;
-  - work limits reported with the decision;
-  - eight threads racing through a `RwLock`, ten rounds, exactly one insertion each.
-- **`tests/python/test_concurrency.py`:**
-  - the same decisions through `Finder`, slots without an `id_field`;
-  - failed calls inserting nothing;
-  - an eight-thread race with exactly one insertion per round;
-  - four threads searching while another adds, replaces and removes records, with monotonic generations.
-- **Mutation check:** replacing `check_or_add` by a search followed by `add` inserts several copies per round in both races.

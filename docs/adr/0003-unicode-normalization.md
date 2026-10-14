@@ -45,7 +45,7 @@ Apple M2, release build, single thread:
 
 ## Consequences
 
-- Python and Rust agree on normalization by construction of the tests, not by sharing code: the corpus oracle in `tests/corpus` and the CPython fixtures in `tests/fixtures/unicode` are independent of the Rust implementation.
+- Python and Rust agree on normalization by construction of the tests, not by sharing code: the corpus oracle in `tests/tools/test_critical_corpus.py` and the CPython fixtures in `tests/fixtures/unicode` are independent of the Rust implementation.
 - A dependency update that changes any output fails the oracle tests and requires a `NORMALIZER_VERSION` increment.
 - Every prepared field carries 24 bytes of fingerprints: a prepared field takes 56 bytes, 32 without them. On the standard workload, a prepared record takes about 690 bytes, of which 72 are fingerprints (about 10 %); with 64 fields, fingerprints alone would take 1.5 KiB per record, 154 MB for 100 000 records.
 

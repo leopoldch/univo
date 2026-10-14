@@ -62,23 +62,3 @@ Groups never merge or change records. A future `plan_merge` (after 1.0) would ch
 | 20,000 | 10.3 s | 11.0 s | 2,041 | 2,062 | 13 |
 
 Both grow faster than linearly in one partition, because every record is searched against the others; partitions and higher thresholds reduce the work. Since [ADR 0018](../adr/0018-parallel-all-pairs.md), each pair is scanned once and the searches run on the `threads` budget, with the same groups: see [performance](../development/performance.md#parallel-all-pairs-reports-adr-0018).
-
-## Validation
-
-- **`crates/univo-engine/tests/groups.rs`:**
-  - exact groups within partitions;
-  - a chain not closed transitively;
-  - a clique grouped whole, then split by the size limit;
-  - vetoed pairs never grouped;
-  - an exact group joining as one node;
-  - pair and threshold limits;
-  - 30,000 blank records grouped, and searched with `find`, in linear time (a quadratic scan of their exact bucket took over 260 s);
-  - an exact group of semantic records whose identical vectors score 0.99999994: not a conservative group at `min_score=1`, a group below it.
-- **Random data, three seeds and three thresholds, checked with `compare` itself:**
-  - every pair inside a conservative group qualifies and is not vetoed;
-  - groups are disjoint and within the size limit;
-  - exact groups are verified and maximal;
-  - results are deterministic;
-  - candidate and exhaustive searches give the same groups.
-- **Mutation checks:** single-link chaining (joining on one qualifying pair) and ignoring the size limit both make the tests fail.
-- **`tests/python/test_groups.py`:** the same behaviours through `Finder.group`, including this page's example.

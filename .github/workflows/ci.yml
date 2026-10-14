@@ -40,7 +40,7 @@ jobs:
       - run: python tools/checks/check_native_dependencies.py univo-python univo-engine univo-embed
       - run: python tools/fixtures/build_critical_corpus.py --check
       - run: python tools/fixtures/build_tiny_model.py --check
-      - run: uv run --only-group dev pytest tests/tools tests/corpus
+      - run: uv run --only-group dev pytest tests/tools
 
   rust:
     name: rust (${{ matrix.platform }}, ${{ matrix.toolchain }})

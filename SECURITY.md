@@ -1,17 +1,11 @@
-# Security policy
+# Security
 
-## Reporting a vulnerability
+Report vulnerabilities privately through [GitHub security advisories](https://github.com/leopoldch/univo/security/advisories/new), not in public issues. Expect an answer within a week.
 
-Please report vulnerabilities privately, through [GitHub's private vulnerability reporting](https://github.com/leopoldch/univo/security/advisories/new), not in a public issue. Include the affected version or commit, a description of the impact and the steps to reproduce. You will receive an answer within a week.
+Univo has no release yet; fixes go to `main` and, from the first release, to the latest one.
 
-## Supported versions
-
-Univo has no release yet. Until 1.0, fixes go to the latest release and to `main`.
-
-## Scope
-
-Univo processes data locally, so these boundaries matter most:
-- **Network.** Records never leave the machine. The only network access downloads model files, which are verified against pinned checksums before use. Strict offline mode makes no network access at all.
-- **Models.** Downloaded model code is never executed, and no persistent state uses pickle.
-- **Snapshots.** Loading a snapshot checks sizes, checksums and versions before allocating, and rejects symbolic links in place of snapshot files. A snapshot is data, never code.
-- **Resources.** Batches, reports and indexes have explicit limits; exceeding one is a typed error, not unbounded memory use.
+**Boundaries**
+- **Network.** Records never leave the machine. The only network access downloads model files, verified against pinned checksums; offline mode makes none.
+- **Untrusted input.** No downloaded code is executed, and no state uses pickle.
+- **Snapshots.** They are checked for size, checksum and version before loading, and regular files are required, so symbolic links are refused.
+- **Limits.** Batches, reports and indexes have explicit limits that fail with typed errors.
