@@ -1,6 +1,6 @@
 # Models, cache and offline use
 
-Univo computes text embeddings locally with a static [Model2Vec](https://github.com/MinishLab/model2vec) model ([ADR 0007](adr/0007-default-embedding-model.md)). Records never leave the machine. The only network access is the download of model files, on first use, and it can be done in advance or forbidden.
+Univo computes text embeddings locally with a static [Model2Vec](https://github.com/MinishLab/model2vec) model ([ADR 0007](adr/0007-default-embedding-model.md), [ADR 0021](adr/0021-multilingual-default-model.md)). Records never leave the machine. The only network access is the download of model files, on first use, and it can be done in advance or forbidden.
 
 ## Choosing a model
 
@@ -8,10 +8,12 @@ A model is named by a string:
 
 | String | Model |
 | --- | --- |
-| `"default"` | The release's default model, `minishlab/potion-base-8M` at a pinned commit, verified against checksums compiled into Univo |
+| `"default"` | The release's default model, `univo-models/static-similarity-mrl-multilingual-int8-128` at a pinned commit, verified against checksums compiled into Univo: 50 languages, 128 dimensions, 15 MB |
 | `"org/name"` | A Hugging Face repository at its `main` branch, resolved to a commit at the first download |
 | `"org/name@revision"` | A repository at a branch, tag or commit; a full commit hash is recommended |
 | `/path`, `./path`, `../path`, `~/path`, `file:///path` | A local directory holding `config.json`, `model.safetensors` and `tokenizer.json` |
+
+The default model is a reduced copy of `sentence-transformers/static-similarity-mrl-multilingual-v1` (Apache-2.0). Its [model card](https://huggingface.co/univo-models/static-similarity-mrl-multilingual-int8-128) lists the modifications and the measured quality. On organization names it finds about six times more aliases written in another language than the previous English-only default, `minishlab/potion-base-8M`. It also finds more English aliases, at the cost of somewhat more false matches between similar names. To keep the previous default, name it: `model="minishlab/potion-base-8M@bf8b056651a2c21b8d2565580b8569da283cab23"`. A snapshot always reloads the model it was saved with.
 
 `org/name` is never read as a relative path: prefix local directories with `./`. Only Model2Vec models run; another format, such as a sentence-transformers repository, is refused with `model.unsupported_format`, and no downloaded code is ever executed.
 

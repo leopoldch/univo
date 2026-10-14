@@ -81,7 +81,7 @@ finder = Finder(
 # The directory must contain a verified, supported Model2Vec model before add/search/find.
 ```
 
-`model_path` accepts a filesystem path explicitly and is exclusive of `model`. `model="org/name"` is always a hub repository, never guessed to be a relative directory. `hub_url` and `cache_dir` retain the U-009 semantics. `Finder(model="minishlab/potion-multilingual-128M")` accepts the reference, but only an explicit semantic field uses it; the current model resolver also enforces its download-size limit. This task does not change the 100 MiB default-model budget or select a multilingual replacement.
+`model_path` accepts a filesystem path explicitly and is exclusive of `model`. `model="org/name"` is always a hub repository, never guessed to be a relative directory. `hub_url` and `cache_dir` retain the U-009 semantics. `Finder(model="minishlab/potion-multilingual-128M")` accepts the reference, but only an explicit semantic field uses it; the current model resolver also enforces its download-size limit. The default model is itself multilingual since [ADR 0021](adr/0021-multilingual-default-model.md).
 
 [Explicit snapshots](persistence.md) and [bounded embedding reuse](embedding-cache.md) are implemented. `finder.save(path)` publishes the persistent index; `Finder.load(path, offline=True)` verifies and restores it without reencoding saved vectors. Upsert/remove, calibrated production thresholds and ANN remain later roadmap tasks.
 

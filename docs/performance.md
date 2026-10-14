@@ -325,3 +325,27 @@ Every run removes the same records as before. Univo's search is exact; SemHash's
 **Memory of similar data.** Blocks hold at most 2^20 candidates and split when they would hold more. 100,000 records with identical vectors, `groups(max_pairs=1)` on 8 threads, peak RSS above the index: 1,385 MiB with 16 semantic fields before the bound, 129 MiB with it; 153 MiB and 62 MiB with one field.
 
 The all-pairs harness [`all_pairs`](../crates/univo-engine/examples/all_pairs.rs) gives 11.2 ns per pair on one thread at 20,000 records, against 26.5 ns for the same kernel left to the compiler's vectorizer.
+
+## Multilingual default model (ADR 0021)
+
+The default model now has 128 dimensions instead of 256 ([ADR 0021](adr/0021-multilingual-default-model.md)). Model-level budgets, release build, same reference machine:
+
+| Measure | potion-base-8M | New default |
+| --- | --- | --- |
+| Load, verify and encode one text, median of 5 | 18 ms | 60 to 95 ms |
+| 20,000 descriptions, 1 thread / 8 threads | 0.95 s / — | 0.82 s / 0.27 s |
+| Exhaustive top-10 over 100,000 vectors, one thread | 2.5 ms | 1.2 ms |
+| Search p95 at 100,000 records, one partition / ten / a group of 10,000 | 10.0 / 2.3 / 8.5 ms | 8.5 / 1.65 / 6.6 ms |
+| Indexes for that workload | 156 MiB | 92 MiB |
+
+Loading is slower because the tokenizer and the vocabulary are larger (105,879 tokens); it happens once per Finder, at the first semantic use.
+
+**End to end.** Same U-003 workload as above, every core, model load included. Both tools use the new default model. Release wheel installed outside the tree, SemHash 0.5.0, on battery at 96%, low-power mode off; [raw results](../benchmarks/performance/default-model-macos-arm64.jsonl).
+
+| Records | Univo, potion-base-8M | Univo, new default | CPU | Peak RSS | SemHash, new default |
+| --- | --- | --- | --- | --- | --- |
+| 10,000 | 0.23 s | **0.23 s** | 0.7 s | 154 MiB | 1.24 s, 157 MiB |
+| 30,000 | 1.43 s | **1.02 s** | 5.0 s | 184 MiB | 2.21 s, 226 MiB |
+| 100,000 | 13.7 s | **8.17 s** | 50.9 s | 301 MiB | 8.72 s, 491 MiB |
+
+Deduplication CPU time halves with the dimension. Univo's search stays exact and SemHash's approximate. Their thresholds differ, so the removal counts differ (9,688 and 4,120 at 100,000 records): this compares cost, not quality.

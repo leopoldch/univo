@@ -321,12 +321,12 @@ def test_the_command_line_downloads_and_inspects(hub: Hub, tmp_path: pathlib.Pat
 )
 def test_the_default_model_downloads_from_a_mirror_and_loads(tmp_path: pathlib.Path) -> None:
     mirror = Hub(
-        repository="minishlab/potion-base-8M",
-        commit="bf8b056651a2c21b8d2565580b8569da283cab23",
+        repository="univo-models/static-similarity-mrl-multilingual-int8-128",
+        commit="0000000000000000000000000000000000000000",
         directory=pathlib.Path(os.environ["UNIVO_TEST_MODEL_DIR"]),
     )
     with serve(mirror):
         info = download("default", hub_url=mirror.url, cache_dir=tmp_path)
-    assert (info.revision, info.dimension) == (mirror.commit, 256)
+    assert (info.revision, info.dimension) == (mirror.commit, 128)
     assert not any(path.startswith("/api/") for path in mirror.requests)
     assert inspect("default", cache_dir=tmp_path) == info

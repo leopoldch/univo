@@ -60,14 +60,16 @@ max_ms = 250.0
 [embed.first_encoding]
 # Loading the default model from local files already in the OS cache,
 # verifying every file and encoding one text, median of five.
-# specs/07-performance.md allows 2 s; measured at 18 ms on the reference
-# machine (U-009).
+# specs/07-performance.md allows 2 s; measured at 18 ms with potion-base-8M
+# (U-009) and 60 to 95 ms with the multilingual default (ADR 0021), whose
+# tokenizer and vocabulary are larger.
 max_ms = 200.0
 
 [embed.encode]
 # Encoding descriptions of the standard workload (30 words, about 39
 # tokens) with the default model, one thread, median of five after one
-# warmup. Measured at 0.95 s on the reference machine (U-009), about 21 000
+# warmup. Measured at 0.82 s on the reference machine with the multilingual
+# default (ADR 0021; 0.95 s with potion-base-8M in U-009), about 24 000
 # texts per second, against the 2000 objects per second of
 # specs/07-performance.md. Tokenization takes nearly all of it.
 texts = 20000
@@ -76,8 +78,9 @@ max_ms = 1400.0
 [engine.vector_search]
 # Exhaustive top-k over unit vectors of the default model's dimension, one
 # query against every record, one thread, median of 25 queries after one
-# warmup. Measured at 2.5 ms on the reference machine (U-010), about 10
-# billion multiply-adds per second; the budget fails if the dot product
+# warmup. Measured at 2.5 ms with 256 dimensions (U-010) and 1.2 ms with the
+# 128 of the multilingual default (ADR 0021), about 10 billion multiply-adds
+# per second; the budget fails if the dot product
 # stops being vectorized.
 records = 100000
 k = 10
@@ -99,14 +102,17 @@ max_query_ms = 15.0
 # End-to-end search of a stored record (all lanes, scoring, ranking) over
 # the standard workload of specs/07-performance.md: ID, tenant, a name of
 # about 20 characters, a semantic description of 30 words with synthetic
-# embeddings of 256 dimensions, one record in ten a near-duplicate of the
-# previous one; one thread, limit 10, no work limit. Protocol of
+# embeddings of the default model's 128 dimensions, one record in ten a
+# near-duplicate of the previous one; one thread, limit 10, no work limit.
+# Protocol of
 # specs/07-performance.md: five independent repetitions of 1000 queries
 # after a warmup; the budget applies to the median of the five p95.
 # max_ms covers one partition (the worst case) and ten; max_group_ms covers
 # queries from a group of 10 000 identical records in one partition, which
 # score every member. Measured at 9.9 ms (one partition), 2.2 ms (ten) and
-# 8.0 ms (group) on the reference machine (U-010);
+# 8.0 ms (group) with 256 dimensions on the reference machine (U-010), and
+# 8.5 ms, 1.65 ms and 6.6 ms with 128 (ADR 0021; indexes 92 MiB instead of
+# 156 MiB);
 # specs/07-performance.md allows 50 ms with four threads. Encoding a new
 # query with the model is not included.
 records = 100000

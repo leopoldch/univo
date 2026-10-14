@@ -63,7 +63,7 @@ Le mode exact doit rester disponible après l’ajout d’ANN. La 0.1 limite vol
 | Types initiaux | chaînes et dictionnaires à valeurs supportées |
 | Représentation vectorielle interne | f32 contiguë et normalisée, sauf backend documenté autrement |
 | Exactitude | aucune suppression implicite ; correspondances expliquées |
-| Modèle par défaut | proposé après le spike U-004 : modèle statique `minishlab/potion-base-8M`, anglais, changeable par une chaîne ([ADR 0007](../docs/adr/0007-default-embedding-model.md), en attente d’acceptation) |
+| Modèle par défaut | modèle statique multilingue (50 langues) `univo-models/static-similarity-mrl-multilingual-int8-128`, int8, 128 dimensions, 15 Mo, changeable par une chaîne ([ADR 0007](../docs/adr/0007-default-embedding-model.md), [ADR 0021](../docs/adr/0021-multilingual-default-model.md)) |
 | Index ANN | à choisir après benchmark de rappel, mémoire, licence et mutations |
 | Stockage persistant | snapshots immuables versionnés initialement |
 | Licence du projet | MIT, décidée dans l’[ADR 0001](../docs/adr/0001-project-name-and-license.md) ; vérifier la compatibilité de chaque dépendance et modèle |

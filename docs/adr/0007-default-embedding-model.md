@@ -1,6 +1,6 @@
 # 0007. Default embedding model and model selection
 
-- Status: Proposed, awaiting the maintainer's acceptance
+- Status: Default model superseded by [ADR 0021](0021-multilingual-default-model.md); the backend and model-selection contract remain in force
 - Date: 2026-10-07
 - Roadmap: U-004
 
