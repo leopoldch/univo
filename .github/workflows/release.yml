@@ -1,0 +1,125 @@
+name: Release
+
+# Publishing a GitHub release whose tag is v<workspace version> runs the full
+# CI, builds and tests the source distribution, and uploads the wheels and the
+# sdist with PyPI trusted publishing: no token is stored. A release marked as
+# a pre-release goes to TestPyPI instead. See docs/releasing.md.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: version matches the tag
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - id: check
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(python tools/check_release.py version "$TAG")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: The tagged commit is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+  ci:
+    needs: version
+    uses: ./.github/workflows/ci.yml
+
+  sdist:
+    name: sdist builds and passes the tests
+    needs: version
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+      - name: Compile and install from the sdist in a clean environment
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install dist/*.tar.gz pytest
+      - name: Run the test suite from outside the source tree
+        working-directory: ${{ runner.temp }}
+        env:
+          UNIVO_EXPECT_INSTALLED: "1"
+        run: >
+          "$RUNNER_TEMP/venv/bin/python" -m pytest -p no:cacheprovider
+          -c "$GITHUB_WORKSPACE/pyproject.toml" --rootdir "$GITHUB_WORKSPACE"
+          "$GITHUB_WORKSPACE/tests/python"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: publish to ${{ github.event.release.prerelease && 'TestPyPI' || 'PyPI' }}
+    needs: [version, ci, sdist]
+    runs-on: ubuntu-24.04
+    environment:
+      name: ${{ github.event.release.prerelease && 'testpypi' || 'pypi' }}
+      url: https://${{ github.event.release.prerelease && 'test.' || '' }}pypi.org/project/univo/${{ needs.version.outputs.version }}/
+    # Job permissions replace the workflow's: checkout still needs contents.
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: wheel-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: sdist
+          path: dist
+      - name: Exactly one sdist and one wheel per platform
+        run: python3 tools/check_release.py dist "${{ needs.version.outputs.version }}" dist
+      - if: ${{ github.event.release.prerelease }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+      - if: ${{ !github.event.release.prerelease }}
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  attach:
+    name: attach the files to the release
+    needs: publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: wheel-*
+          path: dist
+          merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: sdist
+          path: dist
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY"
