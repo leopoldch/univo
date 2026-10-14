@@ -20,7 +20,7 @@ partition typée à partir de 10 000 slots retenus dans la partition.
 Les partitions plus petites utilisent le parcours vectoriel complet.
 Ce seuil évite des graphes pour les petits tenants ; il ne constitue pas
 un choix `auto` ni une garantie de gain à 10 000 records. Les mesures
-[U-016](../benchmarks/spikes/u016/README.md) montrent justement des workloads
+[U-016](../benchmarks/spikes/ann-backends/README.md) montrent justement des workloads
 où le parcours complet reste plus rapide. Les champs hybrid restent lexicaux.
 Les partitions réelles sont vérifiées avant la traversal, même en cas de
 collision d'empreintes. Sans embeddings ou sans graphes, aucun index ANN

@@ -9,7 +9,7 @@ and hostname normalizers defined in docs/duplicate-definitions.md:
 - strings.jsonl: deterministic random strings mixing scripts, combining
   marks, ligatures, width variants and trailing dots.
 
-Usage: python -I tools/build_unicode_fixtures.py
+Usage: python -I tools/fixtures/build_unicode_fixtures.py
 """
 
 import json
@@ -19,7 +19,7 @@ import string
 import sys
 import unicodedata
 
-OUTPUT = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "unicode"
+OUTPUT = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "unicode"
 STRING_COUNT = 1500
 SEED = 20261007
 

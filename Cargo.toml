@@ -1,6 +1,12 @@
 [workspace]
 resolver = "3"
-members = ["crates/univo-core", "crates/univo-embed", "crates/univo-engine", "crates/univo-python"]
+members = [
+    "crates/univo-core",
+    "crates/univo-embed",
+    "crates/univo-engine",
+    "crates/univo-python",
+    "crates/univo-testkit",
+]
 exclude = ["benchmarks"]
 
 [workspace.package]

@@ -36,10 +36,10 @@ jobs:
       - run: uv run --only-group dev ruff check .
       - run: uv run --only-group dev ruff format --check .
       - run: uv run --only-group dev mypy
-      - run: python tools/check_links.py .
-      - run: python tools/check_native_dependencies.py univo-python univo-engine univo-embed
-      - run: python tools/build_critical_corpus.py --check
-      - run: python tools/build_tiny_model.py --check
+      - run: python tools/checks/check_links.py .
+      - run: python tools/checks/check_native_dependencies.py univo-python univo-engine univo-embed
+      - run: python tools/fixtures/build_critical_corpus.py --check
+      - run: python tools/fixtures/build_tiny_model.py --check
       - run: uv run --only-group dev pytest tests/tools tests/corpus
 
   rust:
@@ -111,7 +111,7 @@ jobs:
           target: ${{ matrix.target }}
           manylinux: auto
           args: --release --locked --out dist
-      - run: python tools/check_wheel.py --platform-tag "${{ matrix.tag }}" dist/*.whl
+      - run: python tools/checks/check_wheel.py --platform-tag "${{ matrix.tag }}" dist/*.whl
         shell: bash
       - uses: actions/upload-artifact@v7
         with:

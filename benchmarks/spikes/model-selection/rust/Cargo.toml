@@ -2,7 +2,7 @@
 # would use it: no C library (fancy-regex instead of onig) and no network.
 # A standalone workspace, so that the spike adds nothing to Univo's crates.
 [package]
-name = "u004-rust-bench"
+name = "model-selection-bench"
 version = "0.0.0"
 edition = "2024"
 publish = false

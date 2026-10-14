@@ -5,7 +5,7 @@ Publishing a GitHub release publishes Univo on PyPI. [`release.yml`](../.github/
 1. **Check the version.** The tag must be `v` followed by the workspace version of `Cargo.toml`, and the tagged commit must be on `main`. Version `0.0.0` is refused.
 2. **Run the whole CI.** This is [`ci.yml`](../.github/workflows/ci.yml): lint, Rust on six platforms, then one wheel per platform, each installed and tested outside the source tree.
 3. **Check the source distribution.** It is built, compiled in a clean environment and run against the test suite.
-4. **Upload.** The job first checks that `dist/` holds exactly one sdist and one wheel per platform ([`check_release.py`](../tools/check_release.py)). It then uploads them with [trusted publishing](https://docs.pypi.org/trusted-publishers/), which uses GitHub's OIDC identity instead of an API token.
+4. **Upload.** The job first checks that `dist/` holds exactly one sdist and one wheel per platform ([`check_release.py`](../tools/checks/check_release.py)). It then uploads them with [trusted publishing](https://docs.pypi.org/trusted-publishers/), which uses GitHub's OIDC identity instead of an API token.
 5. **Attach the same files to the GitHub release.**
 
 If any step fails, nothing is uploaded. A release marked as a **pre-release** goes to [TestPyPI](https://test.pypi.org/project/univo/) instead of PyPI: use it to try the whole chain.

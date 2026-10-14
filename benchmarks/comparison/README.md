@@ -116,7 +116,7 @@ These results support no precision claim: the ROR task shows that no tool reache
 ## Reproduce
 
 ```bash
-python tools/build_quality_corpus.py /path/to/v2.14-2026-10-06-ror-data.zip --output /tmp/ror-pairs.jsonl
+python tools/quality/build_quality_corpus.py /path/to/v2.14-2026-10-06-ror-data.zip --output /tmp/ror-pairs.jsonl
 MODEL=/path/to/potion-base-8M   # config.json, model.safetensors, tokenizer.json at bf8b0566
 for tool in univo-exact univo-lexical univo-semantic; do
   python -I benchmarks/comparison/dedupe.py /tmp/ror-pairs.jsonl --tool $tool --model-path $MODEL --output /tmp/ror-$tool.json

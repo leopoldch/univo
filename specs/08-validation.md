@@ -75,4 +75,4 @@ sont figés avant le test ; aucune correction silencieuse des ties. Tests
 de collisions de partitions/vecteurs, IDs supprimés, upsert/compaction,
 manifest incompatible, reconstruction sans inférence et oracle conservé.
 Ces mesures ne réparent pas les gates métier U-012 ni ne valident un
-profil universel. [Résultats ANN](../benchmarks/spikes/u016/README.md).
+profil universel. [Résultats ANN](../benchmarks/spikes/ann-backends/README.md).

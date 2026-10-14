@@ -1,4 +1,4 @@
-//! Usage: `u004-rust-bench <model-dir> <names.txt> <descriptions.txt> [--warm]`.
+//! Usage: `model-selection-bench <model-dir> <names.txt> <descriptions.txt> [--warm]`.
 //!
 //! Without `--warm`, loads the model once and prints its first load time,
 //! dimension and median throughput over three runs after a warmup, so that
@@ -56,6 +56,6 @@ fn main() {
                  \"names_per_s\": {names_per_s}, \"descriptions_per_s\": {descriptions_per_s}}}"
             );
         }
-        _ => panic!("usage: u004-rust-bench <model-dir> <names.txt> <descriptions.txt> [--warm]"),
+        _ => panic!("usage: model-selection-bench <model-dir> <names.txt> <descriptions.txt> [--warm]"),
     }
 }

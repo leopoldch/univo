@@ -1,3 +1,6 @@
+//! The critical corpus of `tests/fixtures/critical`: its cases, the schema of
+//! each profile, and the preparation of a case's pair of records.
+
 use std::path::Path;
 
 use serde_json::Value as Json;
@@ -7,9 +10,9 @@ use univo_core::{
 };
 
 /// Corpus cases whose expected error needs a batch, not a single record.
-pub(crate) const BATCH_LEVEL_CASES: &[&str] = &["adversarial-009"];
+pub const BATCH_LEVEL_CASES: &[&str] = &["adversarial-009"];
 
-pub(crate) fn path(dotted: &str) -> FieldPath {
+pub fn path(dotted: &str) -> FieldPath {
     FieldPath::parse(dotted).unwrap()
 }
 
@@ -27,7 +30,7 @@ fn discriminant() -> Exact {
     }
 }
 
-pub(crate) fn schema(profile: &str) -> Schema {
+pub fn schema(profile: &str) -> Schema {
     let builder = Schema::builder().id_field(path("id"));
     match profile {
         "strings" => return Schema::strings(),
@@ -57,7 +60,7 @@ pub(crate) fn schema(profile: &str) -> Schema {
     .unwrap()
 }
 
-pub(crate) fn to_value(json: &Json) -> Value {
+pub fn to_value(json: &Json) -> Value {
     match json {
         Json::Null => Value::Null,
         Json::Bool(flag) => Value::Bool(*flag),
@@ -80,11 +83,11 @@ pub(crate) fn to_value(json: &Json) -> Value {
 }
 
 /// Corpus labels name the exception a binding raises for the error kind.
-pub(crate) fn error_name(error: &Error) -> String {
+pub fn error_name(error: &Error) -> String {
     format!("{}Error", error.kind().name())
 }
 
-pub(crate) fn cases() -> Vec<Json> {
+pub fn cases() -> Vec<Json> {
     let path =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures/critical/cases.jsonl");
     std::fs::read_to_string(path)
@@ -94,7 +97,7 @@ pub(crate) fn cases() -> Vec<Json> {
         .collect()
 }
 
-pub(crate) fn prepare_pair(
+pub fn prepare_pair(
     case: &Json,
     schema: &Schema,
 ) -> (Result<PreparedRecord, Error>, Result<PreparedRecord, Error>) {

@@ -11,9 +11,9 @@ l'algorithme. Voir [ADR 0015](../../../docs/adr/0015-explicit-partition-ann.md).
 ## Screening synthétique
 
 ```sh
-cargo build --release --manifest-path benchmarks/spikes/u016/rust/Cargo.toml
-RAYON_NUM_THREADS=1 benchmarks/spikes/u016/rust/target/release/u016-ann-spike fast 10000 256 uniform
-RAYON_NUM_THREADS=1 benchmarks/spikes/u016/rust/target/release/u016-ann-spike reference 10000 256 clustered
+cargo build --release --manifest-path benchmarks/spikes/ann-backends/rust/Cargo.toml
+RAYON_NUM_THREADS=1 benchmarks/spikes/ann-backends/rust/target/release/ann-backends-spike fast 10000 256 uniform
+RAYON_NUM_THREADS=1 benchmarks/spikes/ann-backends/rust/target/release/ann-backends-spike reference 10000 256 clustered
 ```
 
 Vecteurs unitaires, seed données 41, 32 centres pour les clusters, 200
@@ -39,8 +39,8 @@ Préparer le corpus U-012 selon [quality](../../quality/README.md), puis,
 avec une wheel installée et le modèle local :
 
 ```sh
-python benchmarks/spikes/u016/export_names.py pairs.jsonl /path/to/model /tmp/ann-vectors
-benchmarks/spikes/u016/rust/target/release/u016-ann-spike fast 0 256 ror /tmp/ann-vectors/background.bin /tmp/ann-vectors/queries.bin
+python benchmarks/spikes/ann-backends/export_names.py pairs.jsonl /path/to/model /tmp/ann-vectors
+benchmarks/spikes/ann-backends/rust/target/release/ann-backends-spike fast 0 256 ror /tmp/ann-vectors/background.bin /tmp/ann-vectors/queries.bin
 ```
 
 Le binaire d'entrée est un export de benchmark de confiance (header

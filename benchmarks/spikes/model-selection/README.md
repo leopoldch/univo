@@ -5,8 +5,8 @@ Comparison of three architectural families from [specs/04-models-and-cache.md §
 ## Reproduce
 
 ```bash
-python -m venv /tmp/u004 && /tmp/u004/bin/pip install -r requirements.txt
-/tmp/u004/bin/python evaluate.py --output results.json   # also builds rust/ with cargo
+python -m venv /tmp/model-selection && /tmp/model-selection/bin/pip install -r requirements.txt
+/tmp/model-selection/bin/python evaluate.py --output results.json   # also builds rust/ with cargo
 ```
 
 - Every model is pinned to a Hugging Face revision in `evaluate.py`.

@@ -410,6 +410,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68354c5c6bd36d73ff3feceb05efa59b6acb7626617f4962be322a825e61f79a"
 
 [[package]]
+name = "model-selection-bench"
+version = "0.0.0"
+dependencies = [
+ "model2vec-rs",
+]
+
+[[package]]
 name = "model2vec-rs"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -841,13 +848,6 @@ dependencies = [
  "unicode-normalization-alignments",
  "unicode-segmentation",
  "unicode_categories",
-]
-
-[[package]]
-name = "u004-rust-bench"
-version = "0.0.0"
-dependencies = [
- "model2vec-rs",
 ]
 
 [[package]]

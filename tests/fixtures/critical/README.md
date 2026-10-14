@@ -4,7 +4,7 @@ Deterministic pairs that cover the critical branches of duplicate detection ([sp
 
 - Version: critical-v2.
 - Review status: labels proposed on 2026-10-07; maintainer review pending.
-- Source of truth: [tools/build_critical_corpus.py](../../../tools/build_critical_corpus.py). Edit the case table there and regenerate; CI fails if `cases.jsonl` or the coverage section below is stale.
+- Source of truth: [tools/fixtures/build_critical_corpus.py](../../../tools/fixtures/build_critical_corpus.py). Edit the case table there and regenerate; CI fails if `cases.jsonl` or the coverage section below is stale.
 - Case identifiers are written by hand and immutable: a new case takes the next free number of its family, and a retired number is never reused. Record identifiers derive from them (`<case_id>-l`, `<case_id>-r`).
 
 ## Purpose and limits

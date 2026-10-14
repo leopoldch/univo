@@ -423,7 +423,7 @@ def build_rust() -> pathlib.Path:
     subprocess.run(
         ["cargo", "build", "--release", "--locked", "--quiet"], cwd=RUST_BENCH, check=True
     )
-    return RUST_BENCH / "target" / "release" / "u004-rust-bench"
+    return RUST_BENCH / "target" / "release" / "model-selection-bench"
 
 
 def measure_rust(

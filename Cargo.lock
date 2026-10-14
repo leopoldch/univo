@@ -1390,6 +1390,7 @@ dependencies = [
  "serde_json",
  "toml",
  "unicode-normalization",
+ "univo-testkit",
  "wide",
 ]
 
@@ -1419,6 +1420,7 @@ dependencies = [
  "toml",
  "univo-core",
  "univo-embed",
+ "univo-testkit",
 ]
 
 [[package]]
@@ -1431,6 +1433,14 @@ dependencies = [
  "univo-core",
  "univo-embed",
  "univo-engine",
+]
+
+[[package]]
+name = "univo-testkit"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
+ "univo-core",
 ]
 
 [[package]]

@@ -55,7 +55,7 @@ def test_importing_univo_and_its_models_loads_no_heavy_or_network_module() -> No
 
 
 def test_import_opens_no_python_socket() -> None:
-    """Covers Python-level sockets; native code is covered by tools/check_native_dependencies.py."""
+    """Covers Python-level sockets; tools/checks/check_native_dependencies.py covers native code."""
     assert run_isolated(SOCKET_AUDIT_EVENTS) == []
 
 

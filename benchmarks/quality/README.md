@@ -7,10 +7,10 @@ The benchmark and calibration tooling are implemented. The quality gates fail on
 Download [ROR v2.14](https://zenodo.org/records/23187250), then run the builder with the versioned ZIP. The downloaded archive matched the publisher’s MD5; its SHA256 is pinned in the builder; [corpus.json](corpus.json) pins the generated pair SHA256. The data is not included in the wheel or repository.
 
 ```bash
-python tools/build_quality_corpus.py /path/to/v2.14-2026-10-06-ror-data.zip --output /tmp/ror-pairs.jsonl
-python tools/evaluate_quality.py /tmp/ror-pairs.jsonl \
+python tools/quality/build_quality_corpus.py /path/to/v2.14-2026-10-06-ror-data.zip --output /tmp/ror-pairs.jsonl
+python tools/quality/evaluate_quality.py /tmp/ror-pairs.jsonl \
   --critical tests/fixtures/critical/cases.jsonl --output /tmp/lexical.json
-python tools/evaluate_quality.py /tmp/ror-pairs.jsonl --mode semantic \
+python tools/quality/evaluate_quality.py /tmp/ror-pairs.jsonl --mode semantic \
   --model-path /path/to/local/model --critical tests/fixtures/critical/cases.jsonl \
   --output /tmp/semantic.json
 ```
@@ -89,7 +89,7 @@ The 234 critical cases never choose a threshold. Full profile evaluation checks 
 
 The raw files also include pure lexical/semantic text-view AUC per language, family and view (234 views), plus test metrics per ROR language/family. Other critical languages have at most four record pairs; some have only one class, so AUC is null. Three cross-language record pairs cannot establish cross-language quality. The French difference does not establish a multilingual advantage and does not justify exceeding the 100 MiB default-model budget.
 
-SemHash and a full 100k semantic Finder performance workload remain unmeasured in U-012; the earlier [U-004 model spike](../spikes/u004/README.md) and [U-011 lexical measurements](../../docs/performance.md) are separate protocols. Supervised Dedupe/Splink comparisons are not applicable to this unsupervised name-only setup without introducing a separately declared training protocol. Alpha publication and the release quality decision remain pending.
+SemHash and a full 100k semantic Finder performance workload remain unmeasured in U-012; the earlier [U-004 model spike](../spikes/model-selection/README.md) and [U-011 lexical measurements](../../docs/performance.md) are separate protocols. Supervised Dedupe/Splink comparisons are not applicable to this unsupervised name-only setup without introducing a separately declared training protocol. Alpha publication and the release quality decision remain pending.
 
 ## Validation
 

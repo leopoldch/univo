@@ -1,9 +1,9 @@
 """Release checks run by .github/workflows/release.yml before publishing.
 
-python tools/check_release.py version v0.1.0
+python tools/checks/check_release.py version v0.1.0
     The tag names the workspace version of Cargo.toml; prints the
     version as PyPI spells it (PEP 440).
-python tools/check_release.py dist 0.1.0 dist/
+python tools/checks/check_release.py dist 0.1.0 dist/
     The directory holds exactly the files to upload: one source
     distribution and one wheel per supported platform, all of that version.
 """
@@ -14,7 +14,7 @@ import re
 import sys
 import tomllib
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEMVER = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?")
 PRERELEASE = {"alpha": "a", "beta": "b", "rc": "rc"}
 # One wheel per platform of specs/09-distribution.md, built by ci.yml.

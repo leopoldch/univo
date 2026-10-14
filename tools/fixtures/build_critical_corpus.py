@@ -6,8 +6,8 @@ its family, and a retired case keeps its number out of circulation. Labels
 follow docs/duplicate-definitions.md. All records are synthetic.
 
 Usage:
-    python tools/build_critical_corpus.py          # rewrite the fixture and README coverage
-    python tools/build_critical_corpus.py --check  # fail if either is stale
+    python tools/fixtures/build_critical_corpus.py          # rewrite fixture and README coverage
+    python tools/fixtures/build_critical_corpus.py --check  # fail if either is stale
 """
 
 import argparse
@@ -19,7 +19,7 @@ import sys
 from collections import Counter
 from typing import Any
 
-FIXTURE_DIR = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "critical"
+FIXTURE_DIR = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "critical"
 OUTPUT = FIXTURE_DIR / "cases.jsonl"
 README = FIXTURE_DIR / "README.md"
 COVERAGE_START = "<!-- coverage:start -->"
@@ -2426,7 +2426,7 @@ def main() -> int:
     if arguments.check:
         stale = [path for path, content in outputs.items() if path.read_text("utf-8") != content]
         for path in stale:
-            print(f"{path} is stale; run tools/build_critical_corpus.py", file=sys.stderr)
+            print(f"{path} is stale; run tools/fixtures/build_critical_corpus.py", file=sys.stderr)
         return 1 if stale else 0
     for path, content in outputs.items():
         path.write_text(content, encoding="utf-8")

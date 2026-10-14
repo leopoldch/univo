@@ -54,7 +54,7 @@ At 40k, current single-addition samples ranged from 1.735 to 1.780 ms without ID
 
 ## Python Finder (U-011)
 
-[Reproduction script](../benchmarks/performance/python_finder.py), [raw measurements](../benchmarks/performance/u011-macos-arm64.json). On 2026-10-11: Apple M2, 16 GiB RAM, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0; portable CPU release wheel installed outside the repository. Fixed seed 11, 100,000 random 20-character ASCII names and integer IDs, one lexical field, one partition, one thread. Five repeats, 20 warmup queries then 1,000 newly converted queries per repeat (new IDs, one changed character); no model loaded, model footprint zero. Input generation, construction and index destruction are outside add/search timers. The full Python-to-Rust-to-Python path is timed. The final run starts after build/test processes finish; `pmset` reports AC power. Search uses `min_score=0.8`, output limit 10.
+[Reproduction script](../benchmarks/performance/python_finder.py), [raw measurements](../benchmarks/performance/finder-macos-arm64.json). On 2026-10-11: Apple M2, 16 GiB RAM, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0; portable CPU release wheel installed outside the repository. Fixed seed 11, 100,000 random 20-character ASCII names and integer IDs, one lexical field, one partition, one thread. Five repeats, 20 warmup queries then 1,000 newly converted queries per repeat (new IDs, one changed character); no model loaded, model footprint zero. Input generation, construction and index destruction are outside add/search timers. The full Python-to-Rust-to-Python path is timed. The final run starts after build/test processes finish; `pmset` reports AC power. Search uses `min_score=0.8`, output limit 10.
 
 | Measurement | Result |
 | --- | --- |
@@ -72,7 +72,7 @@ All query assertions passed; candidate lanes were untruncated and returned the i
 
 ## Python pair report review (#15)
 
-[Reproduction script](../benchmarks/performance/python_find_report.py), [raw comparison](../benchmarks/performance/u011-report-review-macos-arm64.json). On 2026-10-11, Apple M2 with 16 GiB RAM, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, portable CPU release wheels installed outside the repository. The baseline is commit `0e3d491`; the correction retains global output in a bounded heap and sorts once. Each of five repeats starts with a new temporary index: 10,000 records, first 150 identical names, then random 20-character ASCII names (seed 15), integer IDs, one lexical field, one partition, one thread, threshold 1, output limit 10,000. No model is loaded (zero model bytes). Input generation and Finder construction are outside timing; conversion, indexing, retrieval and report conversion are included. Build/test processes finished before measurement.
+[Reproduction script](../benchmarks/performance/python_find_report.py), [raw comparison](../benchmarks/performance/find-report-macos-arm64.json). On 2026-10-11, Apple M2 with 16 GiB RAM, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, portable CPU release wheels installed outside the repository. The baseline is commit `0e3d491`; the correction retains global output in a bounded heap and sorts once. Each of five repeats starts with a new temporary index: 10,000 records, first 150 identical names, then random 20-character ASCII names (seed 15), integer IDs, one lexical field, one partition, one thread, threshold 1, output limit 10,000. No model is loaded (zero model bytes). Input generation and Finder construction are outside timing; conversion, indexing, retrieval and report conversion are included. Build/test processes finished before measurement.
 
 Median full `find` falls from 746.7 ms to 98.8 ms. Both versions count 11,175 pairs, retain 10,000 and report no candidate truncation. Process peak RSS (including Python inputs and repeat lifetimes) is 61.5 MiB before and 62.2 MiB after. This measures an early dense group followed by a sparse tail, not semantic scans, quality or a universal latency guarantee.
 
@@ -80,7 +80,7 @@ The corrected macOS arm64 wheel is 1.663 MiB compressed, with no dependency chan
 
 ## Semantic embedding reuse (U-013)
 
-[Reproduction script](../benchmarks/performance/python_embedding_cache.py), [raw measurements](../benchmarks/performance/u013-macos-arm64.json). Apple M2 (8 cores), 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, portable CPU release macOS arm64 wheel installed outside the repository. The pinned default potion-base-8M model is local (29.49 MiB for the three required files), with files already in OS cache. One thread, five repeats per cache setting, fresh Finder per repeat, 1,000 synthetic English descriptions of about 30 words with integer IDs, 1,000 partitions (one target each). Input generation and construction are outside timing. Full add includes local model loading and conversion. Each repeat warms 20 queries, then times 1,000 complete search calls with reused selected text, new query IDs and changed unselected metadata, threshold 0.8, output limit 10.
+[Reproduction script](../benchmarks/performance/python_embedding_cache.py), [raw measurements](../benchmarks/performance/embedding-cache-macos-arm64.json). Apple M2 (8 cores), 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, portable CPU release macOS arm64 wheel installed outside the repository. The pinned default potion-base-8M model is local (29.49 MiB for the three required files), with files already in OS cache. One thread, five repeats per cache setting, fresh Finder per repeat, 1,000 synthetic English descriptions of about 30 words with integer IDs, 1,000 partitions (one target each). Input generation and construction are outside timing. Full add includes local model loading and conversion. Each repeat warms 20 queries, then times 1,000 complete search calls with reused selected text, new query IDs and changed unselected metadata, threshold 0.8, output limit 10.
 
 Median of five search p95 values: 0.0721 ms with cache disabled, 0.0218 ms with the default 4 MiB cache. Median full add including local model load is 59.2 ms without cache and 59.9 ms with cache; this small difference is within measurement noise. The cache retains 1,000 entries in 1,475,218 accounted bytes, with 1,000 misses, 1,020 hits and zero evictions in the final repeat. All queries return the expected record without truncation.
 
@@ -89,7 +89,7 @@ This workload isolates semantic-text reuse rather than large-partition retrieval
 ## Explicit snapshots (U-014)
 
 [Reproduction script](../benchmarks/performance/python_snapshots.py),
-[raw measurements](../benchmarks/performance/u014-macos-arm64.json). On
+[raw measurements](../benchmarks/performance/snapshots-macos-arm64.json). On
 2026-10-12: Apple M2, 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0,
 AC power, portable CPU release wheel installed outside the repository. Local
 system temporary storage, OS-cache warm files, one thread, five fresh Finder
@@ -138,7 +138,7 @@ platform results await native CI; no release is published by U-014.
 ## U-015 mutations and compaction
 
 [Reproduction script](../benchmarks/performance/python_mutations.py) and
-[raw samples](../benchmarks/performance/u015-macos-arm64.json). Release abi3 wheel,
+[raw samples](../benchmarks/performance/mutations-macos-arm64.json). Release abi3 wheel,
 Apple M2 / 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, one thread.
 Five fresh processes per size, warm local potion-base-8M files at the U-014
 pinned revision (29.49 MiB, dimension 256), cache disabled. Synthetic integer
@@ -186,9 +186,9 @@ no release or merge is performed by this implementation.
 
 ## U-016 explicit HNSW
 
-[Protocol and vector recall](../benchmarks/spikes/u016/README.md),
+[Protocol and vector recall](../benchmarks/spikes/ann-backends/README.md),
 [script](../benchmarks/performance/python_ann.py) and
-[raw samples](../benchmarks/performance/u016-macos-arm64.json). Release abi3
+[raw samples](../benchmarks/performance/ann-macos-arm64.json). Release abi3
 wheel, Apple M2 / 16 GiB RAM, macOS 27.0.1, Python 3.14.7, Rust 1.99.0.
 Pinned local potion-base-8M (29.49 MiB, dimension 256), no downloads,
 embedding cache disabled. Synthetic ID/tenant/20-character name/32-word

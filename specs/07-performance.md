@@ -63,4 +63,4 @@ U-016 mesure le backend vectoriel séparément de la recherche Finder complète
 reconstruction sont déclarés ; `ann_bytes` est une estimation retenue, pas
 un plafond RSS. Le défaut reste dense : les mesures ne justifient pas encore
 un `auto` et le budget incrémental de 512 Mio reste ouvert.
-[Protocole et données](../benchmarks/spikes/u016/README.md).
+[Protocole et données](../benchmarks/spikes/ann-backends/README.md).

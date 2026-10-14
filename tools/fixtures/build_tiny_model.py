@@ -3,7 +3,7 @@
 A word-level tokenizer over a small vocabulary and 8-dimensional token
 vectors computed from a fixed formula, in the same three files as a real
 Model2Vec model. It lets tests load, verify and cache a model without
-network access. Regenerate with `python tools/build_tiny_model.py`;
+network access. Regenerate with `python tools/fixtures/build_tiny_model.py`;
 `--check` fails if the files are stale.
 """
 
@@ -13,7 +13,7 @@ import pathlib
 import struct
 import sys
 
-OUTPUT = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "models" / "tiny"
+OUTPUT = pathlib.Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "models" / "tiny"
 DIMENSION = 8
 VOCABULARY = [
     "[UNK]",
@@ -106,7 +106,7 @@ def main() -> int:
             if not path.is_file() or path.read_bytes() != content
         ]
         for path in stale:
-            print(f"{path} is stale; run tools/build_tiny_model.py", file=sys.stderr)
+            print(f"{path} is stale; run tools/fixtures/build_tiny_model.py", file=sys.stderr)
         return 1 if stale else 0
     OUTPUT.mkdir(parents=True, exist_ok=True)
     for path, content in files.items():
