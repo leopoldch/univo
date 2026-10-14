@@ -11,6 +11,7 @@ license-files = ["LICENSE"]
 requires-python = ">=3.11"
 authors = [{ name = "Léopold Chappuis" }]
 dynamic = ["version"]
+keywords = ["deduplication", "record-linkage", "entity-resolution", "fuzzy-matching", "embeddings"]
 dependencies = []
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -24,7 +25,11 @@ classifiers = [
 ]
 
 [project.urls]
+Homepage = "https://github.com/leopoldch/univo"
+Documentation = "https://github.com/leopoldch/univo/blob/main/docs/README.md"
 Repository = "https://github.com/leopoldch/univo"
+Issues = "https://github.com/leopoldch/univo/issues"
+Changelog = "https://github.com/leopoldch/univo/blob/main/CHANGELOG.md"
 
 [dependency-groups]
 dev = ["maturin>=1.15,<2", "pytest>=9.1", "ruff>=0.16", "mypy>=2.4"]

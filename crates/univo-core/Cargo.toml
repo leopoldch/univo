@@ -6,7 +6,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+keywords = ["deduplication", "record-linkage", "entity-resolution", "fuzzy-matching", "normalization"]
+categories = ["text-processing", "algorithms"]
 
 [dependencies]
 wide = { version = "0.7.33", default-features = false }

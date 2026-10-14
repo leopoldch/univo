@@ -2,15 +2,27 @@
 
 **Fast, local duplicate detection for your data.**
 
-Univo is a library under construction for finding duplicate candidates in strings and structured objects, with a reusable Rust core and a simple Python interface. Inference runs locally; applications do not need to manage embeddings or deploy a vector database.
+Univo finds duplicate candidates among strings and structured records. It combines exact, lexical and semantic evidence, explains every match, and runs entirely on your machine: a Rust engine behind a small Python API, with no vector database to deploy and no data sent anywhere.
 
-## Project status
+> **Status: pre-alpha.** Univo is not published on PyPI yet. Build it from source (below); APIs and formats may still change.
 
-The library is under construction and not published yet. Rust provides types, schemas, normalization, errors, pairwise exact matching and an [exact index](docs/design/exact-index.md). Rust also provides [search](docs/design/search.md) by score across exact, lexical and semantic evidence. Python exposes [Finder](docs/guide/quickstart.md), typed errors and [model download, cache and offline use](docs/guide/models.md). See the [development guide](docs/development/setup.md). API examples and performance budgets in the specifications describe targets unless explicitly validated.
+## Highlights
+
+- **Fast.**
+  - **Semantic deduplication** of 100,000 names takes 4.8 s on a laptop, exactly: every pair above the threshold is found. SemHash takes 8.7 s with the same model and an approximate index.
+  - **Lexical deduplication** of 100,000 names takes about 2 s. [Measurements](docs/development/performance.md).
+- **Exact by default.** Candidate search is complete for the scoring rule. Approximate retrieval (HNSW) is an explicit option, and reports say when it was used.
+- **Local and offline.** Inference runs locally with a small static model (15 MB, multilingual), downloaded once, verified against pinned checksums and cached. Strict offline mode never touches the network.
+- **Explainable.** Each match carries per-field similarities, the signal behind each one, and its coverage. Scores rank candidates; they are not probabilities.
+- **Built for records.** Schemas with typed IDs, partitions such as tenants, exact fields with vetoes, and missing values that stay missing evidence.
+- **Safe operations.**
+  - `upsert` and `remove` by ID;
+  - atomic `check_or_add`;
+  - versioned snapshots with a single publication point.
+
+  Records are never merged or deleted implicitly.
 
 ## Quickstart
-
-With a locally built wheel ([development](docs/development/setup.md)):
 
 ```python
 from univo import Finder
@@ -20,43 +32,65 @@ for match in report.matches:
     print(match.left_id, match.right_id, match.score)
 ```
 
-The Amazon/Amiazon pair is returned as a candidate. Default hybrid fields use lexical evidence and need no model. Explicit semantic fields load a local model lazily. Scores are not probabilities; [limits and structured examples](docs/guide/quickstart.md).
+Structured records, with an ID, a partition and an exact field that vetoes conflicting matches:
 
-## Specifications
+```python
+from univo import Exact, Finder, Schema, Text
 
-- [Specification index and decision status](specs/README.md)
-- [Product scope and release boundaries](specs/01-product.md)
-- [Python API contracts](specs/02-python-api.md)
-- [Matching and duplicate semantics](specs/03-matching.md)
-- [Rust architecture and concurrency](specs/05-rust-architecture.md)
-- [Performance and resource budgets](specs/07-performance.md)
-- [Validation strategy](specs/08-validation.md)
-- [Implementation roadmap and acceptance criteria](specs/10-roadmap.md)
-- [Repository instructions](AGENTS.md)
-- [Architecture decision records](docs/adr/README.md)
-- [Duplicate definitions per profile](docs/reference/duplicate-definitions.md)
-- [Dependency register](docs/development/dependencies.md)
-- [Error catalog](docs/reference/errors.md)
-- [Models, cache and offline use](docs/guide/models.md)
-- [Pairwise scoring](docs/reference/scoring.md)
-- [Vector search](docs/design/vector-search.md)
-- [Lexical candidates](docs/design/lexical-search.md)
-- [Search](docs/design/search.md)
-- [Concurrency and check_or_add](docs/guide/concurrency.md)
-- [Groups](docs/guide/groups.md)
-- [Comparison with SemHash](benchmarks/comparison/README.md)
-- [Releasing](docs/development/releasing.md)
+schema = Schema(
+    id_field="id",
+    partition_by=["tenant"],
+    fields={"name": Text(), "environment": Exact(conflict="reject")},
+)
+finder = Finder(schema=schema, offline=True)
+records = [
+    {"id": "org-1", "tenant": "shop", "name": "Amazon", "environment": "prod"},
+    {"id": "org-2", "tenant": "shop", "name": "AMAZON", "environment": "prod"},
+    {"id": "org-3", "tenant": "shop", "name": "Amazon", "environment": "test"},
+]
+finder.add(records)
+report = finder.search(records[0])
+assert [match.right_id for match in report.matches] == ["org-2"]
+```
 
-## Design priorities
+Text fields are compared lexically by default and need no model. `Text(mode="semantic")` uses embeddings: the model loads lazily on first use. The [quickstart guide](docs/guide/quickstart.md) covers options, limits and reports.
 
-- Fast search and bounded memory, verified with reproducible benchmarks.
-- Local inference with a cached model and strict offline operation.
-- Exact, lexical and semantic evidence with explicit conflicts and explanations.
-- Minimal dependencies and precompiled Python wheels on supported platforms.
-- Explicit uncertainty: similarity is not identity, and no records are deleted or merged implicitly.
+## Installation
 
-The model, approximate-search backend and default thresholds will be selected through the experiments in the roadmap. Java bindings and other integrations follow validation of the Rust/Python core.
+Univo needs Rust (1.89 or later), Python 3.11 or later and [uv](https://docs.astral.sh/uv/):
+
+```bash
+git clone https://github.com/leopoldch/univo
+cd univo
+uv sync --group dev        # creates .venv and builds the extension in release mode
+uv run python -c "import univo; print(univo.__version__)"
+```
+
+Published releases will ship precompiled wheels: installing them will not need Rust.
+
+## Documentation
+
+- [Guide](docs/README.md#guide): models and offline use, mutations, snapshots, concurrency, groups.
+- [Reference](docs/README.md#reference): errors, pairwise scoring, duplicate definitions.
+- [Design](docs/README.md#design): how search finds candidates, and the [architecture decisions](docs/adr/README.md).
+- [Performance](docs/development/performance.md) and the [comparison with SemHash](benchmarks/comparison/README.md).
+
+## Repository layout
+
+| Path | Contents |
+| --- | --- |
+| `crates/univo-core` | Values, schemas, normalization, record preparation and pairwise scoring |
+| `crates/univo-embed` | Model references, pinned registry, verified cache and static inference |
+| `crates/univo-engine` | Indexes, candidate search, reports, groups and snapshots |
+| `crates/univo-python` | The PyO3 extension: conversions only |
+| `python/univo` | The Python package |
+| `docs`, `specs` | Documentation, and the product specifications (in French) |
+| `benchmarks`, `tests`, `tools` | Measurements, tests and fixtures, and maintenance scripts |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and the [development setup](docs/development/setup.md). Report vulnerabilities privately, as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+[MIT](LICENSE).

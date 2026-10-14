@@ -6,7 +6,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
 authors.workspace = true
+keywords = ["deduplication", "record-linkage", "search", "similarity-search", "index"]
+categories = ["text-processing", "algorithms", "data-structures"]
 
 [dependencies]
 fast-hnsw = "=1.0.1"
