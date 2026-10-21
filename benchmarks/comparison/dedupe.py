@@ -186,7 +186,7 @@ def main(argv: list[str] | None = None) -> int:
         "pairs", type=Path, help="ror-pairs.jsonl from tools/quality/build_quality_corpus.py"
     )
     parser.add_argument("--tool", choices=TOOLS, required=True)
-    parser.add_argument("--model-path", help="local potion-base-8M directory, for semantic tools")
+    parser.add_argument("--model-path", help="local model directory, for semantic tools")
     parser.add_argument("--output", type=Path, required=True)
     arguments = parser.parse_args(argv)
     if arguments.tool in ("univo-semantic", "semhash") and not arguments.model_path:

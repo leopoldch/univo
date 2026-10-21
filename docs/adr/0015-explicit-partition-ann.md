@@ -62,7 +62,7 @@ variations du rappel après reconstruction.
 
 ## Evidence
 
-Le [spike et ses résultats bruts](../../benchmarks/spikes/ann-backends/README.md)
+Le [spike et ses résultats bruts](evidence/ann-backends.md)
 comparent les backends, le kernel et les formes de données. Le screening
 synthétique comprend 200 requêtes par point ; ce n'est pas le protocole
 final de p95. Les paramètres retenus sont figés avant le test ROR.

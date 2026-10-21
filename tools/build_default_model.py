@@ -52,7 +52,8 @@ OUTPUT_FILES = {
         "88d69c30a2a4395cf169631e47f3c4fbb95d300650028d541ec531ed18eb0ff1",
     ),
 }
-CARD_FILES = ("README.md", "LICENSE")
+# Published name of each card file, and its source in CARD_DIRECTORY.
+CARD_FILES = {"README.md": "model-card.md", "LICENSE": "LICENSE"}
 CARD_DIRECTORY = pathlib.Path(__file__).resolve().parent / "default_model"
 
 
@@ -162,8 +163,8 @@ def build(source: pathlib.Path, output: pathlib.Path) -> None:
     (output / "config.json").write_bytes(config())
     (output / "model.safetensors").write_bytes(safetensors(quantize(values, rows, columns), rows))
     (output / "tokenizer.json").write_bytes(tokenizer(source / "0_StaticEmbedding/tokenizer.json"))
-    for name in CARD_FILES:
-        shutil.copyfile(CARD_DIRECTORY / name, output / name)
+    for name, source_name in CARD_FILES.items():
+        shutil.copyfile(CARD_DIRECTORY / source_name, output / name)
     for name, (size, checksum) in OUTPUT_FILES.items():
         verify(output / name, size, checksum)
 

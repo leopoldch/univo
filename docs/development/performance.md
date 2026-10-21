@@ -188,7 +188,7 @@ no release or merge is performed by this implementation.
 
 ## U-016 explicit HNSW
 
-[Protocol and vector recall](../../benchmarks/spikes/ann-backends/README.md),
+[Protocol and vector recall](../adr/evidence/ann-backends.md),
 [script](../../benchmarks/performance/python_ann.py) and
 [raw samples](../../benchmarks/performance/ann-macos-arm64.json). Release abi3
 wheel, Apple M2 / 16 GiB RAM, macOS 27.0.1, Python 3.14.7, Rust 1.99.0.
@@ -294,7 +294,7 @@ CI success is claimed. No model change, release or merge.
 | 100,000 | semantic, exact | 251 s | 126 s | **66.5 s** | 485 s | 314 MiB |
 | 100,000 | semantic, HNSW | 220 s | | 113 s | 343 s | 518 MiB |
 
-Every configuration removes the same records as before. For reference, SemHash 0.5.0 takes 1.0 s, 2.5 s and 14 s on the same data with every core ([U-003](../../benchmarks/comparison/README.md)).
+Every configuration removes the same records as before. For reference, SemHash 0.5.0 takes 1.0 s, 2.5 s and 14 s on the same data with every core ([U-003](../benchmarks.md)).
 
 - **Half the comparisons.** An all-pairs query now scans only the records after it, in the lexical verification and the dense semantic scan: one thread is about twice as fast.
 - **Threads.** Lexical reports scale to 5.1× on 8 threads at 100,000 records. Dense semantic reports stop at 1.9× there: each query streams every later vector from memory, up to 100 MB at 100,000 records, so memory bandwidth, not arithmetic, bounds them from about 4 threads. [ADR 0019](../adr/0019-blocked-dense-all-pairs.md) measures this cause in isolation and compares blocks of queries with each vector read.

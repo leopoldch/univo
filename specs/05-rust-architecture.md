@@ -1,7 +1,5 @@
 # Architecture Rust et concurrence
 
-[Retour à l’index des spécifications](README.md)
-
 > Statut : contrats à implémenter. Les exemples ne décrivent pas une bibliothèque déjà disponible. Les budgets chiffrés sont des objectifs à valider, pas des résultats mesurés.
 
 ## 18. Architecture du dépôt

@@ -6,7 +6,7 @@ aucun réseau pendant la mesure. ANN et scoring à un thread ; encodage
 contrôlé par le Finder. Les RSS couvrent le processus complet.
 Les backends n'ont pas exactement le même kernel SIMD ni un seed commun :
 la comparaison décrit leurs implémentations réelles, pas un effet isolé de
-l'algorithme. Voir [ADR 0015](../../../docs/adr/0015-explicit-partition-ann.md).
+l'algorithme. Voir [ADR 0015](../0015-explicit-partition-ann.md).
 
 ## Screening synthétique
 
@@ -21,8 +21,8 @@ requêtes proches de records avec bruit indépendant ; top-10 oracle complet.
 M=16, efConstruction=200, efSearch=32/128/512/1024, fast seed16,
 hnsw_rs seed aléatoire. Un processus par point du screening, pas cinq :
 ces latences ne sont pas des gates de release.
-[Screening](results/screening.json) : comparaison initiale avec kernel
-Euclidien serial et oracle alloué. [Kernel](results/kernel.json) :
+[Screening](../../../benchmarks/spikes/ann-backends/results/screening.json) : comparaison initiale avec kernel
+Euclidien serial et oracle alloué. [Kernel](../../../benchmarks/spikes/ann-backends/results/kernel.json) :
 accumulation portable huit lanes côté fast ; ne pas mélanger les latences
 exactes de ces anciennes mesures avec le programme final, qui utilise
 maintenant le même kernel optimisé et un tas borné pour l'oracle.
@@ -35,7 +35,7 @@ Ces nombres ne démontrent pas un rappel universel à 100k ou sur tout corpus.
 
 ## Test ROR vectoriel figé
 
-Préparer le corpus U-012 selon [quality](../../quality/README.md), puis,
+Préparer le corpus U-012 selon [quality](../../benchmarks.md#name-quality), puis,
 avec une wheel installée et le modèle local :
 
 ```sh
@@ -47,7 +47,7 @@ Le binaire d'entrée est un export de benchmark de confiance (header
 u64 nombre/dimension, f32 little-endian), pas un format public de snapshot.
 Noms NFC/casefold uniques, background train+validation, queries test excluant
 les textes normalisés identiques au background ; les entités U-012 sont
-disjointes. Vecteurs absents retirés et comptés dans le [manifest](results/ror-input.json).
+disjointes. Vecteurs absents retirés et comptés dans le [manifest](../../../benchmarks/spikes/ann-backends/results/ror-input.json).
 Modèle potion-base-8M, révision bf8b056651a2c21b8d2565580b8569da283cab23,
 256 dimensions, trois fichiers de 29,49 Mio. Seuil/params choisis avant test ;
 aucun entraînement ou ajustement sur held-out test.
@@ -68,11 +68,11 @@ classification des doublons ni les lanes hybrides.
 Construction médiane 2,458 s ; RSS maximal 38,813 Mio ; oracle exact
 optimisé environ 0,227 ms **moyens**, différent d'un p95. Ce N est inférieur
 au fallback de production à 10k, donc le résultat est un test du backend
-brut, pas la latence Finder. [Résultats bruts](results/ror.json).
+brut, pas la latence Finder. [Résultats bruts](../../../benchmarks/spikes/ann-backends/results/ror.json).
 
 ## Finder complet
 
-[python_ann.py](../../performance/python_ann.py) utilise la wheel release
+[python_ann.py](../../../benchmarks/performance/python_ann.py) utilise la wheel release
 installée hors dépôt, modèle local, cache d'embeddings désactivé, seed16.
 Le dataset synthétique contient ID/tenant, nom aléatoire de 20 caractères
 et description de 32 mots ASCII du vocabulaire du modèle. Query : ID neuf,
@@ -90,4 +90,4 @@ L'option `--snapshot` mesure aussi save/load et reconstruction ; les résultats
 bruts indiquent les processus qui incluent ces phases. Leur RSS maximal inclut
 l'ancien Finder et le nouveau pendant load, les inputs Python et le modèle ;
 il ne démontre pas le budget incrémental moteur de 512 Mio.
-Les [mesures](../../../docs/development/performance.md) publient médiane et dispersion.
+Les [mesures](../../development/performance.md) publient médiane et dispersion.

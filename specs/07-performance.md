@@ -1,7 +1,5 @@
 # Mémoire, performances et budgets
 
-[Retour à l’index des spécifications](README.md)
-
 > Statut : contrats à implémenter. Les exemples ne décrivent pas une bibliothèque déjà disponible. Les budgets chiffrés sont des objectifs à valider, pas des résultats mesurés.
 
 ## 14. Mémoire et budgets de ressources
@@ -63,4 +61,4 @@ U-016 mesure le backend vectoriel séparément de la recherche Finder complète
 reconstruction sont déclarés ; `ann_bytes` est une estimation retenue, pas
 un plafond RSS. Le défaut reste dense : les mesures ne justifient pas encore
 un `auto` et le budget incrémental de 512 Mio reste ouvert.
-[Protocole et données](../benchmarks/spikes/ann-backends/README.md).
+[Protocole et données](../docs/adr/evidence/ann-backends.md).

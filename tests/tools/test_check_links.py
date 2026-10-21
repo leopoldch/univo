@@ -29,3 +29,9 @@ def test_skips_tool_directories(tmp_path: pathlib.Path) -> None:
         write(tmp_path / directory / "nested" / "doc.md", "[x](missing.md)")
 
     assert broken_links(tmp_path) == []
+
+
+def test_skips_icloud_copies(tmp_path: pathlib.Path) -> None:
+    write(tmp_path / "guide 2.md", "[x](missing.md)")
+
+    assert broken_links(tmp_path) == []

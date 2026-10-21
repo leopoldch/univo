@@ -65,7 +65,7 @@ The critical corpus is a regression set: it vetoes a candidate that breaks a rul
 ## Evidence
 
 - **Machine and builds:** Apple M2, macOS 27.0.1, release builds.
-- **Quality:** from the [U-012 benchmark](../../benchmarks/quality/README.md), on ROR name aliases with a validation-chosen threshold.
+- **Quality:** from the [U-012 benchmark](../benchmarks.md#name-quality), on ROR name aliases with a validation-chosen threshold.
   - The test split has 1,341 duplicate and 1,173 distinct pairs. It is exploratory for this choice (see *Alternatives*).
   - A release wheel installed outside the source tree, with Rust absent from PATH, reproduced the spike figures exactly.
 - **Speed:** from `univo-embed`'s budget tests and the engine's search budget.

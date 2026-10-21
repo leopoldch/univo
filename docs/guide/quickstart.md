@@ -85,7 +85,7 @@ finder = Finder(
 
 [Explicit snapshots](persistence.md) and [bounded embedding reuse](embedding-cache.md) are implemented. `finder.save(path)` publishes the persistent index; `Finder.load(path, offline=True)` verifies and restores it without reencoding saved vectors. Upsert/remove, calibrated production thresholds and ANN remain later roadmap tasks.
 
-The first [offline quality benchmark](../../benchmarks/quality/README.md) does not meet the precision/recall gates on organization-name aliases. Its validation thresholds are experimental measurements, not supported production profiles. The default score is still uncalibrated.
+The first [offline quality benchmark](../benchmarks.md#name-quality) does not meet the precision/recall gates on organization-name aliases. Its validation thresholds are experimental measurements, not supported production profiles. The default score is still uncalibrated.
 
 `stats()` exposes active `records`, `retained_slots` and `tombstones`. Periodic Rust compaction reclaims obsolete versions without inference; it may pause calls and temporarily increase memory. Mutations become durable only after `save()`.
 

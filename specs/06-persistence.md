@@ -1,7 +1,5 @@
 # Snapshots, formats et cohérence
 
-[Retour à l’index des spécifications](README.md)
-
 > Statut : contrats à implémenter. Les exemples ne décrivent pas une bibliothèque déjà disponible. Les budgets chiffrés sont des objectifs à valider, pas des résultats mesurés.
 
 ## 15. Persistance et cohérence

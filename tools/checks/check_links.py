@@ -14,13 +14,15 @@ LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 INLINE_CODE = re.compile(r"(`+).+?\1")
 SKIPPED_DIRS = {".git", "target", ".venv", "node_modules", "dist"}
+# Copies iCloud Drive makes of files changed by a checkout, ignored by git too.
+ICLOUD_COPY = re.compile(r" [0-9]\.md$")
 
 
 def markdown_files(root: pathlib.Path) -> Iterator[pathlib.Path]:
     for directory, subdirectories, files in os.walk(root):
         subdirectories[:] = sorted(name for name in subdirectories if name not in SKIPPED_DIRS)
         for name in sorted(files):
-            if name.endswith(".md"):
+            if name.endswith(".md") and not ICLOUD_COPY.search(name):
                 yield pathlib.Path(directory, name)
 
 

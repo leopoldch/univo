@@ -17,7 +17,7 @@ finder = Finder(
 **When graphs are used.**
 - **Large partitions.** `Text(mode="semantic")` fields use one HNSW graph per field and typed partition, from 10,000 retained slots in the partition.
 - **Smaller partitions** use the complete vector scan.
-- **What the threshold is for.** It avoids graphs for small tenants. It is neither an `auto` choice nor a promise of a gain at 10,000 records: the [measurements](../../benchmarks/spikes/ann-backends/README.md) show workloads where the complete scan stays faster.
+- **What the threshold is for.** It avoids graphs for small tenants. It is neither an `auto` choice nor a promise of a gain at 10,000 records: the [measurements](../adr/evidence/ann-backends.md) show workloads where the complete scan stays faster.
 - **Hybrid fields** stay lexical.
 - **Partitions** are checked by value before traversal, even when fingerprints collide.
 - **No allocation without need.** Without embeddings or graphs, no approximate index is allocated, and import and construction load no model.

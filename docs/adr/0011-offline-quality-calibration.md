@@ -16,7 +16,7 @@ Retain generic-v1, the default 0.8 convenience threshold and the current propose
 
 ## Evidence and alternatives
 
-The [protocol, raw results and corpus manifest](../../benchmarks/quality/README.md) compare exact normalized names, lexical matching and three local static models. On 2,514 held-out name pairs, the highest measured recall is 17.9% with 96.8% precision, far below the 90% recall / 98% precision targets. The smaller 2M model gives 17.7% recall with 7.86 MiB of files versus 29.49 MiB for 8M; this single narrow dataset does not establish a replacement default. The multilingual reference uses 506.38 MiB of required files and provides no convincing quality gain here.
+The [protocol, raw results and corpus manifest](../benchmarks.md#name-quality) compare exact normalized names, lexical matching and three local static models. On 2,514 held-out name pairs, the highest measured recall is 17.9% with 96.8% precision, far below the 90% recall / 98% precision targets. The smaller 2M model gives 17.7% recall with 7.86 MiB of files versus 29.49 MiB for 8M; this single narrow dataset does not establish a replacement default. The multilingual reference uses 506.38 MiB of required files and provides no convincing quality gain here.
 
 - Tune the critical corpus or test: rejected because it leaks evaluation data.
 - Lower the default threshold after seeing test failures: rejected; more candidates do not establish better identity decisions.

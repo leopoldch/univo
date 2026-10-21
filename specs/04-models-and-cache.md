@@ -1,7 +1,5 @@
 # Embeddings, cache et fonctionnement hors ligne
 
-[Retour à l’index des spécifications](README.md)
-
 > Statut : contrats à implémenter. Les exemples ne décrivent pas une bibliothèque déjà disponible. Les budgets chiffrés sont des objectifs à valider, pas des résultats mesurés.
 
 ## 11. Choix du modèle d’embeddings

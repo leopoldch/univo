@@ -33,7 +33,7 @@ Version 1.0 **reduces the supported profiles** to what the evidence supports.
 
 **Not promised.**
 - **Automatic decisions.** No threshold is a proof of identity. `check_or_add` returns `review` for non-identical matches, and calibrating a threshold is the user's responsibility, on their own labelled data.
-- **Name-only quality figures as a guarantee.** The ROR benchmark results are published as measurements with their limits ([quality benchmark](../../benchmarks/quality/README.md)).
+- **Name-only quality figures as a guarantee.** The ROR benchmark results are published as measurements with their limits ([quality benchmark](../benchmarks.md#name-quality)).
 
 **What 1.0 is.** It is the Python package `univo`. The Rust crates are its implementation: they are not published on crates.io, and their API may change in any release.
 

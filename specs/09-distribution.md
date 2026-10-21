@@ -1,7 +1,5 @@
 # Dépendances, packaging, documentation et release
 
-[Retour à l’index des spécifications](README.md)
-
 > Statut : contrats à implémenter. Les exemples ne décrivent pas une bibliothèque déjà disponible. Les budgets chiffrés sont des objectifs à valider, pas des résultats mesurés.
 
 ## 19. Dépendances et distribution
@@ -62,7 +60,7 @@ Exemples exécutables : liste de noms ; organisations ; configuration avec envir
 - [ ] API et cœur Rust partagent les mêmes politiques et tests de référence.
 - [ ] Aucune suppression DB ni fusion automatique implicite.
 - [ ] Documentation de la portée locale de check_or_add.
-- [x] Rapport de différenciation comparé à SemHash et aux baselines lexicales ([U-003](../benchmarks/comparison/README.md)).
+- [x] Rapport de différenciation comparé à SemHash et aux baselines lexicales ([U-003](../docs/benchmarks.md)).
 
 U-016 ajoute `fast-hnsw=1.0.1` au moteur ; aucune dépendance Python ou
 bibliothèque native C/C++, aucun client réseau. Sept versions de packages

@@ -6,7 +6,7 @@
 
 ## Context
 
-The [U-003 comparison](../../benchmarks/comparison/README.md) measured SemHash 9 to 16 times faster than Univo on all-pairs deduplication of one large partition. Two causes were in Univo itself:
+The [U-003 comparison](../benchmarks.md) measured SemHash 9 to 16 times faster than Univo on all-pairs deduplication of one large partition. Two causes were in Univo itself:
 - `find` and `group` ran every query on one thread, while SemHash used 5.5 to 6.2 cores. `threads` only bounded semantic encoding.
 - Each all-pairs query scanned its whole partition, although a pair is only kept from its lower slot: every lexical verification and dense cosine was computed twice.
 

@@ -1,17 +1,17 @@
 # U-004 spike: default embedding model
 
-Comparison of three architectural families from [specs/04-models-and-cache.md §11](../../../specs/04-models-and-cache.md): exact and lexical comparison without a model, static embeddings (Model2Vec) and small contextual encoders. The proposed decision is in [ADR 0007](../../../docs/adr/0007-default-embedding-model.md).
+Comparison of three architectural families from [specs/04-models-and-cache.md §11](../../../specs/04-models-and-cache.md): exact and lexical comparison without a model, static embeddings (Model2Vec) and small contextual encoders. The proposed decision is in [ADR 0007](../0007-default-embedding-model.md).
 
 ## Reproduce
 
 ```bash
-python -m venv /tmp/model-selection && /tmp/model-selection/bin/pip install -r requirements.txt
-/tmp/model-selection/bin/python evaluate.py --output results.json   # also builds rust/ with cargo
+python -m venv /tmp/model-selection && /tmp/model-selection/bin/pip install -r benchmarks/spikes/model-selection/requirements.txt
+/tmp/model-selection/bin/python benchmarks/spikes/model-selection/evaluate.py --output benchmarks/spikes/model-selection/results.json   # also builds rust/ with cargo
 ```
 
-- Every model is pinned to a Hugging Face revision in `evaluate.py`.
-- The Rust benchmark in [rust/](rust) has its own locked `Cargo.lock` and is outside Univo's workspace.
-- Raw numbers are in [results.json](results.json).
+- Every model is pinned to a Hugging Face revision in [`evaluate.py`](../../../benchmarks/spikes/model-selection/evaluate.py).
+- The Rust benchmark in [rust/](../../../benchmarks/spikes/model-selection/rust) has its own locked `Cargo.lock` and is outside Univo's workspace.
+- Raw numbers are in [results.json](../../../benchmarks/spikes/model-selection/results.json).
 
 ## Method
 

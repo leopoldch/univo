@@ -6,7 +6,7 @@
 
 ## Context
 
-The maintainer requires a default model that is powerful, fast and small, and the ability to switch model with a string: a Hugging Face repository, a local directory or another source. The specification orders the criteria as minimal quality on the target case, then memory and size, latency, dependencies and maintenance ([04-models-and-cache.md §11](../../specs/04-models-and-cache.md)), and caps the default model download at 100 MiB ([07-performance.md](../../specs/07-performance.md)). The [U-004 spike](../../benchmarks/spikes/model-selection/README.md) measured twelve candidates from three families, each in its own process, at one and four threads, in Python and, for static models, in Rust.
+The maintainer requires a default model that is powerful, fast and small, and the ability to switch model with a string: a Hugging Face repository, a local directory or another source. The specification orders the criteria as minimal quality on the target case, then memory and size, latency, dependencies and maintenance ([04-models-and-cache.md §11](../../specs/04-models-and-cache.md)), and caps the default model download at 100 MiB ([07-performance.md](../../specs/07-performance.md)). The [U-004 spike](evidence/model-selection.md) measured twelve candidates from three families, each in its own process, at one and four threads, in Python and, for static models, in Rust.
 
 ## Decision
 
@@ -33,7 +33,7 @@ The maintainer requires a default model that is powerful, fast and small, and th
 
 ## Evidence
 
-From the [spike](../../benchmarks/spikes/model-selection/README.md) (Apple M2, isolated processes, one model per process for memory):
+From the [spike](evidence/model-selection.md) (Apple M2, isolated processes, one model per process for memory):
 
 | | potion-base-8M | potion-base-2M | multilingual-e5-small | lexical |
 | --- | --- | --- | --- | --- |

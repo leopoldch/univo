@@ -1,14 +1,12 @@
 # Qualité, jeux de données et tests
 
-[Retour à l’index des spécifications](README.md)
-
 > Statut : contrats à implémenter. Les exemples ne décrivent pas une bibliothèque déjà disponible. Les budgets chiffrés sont des objectifs à valider, pas des résultats mesurés.
 
 ## 20. Dataset de validation et protocole qualité
 
 Construire avant d’optimiser : un petit corpus déterministe de cas difficiles, puis un benchmark public plus large avec labels et licences vérifiés.
 
-Corpus initial proposé : au moins 200 cas ciblés couvrant les branches critiques. Version courante : [corpus critique](../tests/fixtures/critical/README.md), étiqueté selon les [définitions des doublons par profil](../docs/reference/duplicate-definitions.md). Suite qualité visée avant 1.0 : plusieurs milliers de paires annotées, incluant au moins 500 vrais doublons et 1 000 négatifs difficiles, à ajuster selon disponibilité. Doubler l’annotation d’un sous-ensemble ambigu et documenter les désaccords.
+Corpus initial proposé : au moins 200 cas ciblés couvrant les branches critiques. Version courante : [corpus critique](../docs/development/critical-corpus.md), étiqueté selon les [définitions des doublons par profil](../docs/reference/duplicate-definitions.md). Suite qualité visée avant 1.0 : plusieurs milliers de paires annotées, incluant au moins 500 vrais doublons et 1 000 négatifs difficiles, à ajuster selon disponibilité. Doubler l’annotation d’un sous-ensemble ambigu et documenter les désaccords.
 
 Familles de tests :
 
@@ -67,7 +65,7 @@ Sur PR : format Rust, clippy, tests unitaires, pytest, type checking de l’API,
 
 ## U-012 : premier benchmark implémenté
 
-Le [benchmark ROR name-alias](../benchmarks/quality/README.md) sépare 4 000 entités par hash et génère les négatifs dans leur split. Train reste réservé ; le seuil vient de validation uniquement, puis est figé sur test. Le corpus critique ne sert jamais à choisir le seuil. L’évaluateur utilise le Finder installé, donc le scoring Rust, et conserve les paires sans score dans les dénominateurs. Les objectifs ci-dessus restent inchangés : ils échouent sur ce benchmark. Aucune calibration du défaut ni publication alpha n’en découle. Le rappel candidats sur paires isolées ne remplace pas une mesure de retrieval à grande échelle ; l’annotation double des cas ambigus et la comparaison SemHash restent à réaliser. Le protocole et les compromis sont consignés dans l’[ADR 0011](../docs/adr/0011-offline-quality-calibration.md).
+Le [benchmark ROR name-alias](../docs/benchmarks.md#name-quality) sépare 4 000 entités par hash et génère les négatifs dans leur split. Train reste réservé ; le seuil vient de validation uniquement, puis est figé sur test. Le corpus critique ne sert jamais à choisir le seuil. L’évaluateur utilise le Finder installé, donc le scoring Rust, et conserve les paires sans score dans les dénominateurs. Les objectifs ci-dessus restent inchangés : ils échouent sur ce benchmark. Aucune calibration du défaut ni publication alpha n’en découle. Le rappel candidats sur paires isolées ne remplace pas une mesure de retrieval à grande échelle ; l’annotation double des cas ambigus et la comparaison SemHash restent à réaliser. Le protocole et les compromis sont consignés dans l’[ADR 0011](../docs/adr/0011-offline-quality-calibration.md).
 
 U-016 sépare recall@10 Euclidien strict sur noms ROR held-out et rappel
 final d'un fixture synthétique hybride à positive connue. Les paramètres
@@ -75,4 +73,4 @@ sont figés avant le test ; aucune correction silencieuse des ties. Tests
 de collisions de partitions/vecteurs, IDs supprimés, upsert/compaction,
 manifest incompatible, reconstruction sans inférence et oracle conservé.
 Ces mesures ne réparent pas les gates métier U-012 ni ne valident un
-profil universel. [Résultats ANN](../benchmarks/spikes/ann-backends/README.md).
+profil universel. [Résultats ANN](../docs/adr/evidence/ann-backends.md).

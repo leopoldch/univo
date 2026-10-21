@@ -2,7 +2,7 @@
 
 ## Purpose and source of truth
 
-Build Univo: a fast, local duplicate-detection library with a reusable Rust core and a thin Python interface. Read [specs/README.md](specs/README.md) before implementation, then the specifications for the component being changed.
+Build Univo: a fast, local duplicate-detection library with a reusable Rust core and a thin Python interface. Read [specs/01-product.md](specs/01-product.md) before implementation, then the specification of the component being changed: `specs/02` to `specs/11` cover the Python API, matching, models, Rust architecture, persistence, performance, validation, distribution, roadmap and references.
 
 This repository currently contains specifications only. Do not treat API examples as working code, proposed budgets as measured performance, or roadmap entries as completed work. The specification prose is in French; identifiers and public APIs use English.
 

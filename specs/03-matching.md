@@ -1,7 +1,5 @@
 # Données, comparaison, recherche et groupes
 
-[Retour à l’index des spécifications](README.md)
-
 > Statut : contrats à implémenter. Les exemples ne décrivent pas une bibliothèque déjà disponible. Les budgets chiffrés sont des objectifs à valider, pas des résultats mesurés.
 
 ## 8. Modèle de données et normalisation
@@ -128,4 +126,4 @@ des partitions avant traversée, slots inactifs/ID exclus avant plafond.
 Fallback complet sous 10 000 slots retenus, sans promettre un crossover
 optimal ni ajouter `auto`. Approximation observable indépendamment de
 saturation, oracle conservé. [ADR 0015](../docs/adr/0015-explicit-partition-ann.md)
-et [mesures](../benchmarks/spikes/ann-backends/README.md).
+et [mesures](../docs/adr/evidence/ann-backends.md).

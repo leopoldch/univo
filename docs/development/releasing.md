@@ -33,8 +33,8 @@ Before tagging a release, and 1.0 first of all ([ADR 0024](../adr/0024-version-1
 
 - [ ] **CI is green** on every platform: Rust on six targets, and one wheel per advertised platform, installed and tested outside the source tree without Rust.
 - [ ] **Model tests pass.** `just check` with `UNIVO_TEST_MODEL_DIR` set, and `UNIVO_TEST_HUB=1` once against the real hub.
-- [ ] **Quality is re-measured.** Run the [quality benchmark](../../benchmarks/quality/README.md) with the release wheel; update its figures if they moved.
-- [ ] **Comparison is re-measured.** Run the [SemHash comparison](../../benchmarks/comparison/README.md) on the reference machine, on mains power, in ABBA order, and update the [performance](performance.md) figures.
+- [ ] **Quality is re-measured.** Run the [quality benchmark](../benchmarks.md#name-quality) with the release wheel; update its figures if they moved.
+- [ ] **Comparison is re-measured.** Run the [SemHash comparison](../benchmarks.md) on the reference machine, on mains power, in ABBA order, and update the [performance](performance.md) figures.
 - [ ] **Docs are current.** The changelog has the version's section, the [stability](../reference/stability.md) page matches the API, and the README and quickstart examples run.
 - [ ] **TestPyPI first.** Publish a pre-release and install it from TestPyPI on each platform.
 

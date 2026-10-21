@@ -90,7 +90,7 @@ def test_the_release_pins_the_checksums_the_tool_produces() -> None:
 
 
 def test_the_model_card_names_the_license_and_every_checksum() -> None:
-    card = (ROOT / "tools/default_model/README.md").read_text(encoding="utf-8")
+    card = (ROOT / "tools/default_model/model-card.md").read_text(encoding="utf-8")
     assert "license: apache-2.0" in card
     assert tool.UPSTREAM in card
     assert tool.UPSTREAM_REVISION in card
