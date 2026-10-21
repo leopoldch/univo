@@ -54,6 +54,16 @@ A schema also bounds each record: 64 fields, 1 MiB of compared values, 16 levels
 
 `check_or_add(record)` searches and adds in one step. It returns `inserted`, `matched` or `review`, and never merges anything itself ([concurrency](concurrency.md)).
 
+## Choosing a text mode
+
+| Mode | Compares | Use it for |
+| --- | --- | --- |
+| `"lexical"` | Spelling: edit distance and shared trigrams | Names, codes, short strings with typos |
+| `"semantic"` | Meaning: similarity of local embeddings | Descriptions, rewordings, other languages |
+| `"hybrid"`, the default | Spelling, like `"lexical"`, for now | Fields that may use both once their combination is validated |
+
+Lexical fields need no model. Semantic fields load the model at their first use. Acronyms of five letters or more, such as "NIOSH", match their full names in every mode ([scoring](../reference/scoring.md)).
+
 ## Semantic fields
 
 ```python
