@@ -8,6 +8,8 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 authors.workspace = true
+# The implementation of the Python package; not published (ADR 0024).
+publish = false
 keywords = ["deduplication", "record-linkage", "entity-resolution", "fuzzy-matching", "normalization"]
 categories = ["text-processing", "algorithms"]
 

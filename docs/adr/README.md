@@ -32,6 +32,7 @@ Each record captures one decision, the alternatives considered, the evidence, th
 | [0021](0021-multilingual-default-model.md) | Multilingual default model | Accepted (U-004 follow-up) |
 | [0022](0022-acronym-evidence.md) | Acronym evidence for text fields | Accepted (U-012) |
 | [0023](0023-distinct-words.md) | Distinct words lower the similarity of names | Accepted (U-012) |
+| [0024](0024-version-1-scope.md) | Scope of version 1.0 | Accepted (U-020, U-021) |
 
 ## Template
 

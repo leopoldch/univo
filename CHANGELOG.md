@@ -26,6 +26,12 @@ All notable changes are recorded here. The format follows [Keep a Changelog](htt
   - Parallel searches and an atomic local `check_or_add`.
 - **Release.** PyPI publication from GitHub releases with trusted publishing.
 
+### Changed
+
+- `Finder.search` takes `limit` by keyword only, like `find` and `check_or_add`.
+- `Match.reasons` names signals as documented (`name: edit_distance`), not with Rust's debug spelling (`name: EditDistance`).
+- `Finder.config()` no longer has `effective_threads`, which always equalled `threads`.
+
 ### Performance
 
 On 100,000 names, on an Apple M2:

@@ -151,7 +151,7 @@ def test_find_and_group_give_the_same_result_on_every_thread_budget(
             offline=True,
             threads=threads,
         )
-        assert index.config()["effective_threads"] == threads
+        assert index.config()["threads"] == threads
         report = index.find(records, min_score=0.6, limit=500)
         pairs = [(m.left_id, m.right_id, m.score) for m in report.matches]
         groups = index.group(records, min_score=0.6)
@@ -168,7 +168,7 @@ def test_threads_default_to_every_available_core() -> None:
     available = native.available_threads()
     assert available >= 1
     assert finder().config()["threads"] == available
-    assert Finder(fields=["name"], threads=None).config()["effective_threads"] == available
+    assert Finder(fields=["name"], threads=None).config()["threads"] == available
     for invalid in (0, -1, 1.5, "2", True):
         with pytest.raises(InvalidParameterError):
             Finder(fields=["name"], threads=invalid)  # type: ignore[arg-type]

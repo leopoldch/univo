@@ -220,4 +220,4 @@ def test_acronyms_still_match_after_a_reload(tmp_path: pathlib.Path) -> None:
     finder.save(tmp_path / "index")
     loaded = Finder.load(tmp_path / "index", offline=True)
     report = loaded.search({"id": "short", "name": "NIOSH"})
-    assert [(m.right_id, m.reasons) for m in report.matches] == [("long", ["name: Acronym"])]
+    assert [(m.right_id, m.reasons) for m in report.matches] == [("long", ["name: acronym"])]

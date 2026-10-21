@@ -49,7 +49,7 @@ Avant de généraliser : exécuter le même problème avec SemHash et une baseli
 | 0.1 alpha | listes de chaînes / dictionnaires, schéma, modèle local, recherche exacte des candidats, scores expliqués, add/search/find, wheels pilotes | ANN, persistance, fusion, accès multiprocessus |
 | 0.2 beta | sauvegarde/chargement, upsert/remove, partitions, index ANN optionnel, cache borné, rapports reproductibles | garantie distribuée, connecteurs DB automatiques |
 | 0.3 release candidate | groupes prudents optionnels, check_or_add local, tests de concurrence, matrice de wheels complète, documentation | résolution universelle d’identité |
-| 1.0 | contrats stabilisés, gates qualité/performance atteints, migration documentée des formats | toute fonction non validée par les gates |
+| 1.0 | contrats stabilisés, gates qualité/performance atteints sur les profils supportés, migration documentée des formats ; périmètre fixé par l’[ADR 0024](../docs/adr/0024-version-1-scope.md) | toute fonction non validée par les gates, dont la décision automatique |
 
 Le mode exact doit rester disponible après l’ajout d’ANN. La 0.1 limite volontairement la taille des tâches exhaustives ; elle refuse les tâches dépassant un budget annoncé plutôt que de devenir silencieusement approximative.
 

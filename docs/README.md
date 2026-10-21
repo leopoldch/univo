@@ -11,6 +11,7 @@
 - [Approximate search](guide/ann.md)
 
 **Reference**
+- [Stability and upgrades](reference/stability.md)
 - [Errors](reference/errors.md)
 - [Scoring](reference/scoring.md)
 - [Duplicate definitions](reference/duplicate-definitions.md)

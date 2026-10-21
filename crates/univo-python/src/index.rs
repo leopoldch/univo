@@ -106,7 +106,7 @@ fn match_data(
     let mut conflicts = Vec::new();
     for (field, score) in index.schema().fields().iter().zip(comparison.fields.iter()) {
         let path = field.path.to_string();
-        reasons.push(format!("{path}: {:?}", score.signal));
+        reasons.push(format!("{path}: {}", score.signal.name()));
         if score.contradiction {
             conflicts.push(path.clone());
         }

@@ -44,6 +44,22 @@ pub enum Signal {
     Acronym,
 }
 
+impl Signal {
+    /// The signal's name in reports and documentation: `edit_distance`,
+    /// `trigrams`, `semantic`, `acronym`, `exact`, `keys` or `missing`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Missing => "missing",
+            Self::EditDistance => "edit_distance",
+            Self::Trigrams => "trigrams",
+            Self::Exact => "exact",
+            Self::Keys => "keys",
+            Self::Semantic => "semantic",
+            Self::Acronym => "acronym",
+        }
+    }
+}
+
 /// Comparison of one field, in schema order.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FieldComparison {
