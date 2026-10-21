@@ -128,7 +128,9 @@ fn local_directories_are_used_as_they_are() {
     let hub = FakeHub::default();
     let spec = ModelSpec::Local(tiny_model());
     let resolved = resolve(&spec, &Cache::new(root.path()), &online(), &hub).unwrap();
-    assert_eq!(resolved, Resolved::Local(tiny_model()));
+    // Windows resolves `..` when making a path absolute; Unix keeps it.
+    let expected = std::path::absolute(tiny_model()).unwrap();
+    assert_eq!(resolved, Resolved::Local(expected));
     assert_eq!(hub.requests(), [] as [String; 0]);
 }
 

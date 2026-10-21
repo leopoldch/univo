@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 use sha2::{Digest as _, Sha256};
 
@@ -8,12 +8,29 @@ use super::blob::CHUNK;
 use super::*;
 use univo_core::{ErrorCode, Schema, Value as RecordValue, prepare};
 
-struct Directory(PathBuf);
+/// Held for reading by every test directory and for writing by tests that
+/// spawn a process. A child holds copies of the parent's open files until it
+/// executes, `WRITER.lock` included, so a concurrent save would find the
+/// directory locked.
+static SPAWNING: RwLock<()> = RwLock::new(());
+
+struct Directory(PathBuf, Option<RwLockReadGuard<'static, ()>>);
 impl Directory {
     fn new() -> Self {
-        let id = SERIAL.fetch_add(1, Ordering::Relaxed);
-        Self(std::env::temp_dir().join(format!("univo-snapshot-{}-{id}", std::process::id())))
+        let guard = SPAWNING.read().unwrap_or_else(PoisonError::into_inner);
+        let mut directory = Self::spawning();
+        directory.1 = Some(guard);
+        directory
     }
+    /// A directory for a test that holds `SPAWNING` for writing.
+    fn spawning() -> Self {
+        let id = SERIAL.fetch_add(1, Ordering::Relaxed);
+        let path = std::env::temp_dir().join(format!("univo-snapshot-{}-{id}", std::process::id()));
+        Self(path, None)
+    }
+}
+fn spawning() -> RwLockWriteGuard<'static, ()> {
+    SPAWNING.write().unwrap_or_else(PoisonError::into_inner)
 }
 impl Drop for Directory {
     fn drop(&mut self) {
@@ -201,8 +218,9 @@ fn abrupt_process_exit_at_every_boundary_keeps_complete_state() {
         "root_synced",
         "parent_synced",
     ];
+    let _alone = spawning();
     for (position, stop) in checkpoints.iter().enumerate() {
-        let directory = Directory::new();
+        let directory = Directory::spawning();
         index(&["old"])
             .save(&directory.0, 1, json!({}), 1 << 20)
             .unwrap();
@@ -425,7 +443,8 @@ fn relative_parent_sync_worker() {
 #[cfg(unix)]
 #[test]
 fn relative_parent_sync_failure_is_reported_after_complete_publication() {
-    let directory = Directory::new();
+    let _alone = spawning();
+    let directory = Directory::spawning();
     private_directory(&directory.0).unwrap();
     let status = std::process::Command::new(std::env::current_exe().unwrap())
         .args(["--exact", "snapshot::tests::relative_parent_sync_worker"])

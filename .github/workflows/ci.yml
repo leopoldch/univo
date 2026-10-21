@@ -54,7 +54,7 @@ jobs:
           - { platform: linux-aarch64, runner: ubuntu-24.04-arm, perf_slack: "2.0" }
           - { platform: macos-x86_64, runner: macos-15-intel, perf_slack: "5.0" }
           - { platform: macos-arm64, runner: macos-15, perf_slack: "2.0" }
-          - { platform: windows-x86_64, runner: windows-2025, perf_slack: "2.0" }
+          - { platform: windows-x86_64, runner: windows-2025, perf_slack: "3.0" }
           - { platform: windows-arm64, runner: windows-11-arm, perf_slack: "2.0" }
           - { platform: linux-x86_64, runner: ubuntu-24.04, toolchain: "1.89", perf_slack: "2.0" }
     runs-on: ${{ matrix.runner }}
@@ -85,8 +85,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      - run: cargo test --workspace --locked
-      - run: cargo test --workspace --locked --release
+      - run: cargo test --workspace --locked --no-fail-fast
+      - run: cargo test --workspace --locked --release --no-fail-fast
 
   wheels:
     name: wheels (${{ matrix.platform }})

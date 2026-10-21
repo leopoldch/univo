@@ -34,6 +34,8 @@ pub(super) fn private_file(path: &Path, exclusive: bool) -> Result<File> {
     options.open(path).map_err(io)
 }
 pub(super) fn private_directory(path: &Path) -> Result<()> {
+    // Only Unix sets a mode on the builder.
+    #[cfg_attr(not(unix), allow(unused_mut))]
     let mut builder = fs::DirBuilder::new();
     #[cfg(unix)]
     {
