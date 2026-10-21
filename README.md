@@ -4,18 +4,17 @@
 
 Fast, local duplicate detection for Python data: strings, records and nested objects.
 
-[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/univo)](https://pypi.org/project/univo/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/leopoldch/univo/blob/main/pyproject.toml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/leopoldch/univo/blob/main/LICENSE)
 
 Univo finds duplicates in any structured Python data: customers, products, organizations, configuration objects. You say which fields to compare and how: fuzzy text, meaning, exact values, nested paths. You also say which fields must agree and which records belong together. Univo then compares records field by field and explains every match.
 
 A Rust engine does the work behind a small Python API. Inference is local: no record leaves your machine.
 
-> **Status: 1.0 in preparation.** Not on PyPI yet. The [stability contract](docs/reference/stability.md) says what 1.0 will keep.
-
 - **Fast.** 100,000 names are deduplicated in 4.8 s with embeddings and in 1.9 s lexically, on a laptop.
-- **Complete.** Search returns every pair above the threshold. A work or output limit, when reached, is flagged in the report ([limits](docs/guide/quickstart.md#limits-and-reports)). Approximate search is opt-in.
-- **Any structure.** Records are dicts, lists, strings, numbers, booleans and `None`, nested within configurable limits ([supported values](docs/guide/quickstart.md#records)). Dict keys compare in any order.
+- **Complete.** Search returns every pair above the threshold. A work or output limit, when reached, is flagged in the report ([limits](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#limits-and-reports)). Approximate search is opt-in.
+- **Any structure.** Records are dicts, lists, strings, numbers, booleans and `None`, nested within configurable limits ([supported values](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#records)). Dict keys compare in any order.
 - **Rules first.** Partitions, typed IDs and vetoes, such as two different VAT numbers, apply before any score.
 - **Explained.** Each match lists its evidence per field. Univo never merges or deletes records for you.
 - **Light.** One 2 MiB wheel with no Python dependency, and a 15 MB multilingual model that is verified, cached and usable strictly offline.
@@ -31,7 +30,15 @@ Against [SemHash](https://github.com/MinishLab/semhash) 0.5.0, with the same mod
 | Structured records: forbidden matches, of 44 | **0** | 35 |
 | Installed size | **4 MiB**, 1 package | 64 MiB, 30 packages |
 
-Univo's search is exact, while SemHash's index is approximate. Neither tool reaches the precision needed for automatic merging on names alone, so Univo reports scored candidates, not decisions. Method, limits and every result: [benchmarks](docs/benchmarks.md).
+Univo's search is exact, while SemHash's index is approximate. Neither tool reaches the precision needed for automatic merging on names alone, so Univo reports scored candidates, not decisions. Method, limits and every result: [benchmarks](https://github.com/leopoldch/univo/blob/main/docs/benchmarks.md).
+
+## Install
+
+```bash
+pip install univo
+```
+
+Wheels are built for Linux, macOS and Windows, on x86_64 and arm64, for Python 3.11 and later. Rust is not needed. To build from source, see [contributing](https://github.com/leopoldch/univo/blob/main/CONTRIBUTING.md).
 
 ## Quickstart
 
@@ -66,20 +73,11 @@ for match in finder.search(query).matches:
 # Record 2 has another VAT number, so it can never match.
 ```
 
-Semantic fields load the default model on first use. Pass `Text(mode="semantic")` to use one ([models](docs/guide/models.md)).
-
-## Install
-
-Wheels will be published on PyPI for Linux, macOS and Windows; Rust will not be needed to install them. Until then, build from source with Rust 1.89+, Python 3.11+ and [uv](https://docs.astral.sh/uv/):
-
-```bash
-git clone https://github.com/leopoldch/univo && cd univo
-uv sync --group dev
-```
+Semantic fields load the default model on first use. Pass `Text(mode="semantic")` to use one ([models](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md)).
 
 ## Documentation
 
-- **Guide.** [Quickstart](docs/guide/quickstart.md), [models and offline use](docs/guide/models.md), [mutations](docs/guide/mutations.md), [snapshots](docs/guide/persistence.md), [concurrency](docs/guide/concurrency.md), [groups](docs/guide/groups.md), [embedding cache](docs/guide/embedding-cache.md), [approximate search](docs/guide/ann.md).
-- **Reference.** [Errors](docs/reference/errors.md), [scoring](docs/reference/scoring.md), [duplicate definitions](docs/reference/duplicate-definitions.md), [stability](docs/reference/stability.md).
-- **Design.** [Search](docs/design/search.md), [lexical candidates](docs/design/lexical-search.md), [vector search](docs/design/vector-search.md), [exact index](docs/design/exact-index.md).
-- **Development.** [Setup](docs/development/setup.md), [performance](docs/development/performance.md), [dependencies](docs/development/dependencies.md), [releasing](docs/development/releasing.md).
+- **Guide.** [Quickstart](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md), [models and offline use](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md), [mutations](https://github.com/leopoldch/univo/blob/main/docs/guide/mutations.md), [snapshots](https://github.com/leopoldch/univo/blob/main/docs/guide/persistence.md), [concurrency](https://github.com/leopoldch/univo/blob/main/docs/guide/concurrency.md), [groups](https://github.com/leopoldch/univo/blob/main/docs/guide/groups.md), [embedding cache](https://github.com/leopoldch/univo/blob/main/docs/guide/embedding-cache.md), [approximate search](https://github.com/leopoldch/univo/blob/main/docs/guide/ann.md).
+- **Reference.** [Errors](https://github.com/leopoldch/univo/blob/main/docs/reference/errors.md), [scoring](https://github.com/leopoldch/univo/blob/main/docs/reference/scoring.md), [duplicate definitions](https://github.com/leopoldch/univo/blob/main/docs/reference/duplicate-definitions.md), [stability](https://github.com/leopoldch/univo/blob/main/docs/reference/stability.md).
+- **Design.** [Search](https://github.com/leopoldch/univo/blob/main/docs/design/search.md), [lexical candidates](https://github.com/leopoldch/univo/blob/main/docs/design/lexical-search.md), [vector search](https://github.com/leopoldch/univo/blob/main/docs/design/vector-search.md), [exact index](https://github.com/leopoldch/univo/blob/main/docs/design/exact-index.md).
+- **Development.** [Setup](https://github.com/leopoldch/univo/blob/main/docs/development/setup.md), [performance](https://github.com/leopoldch/univo/blob/main/docs/development/performance.md), [dependencies](https://github.com/leopoldch/univo/blob/main/docs/development/dependencies.md), [releasing](https://github.com/leopoldch/univo/blob/main/docs/development/releasing.md).

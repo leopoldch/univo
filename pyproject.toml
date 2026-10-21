@@ -14,7 +14,7 @@ dynamic = ["version"]
 keywords = ["deduplication", "record-linkage", "entity-resolution", "fuzzy-matching", "embeddings"]
 dependencies = []
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
