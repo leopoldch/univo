@@ -127,6 +127,7 @@ fn workload(schema: &Schema, count: usize, tenants: usize, group: usize) -> Vec<
     ignore = "performance budgets apply to release builds"
 )]
 fn search_stays_within_budget() {
+    let _alone = univo_testkit::timing::exclusive();
     let count = usize::try_from(budget("records").as_integer().unwrap()).unwrap();
     let min_score = budget("min_score").as_float().unwrap() as f32;
     let slack: f64 = std::env::var("UNIVO_PERF_SLACK").map_or(1.0, |value| value.parse().unwrap());

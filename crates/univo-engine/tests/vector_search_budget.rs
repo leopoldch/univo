@@ -64,6 +64,7 @@ fn report(line: &str) {
     ignore = "performance budgets apply to release builds"
 )]
 fn exhaustive_vector_search_stays_within_budget() {
+    let _alone = univo_testkit::timing::exclusive();
     let records = usize::try_from(budget("records").as_integer().unwrap()).unwrap();
     let k = usize::try_from(budget("k").as_integer().unwrap()).unwrap();
     let slack: f64 = std::env::var("UNIVO_PERF_SLACK").map_or(1.0, |value| value.parse().unwrap());

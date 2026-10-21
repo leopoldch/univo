@@ -70,6 +70,7 @@ fn names(count: usize) -> Vec<String> {
     ignore = "performance budgets apply to release builds"
 )]
 fn lexical_search_stays_within_budget() {
+    let _alone = univo_testkit::timing::exclusive();
     let count = usize::try_from(budget("records").as_integer().unwrap()).unwrap();
     let slack: f64 = std::env::var("UNIVO_PERF_SLACK").map_or(1.0, |value| value.parse().unwrap());
     assert!(slack.is_finite() && slack >= 1.0);

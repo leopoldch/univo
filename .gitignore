@@ -12,5 +12,6 @@ __pycache__/
 .ruff_cache/
 /.models/
 .DS_Store
-# Copies iCloud Drive makes of files changed by a checkout: "name 2.ext".
+# Copies iCloud Drive makes of files changed by a checkout: "name 2.ext", "name 2".
 * [0-9].*
+* [0-9]

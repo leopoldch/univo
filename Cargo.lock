@@ -1406,6 +1406,7 @@ dependencies = [
  "sha2",
  "toml",
  "univo-core",
+ "univo-testkit",
 ]
 
 [[package]]

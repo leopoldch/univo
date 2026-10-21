@@ -106,6 +106,7 @@ fn descriptions(count: usize) -> Vec<String> {
     ignore = "performance budgets apply to release builds"
 )]
 fn loading_and_first_encoding_stay_within_budget() {
+    let _alone = univo_testkit::timing::exclusive();
     let Some(directory) = default_model_dir() else {
         eprintln!("skipped: UNIVO_TEST_MODEL_DIR is not set");
         return;
@@ -134,6 +135,7 @@ fn loading_and_first_encoding_stay_within_budget() {
     ignore = "performance budgets apply to release builds"
 )]
 fn encoding_the_standard_workload_stays_within_budget() {
+    let _alone = univo_testkit::timing::exclusive();
     let Some(directory) = default_model_dir() else {
         eprintln!("skipped: UNIVO_TEST_MODEL_DIR is not set");
         return;
