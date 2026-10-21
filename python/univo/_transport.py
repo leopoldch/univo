@@ -1,6 +1,6 @@
 """HTTP GET requests for model downloads, on the standard library.
 
-Rust plans and verifies every download (ADR 0008); this module only moves
+Rust plans and verifies every download; this module only moves
 bytes. It uses the system's proxy settings and certificates, sends nothing
 but the URL and a User-Agent, and is imported only when a download starts.
 """

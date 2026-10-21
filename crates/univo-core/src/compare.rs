@@ -18,9 +18,9 @@ use crate::semantic::semantic_similarity;
 ///
 /// 2: semantic text fields compared by the cosine of their embeddings.
 /// 3: a text spelling the initials of the other's words scores at least
-/// [`ACRONYM_SIMILARITY`], in every text mode (ADR 0022).
+/// [`ACRONYM_SIMILARITY`], in every text mode.
 /// 4: names with distinct words score [`DISTINCT_WORDS_FACTOR`] of their
-/// similarity, and contradict (ADR 0023).
+/// similarity, and contradict.
 pub const SCORING_VERSION: u32 = 4;
 
 /// What produced a field's similarity.
@@ -306,7 +306,7 @@ fn compare_text(
         _ => None,
     };
     // Hybrid fields are scored lexically: on the critical corpus, adding
-    // their cosine lowered the ranking quality (ADR 0009).
+    // their cosine lowered the ranking quality.
     let mut best = lexical.or(semantic);
     let distinct = best.is_some_and(|(similarity, _)| similarity > 0.0)
         && left_field.word_bits & right_field.word_bits != 0

@@ -1,6 +1,6 @@
 //! Acronym evidence for text: one word that spells the initials of the
 //! other text's words, such as "niosh" for "National Institute for
-//! Occupational Safety and Health" (ADR 0022).
+//! Occupational Safety and Health".
 //!
 //! Short acronyms name many organizations: on the ROR validation split, a
 //! three-letter acronym matched another organization's name about as often

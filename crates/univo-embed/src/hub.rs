@@ -4,7 +4,7 @@
 //! This module builds URLs and validates published metadata; it performs no
 //! network access. Bindings fetch the URLs with their language's standard
 //! library, which uses the system's certificates and proxies, and hand the
-//! responses back for verification (ADR 0008).
+//! responses back for verification.
 
 use univo_core::{Error, Result};
 

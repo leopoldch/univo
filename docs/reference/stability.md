@@ -1,6 +1,6 @@
 # Stability
 
-From 1.0, Univo follows [Semantic Versioning](https://semver.org/). This page says what each 1.x release keeps compatible, and how to upgrade when a release changes scores or formats. The scope of 1.0 itself is set by [ADR 0024](../adr/0024-version-1-scope.md).
+From 1.0, Univo follows [Semantic Versioning](https://semver.org/). This page says what each 1.x release keeps compatible, and how to upgrade when a release changes scores or formats.
 
 ## Kept compatible across 1.x
 
@@ -20,7 +20,7 @@ From 1.0, Univo follows [Semantic Versioning](https://semver.org/). This page sa
 
 Each change is announced in the [release notes](https://github.com/leopoldch/univo/releases).
 
-- **Scores.** Raising `SCORING_VERSION` changes the scores of some pairs, as version 4 did for names with distinct words ([ADR 0023](../adr/0023-distinct-words.md)). Rankings stay explained; thresholds calibrated on an earlier version should be checked again.
+- **Scores.** Raising `SCORING_VERSION` changes the scores of some pairs, as version 4 did for names with distinct words. Rankings stay explained; thresholds calibrated on an earlier version should be checked again.
 - **The default model.** It is pinned by revision and checksums. A new default model is a minor release. Existing snapshots keep the model they were built with: `Finder.load` uses the pinned model recorded in the snapshot, not the current default.
 - **Messages, hints and warning texts.**
 

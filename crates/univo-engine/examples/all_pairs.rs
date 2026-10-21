@@ -1,6 +1,5 @@
 //! All-pairs `find` over one partition of pseudo-random 256-dimensional
-//! unit vectors, on one thread: the cost of the blocked dense lane
-//! (ADR 0019).
+//! unit vectors, on one thread: the cost of the blocked dense lane.
 //!
 //! `cargo run --release -p univo-engine --example all_pairs -- 20000`
 

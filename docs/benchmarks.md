@@ -36,7 +36,7 @@ Univo also deduplicates lexically, with no model: 100,000 names take **1.9 s** f
 | **Univo, semantic** | 0.63 | **62.5%** | **32.1%** |
 | SemHash | 0.63 | 48.0% | 30.1% |
 
-- **Same model, better decisions.** Univo adds acronym evidence ([ADR 0022](adr/0022-acronym-evidence.md)) and scores names on one template with distinct words lower ([ADR 0023](adr/0023-distinct-words.md)), such as "Institute of Epidemiology" and "Institute of Oncology".
+- **Same model, better decisions.** Univo adds acronym evidence and scores names on one template with distinct words lower, such as "Institute of Epidemiology" and "Institute of Oncology".
 - **Equal names are not proof.** Most exact copies belong to different organizations.
 - **No tool reaches 98% precision** on validation, so the high-precision rule abstains for all of them.
 
@@ -49,8 +49,8 @@ Raw results: [Univo](../benchmarks/comparison/results/ror-univo-semantic.json) (
 | [Lexical](../benchmarks/quality/ror-alias-v2/lexical.json) | 0.590 | 95.6% | 14.5% | 0.461 |
 | [Default model](../benchmarks/quality/ror-alias-v2/default-model.json) | 0.557 | 96.0% | 40.8% | 0.730 |
 
-- **Precision without full recall.** Both stay near 96% precision, below the 98% precision and 90% recall targets set for automatic decisions. Version 1.0 therefore promises complete search and explained scores, not automatic decisions ([ADR 0024](adr/0024-version-1-scope.md)).
-- **History.** Earlier scoring versions and models are in the same folders, and in [ADR 0021](adr/0021-multilingual-default-model.md) for the model choice.
+- **Precision without full recall.** Both stay near 96% precision, below the 98% precision and 90% recall targets set for automatic decisions. Version 1.0 therefore promises complete search and explained scores, not automatic decisions.
+- **History.** Earlier scoring versions and models are in the same folders.
 
 ## Structured records
 
@@ -95,4 +95,4 @@ python -I benchmarks/comparison/critical.py tests/fixtures/critical/cases.jsonl 
 python -I benchmarks/comparison/scale.py --tool univo-semantic --records 100000 --model-path $MODEL
 ```
 
-Run the timed commands one at a time, on mains power, with no other heavy workload. The [first comparison](../benchmarks/comparison/results/scale.jsonl), before parallel scoring, found SemHash 9 to 16 times faster; it led to ADRs [0018](adr/0018-parallel-all-pairs.md) to [0020](adr/0020-every-core-by-default.md).
+Run the timed commands one at a time, on mains power, with no other heavy workload. The [first comparison](../benchmarks/comparison/results/scale.jsonl), before parallel scoring, found SemHash 9 to 16 times faster; it led to parallel scoring and the blocked dense scan.

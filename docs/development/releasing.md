@@ -29,7 +29,7 @@ The maintainer does this once. Nothing in the repository can do it.
 
 ## Release checklist
 
-Before tagging a release, and 1.0 first of all ([ADR 0024](../adr/0024-version-1-scope.md)):
+Before tagging a release, and 1.0 first of all:
 
 - [ ] **CI is green** on every platform: Rust on six targets, and one wheel per advertised platform, installed and tested outside the source tree without Rust.
 - [ ] **Model tests pass.** `just check` with `UNIVO_TEST_MODEL_DIR` set, and `UNIVO_TEST_HUB=1` once against the real hub.

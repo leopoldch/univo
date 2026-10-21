@@ -70,7 +70,7 @@ On macOS, Python 3.13 and later skip `.pth` files that carry the `hidden` file f
 | Path | Role |
 | --- | --- |
 | `crates/univo-core` | Values, schema, normalization, record preparation and exact matching; no Python, network or inference dependency |
-| `crates/univo-embed` | Model references, pinned registry, download plans, verified cache and static inference; no network access, see [ADR 0008](../adr/0008-model-download-and-inference-backend.md) |
+| `crates/univo-embed` | Model references, pinned registry, download plans, verified cache and static inference; no network access |
 | `crates/univo-engine` | Record store and typed IDs, the [exact index](../design/exact-index.md), [lexical candidates](../design/lexical-search.md), [vector search](../design/vector-search.md), [search](../design/search.md) by score with its exhaustive oracle, reports, groups and snapshots |
 | `crates/univo-python` | PyO3 extension `univo._univo`; conversions only |
 | `crates/univo-testkit` | Unpublished test helpers shared by the crates: the critical corpus |

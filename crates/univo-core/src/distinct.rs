@@ -1,7 +1,7 @@
 //! Distinct words: two names built on one template, each with a word of its
 //! own, such as "National Institute of Epidemiology" and "National Institute
 //! of Oncology". Embeddings and trigrams rate such pairs highly, yet their
-//! own words say they name different organizations (ADR 0023).
+//! own words say they name different organizations.
 
 use std::hash::Hasher;
 

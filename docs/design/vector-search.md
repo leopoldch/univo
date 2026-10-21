@@ -4,7 +4,7 @@
 
 ## Embedding records
 
-`embed_records(schema, records, embedder)` embeds every field declared `semantic`, with one `encode_batch` call per field. Hybrid fields are scored lexically and are not embedded ([ADR 0009](../adr/0009-semantic-evidence-in-scoring.md)).
+`embed_records(schema, records, embedder)` embeds every field declared `semantic`, with one `encode_batch` call per field. Hybrid fields are scored lexically and are not embedded.
 
 - The text embedded is the normalized one: NFC and, unless the field disables it, case folded. Two spellings that normalize alike are one text.
 - Identical texts in a batch are encoded once and stored once: records point to a shared row.

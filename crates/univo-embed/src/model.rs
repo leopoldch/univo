@@ -1,4 +1,4 @@
-//! Text embedding with static `Model2Vec` models (ADR 0007).
+//! Text embedding with static `Model2Vec` models.
 
 use std::borrow::Cow;
 use std::panic::{AssertUnwindSafe, catch_unwind};

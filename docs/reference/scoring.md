@@ -1,6 +1,6 @@
 # Pairwise scoring
 
-How two prepared records are compared, field by field, into a score, a coverage and a list of contradictions. It combines lexical signals and semantic similarity ([ADR 0009](../adr/0009-semantic-evidence-in-scoring.md)). The rules are versioned by `SCORING_VERSION`, now 4: any change in a similarity, a signal or a score increments it. Version 3 adds acronym evidence ([ADR 0022](../adr/0022-acronym-evidence.md)), version 4 distinct words ([ADR 0023](../adr/0023-distinct-words.md)); snapshots saved with an earlier version are refused and must be rebuilt from the records.
+How two prepared records are compared, field by field, into a score, a coverage and a list of contradictions. It combines lexical signals and semantic similarity. The rules are versioned by `SCORING_VERSION`, now 4: any change in a similarity, a signal or a score increments it. Version 3 adds acronym evidence, version 4 distinct words; snapshots saved with an earlier version are refused and must be rebuilt from the records.
 
 Scores rank pairs. **They are not probabilities**, and no threshold is defined here: thresholds are calibrated on a separate dataset ([benchmarks](../benchmarks.md#name-quality)).
 
@@ -50,7 +50,7 @@ A text is the acronym of another when it is one word of 5 to 10 letters or digit
 - **Names, not descriptions.** A text with 20 spaces or more has no initials.
 - **Cost.** The acronym and the initials are hashed once, when the record is prepared, and when a snapshot is loaded. A comparison first compares these hashes, then confirms on the texts.
 
-The rule applies to lexical, hybrid and semantic fields alike, and the [acronym lane](../design/search.md) finds these pairs whatever their lexical or semantic similarity. The measurements are in [ADR 0022](../adr/0022-acronym-evidence.md).
+The rule applies to lexical, hybrid and semantic fields alike, and the [acronym lane](../design/search.md) finds these pairs whatever their lexical or semantic similarity.
 
 ## Distinct words
 
@@ -65,13 +65,13 @@ Two words are related when they are equal, when one begins the other and has 3 c
 - **Names, not descriptions.** As for acronyms, a text with 20 spaces or more never has distinct words, nor does a text with more than 16 content words, whatever separates them.
 - **Cost.** A 64-bit summary of each text's content words is computed when the record is prepared and when a snapshot is loaded. A comparison looks at the words only when the two summaries share a bit.
 
-The rule lowers similarities and never raises one, so candidate search stays complete. The measurements are in [ADR 0023](../adr/0023-distinct-words.md).
+The rule lowers similarities and never raises one, so candidate search stays complete.
 
 ## Semantic signal
 
 A semantic field compares the unit embeddings of its two normalized texts, from the model chosen for the index ([models](../guide/models.md)). The similarity is their cosine clamped to `[0, 1]`: opposite and unrelated texts are equally dissimilar. A text without any token the model knows has no embedding, and the field then gives no evidence rather than a made-up similarity.
 
-Hybrid fields are scored lexically. On the critical corpus, adding their cosine to the score, as the larger or the mean of both signals, lowered the ranking quality; the measurements are in [ADR 0009](../adr/0009-semantic-evidence-in-scoring.md).
+Hybrid fields are scored lexically. On the critical corpus, adding their cosine to the score, as the larger or the mean of both signals, lowered the ranking quality.
 
 ## Score and coverage
 
@@ -107,4 +107,4 @@ The comparison lists, for each field in schema order, its similarity, its signal
 - Release budgets: one million comparisons of standard records in 550 ms (311 ms measured at first, 333 ms with acronym evidence) and of configurations with nested parameters in 250 ms (143 ms, then 158 ms).
 
 
-Search preserves verified whole-record equality when the pairwise score is absent because semantic tokens have no embedding. This is engine `SEARCH_VERSION=1`, independent of `SCORING_VERSION=2`; it assigns exact evidence only after the complete equality oracle succeeds, and does not turn partial unknown-token equality into semantic evidence. See [ADR 0010](../adr/0010-python-finder-and-exact-fallback.md).
+Search preserves verified whole-record equality when the pairwise score is absent because semantic tokens have no embedding. This is engine `SEARCH_VERSION=1`, independent of `SCORING_VERSION=2`; it assigns exact evidence only after the complete equality oracle succeeds, and does not turn partial unknown-token equality into semantic evidence.

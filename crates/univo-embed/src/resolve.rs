@@ -28,7 +28,7 @@ pub struct TransportError {
 }
 
 /// HTTP GET requests, performed by a binding with its language's standard
-/// library (ADR 0008). Implementations follow redirects, apply a timeout,
+/// library. Implementations follow redirects, apply a timeout,
 /// retry a bounded number of times, and send nothing but the URL.
 pub trait Transport {
     /// Writes the body of `url` to `destination`, failing once it exceeds

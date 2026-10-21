@@ -3,7 +3,7 @@
 //! Each all-pairs query scans every later vector of its partition. One query
 //! at a time, a large partition streams all its vectors from memory for
 //! every query, and memory bandwidth bounds the scan, whatever the threads
-//! ([ADR 0019](../../../docs/adr/0019-blocked-dense-all-pairs.md)). A block
+//!. A block
 //! of consecutive queries of one partition reads each later vector once and
 //! compares it with every query of the block, with the arithmetic of
 //! [`univo_core::dot`]: the candidates are the ones the per-query scan

@@ -22,7 +22,7 @@ max_compressed_mib = 30.0
 # 30-token description), single thread, median of five runs. Measured at
 # 86 ms on the reference machine (U-006), 110 ms once names keep their
 # trigrams for lexical comparison (U-008) and 129 ms once texts keep the
-# hashes of their acronym and initials (ADR 0022; 250 ms when the initials
+# hashes of their acronym and initials (250 ms when the initials
 # were built as strings); the budget leaves room for noise and fails on
 # regressions such as the first, unoptimized version (300 ms).
 records = 100000
@@ -43,7 +43,7 @@ max_ms = 25.0
 # identifier, tenant, hybrid name, hostname and semantic description, single
 # thread, median of five runs. Measured at 311 ms on the reference machine
 # (U-008), down from 645 ms with a quadratic edit distance, and at 333 ms
-# against 327 ms with acronym evidence (ADR 0022).
+# against 327 ms with acronym evidence.
 pairs = 1000000
 candidates = 50
 max_ms = 550.0
@@ -53,8 +53,7 @@ max_ms = 550.0
 # environment, discriminant parameters with a nested object compared key by
 # key, semantic description; each against its next `candidates` records,
 # single thread, median of five runs. Measured at 143 ms on the reference
-# machine (U-008 review), and at 158 ms against 157 ms with acronym evidence
-# (ADR 0022).
+# machine (U-008 review), and at 158 ms against 157 ms with acronym evidence.
 pairs = 1000000
 candidates = 50
 max_ms = 250.0
@@ -63,7 +62,7 @@ max_ms = 250.0
 # Loading the default model from local files already in the OS cache,
 # verifying every file and encoding one text, median of five.
 # The target is 2 s; measured at 18 ms with potion-base-8M
-# (U-009) and 60 to 95 ms with the multilingual default (ADR 0021), whose
+# (U-009) and 60 to 95 ms with the multilingual default, whose
 # tokenizer and vocabulary are larger.
 max_ms = 200.0
 
@@ -71,7 +70,7 @@ max_ms = 200.0
 # Encoding descriptions of the standard workload (30 words, about 39
 # tokens) with the default model, one thread, median of five after one
 # warmup. Measured at 0.82 s on the reference machine with the multilingual
-# default (ADR 0021; 0.95 s with potion-base-8M in U-009), about 24 000
+# default (0.95 s with potion-base-8M in U-009), about 24 000
 # texts per second, against a target of 2000 objects per second.
 # Tokenization takes nearly all of it.
 texts = 20000
@@ -81,7 +80,7 @@ max_ms = 1400.0
 # Exhaustive top-k over unit vectors of the default model's dimension, one
 # query against every record, one thread, median of 25 queries after one
 # warmup. Measured at 2.5 ms with 256 dimensions (U-010) and 1.2 ms with the
-# 128 of the multilingual default (ADR 0021), about 10 billion multiply-adds
+# 128 of the multilingual default, about 10 billion multiply-adds
 # per second; the budget fails if the dot product
 # stops being vectorized.
 records = 100000
@@ -110,7 +109,7 @@ max_query_ms = 15.0
 # queries from a group of 10 000 identical records in one partition, which
 # score every member. Measured at 9.9 ms (one partition), 2.2 ms (ten) and
 # 8.0 ms (group) with 256 dimensions on the reference machine (U-010), and
-# 8.5 ms, 1.65 ms and 6.6 ms with 128 (ADR 0021; indexes 92 MiB instead of
+# 8.5 ms, 1.65 ms and 6.6 ms with 128 (indexes 92 MiB instead of
 # 156 MiB). The target is 50 ms with four threads. Encoding a new query
 # with the model is not included.
 records = 100000

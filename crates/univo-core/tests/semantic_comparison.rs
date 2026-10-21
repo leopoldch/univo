@@ -1,5 +1,5 @@
 //! Text fields compared with embeddings: semantic fields use them, hybrid
-//! and lexical fields are scored lexically (ADR 0009).
+//! and lexical fields are scored lexically.
 
 use univo_core::{
     DISTINCT_WORDS_FACTOR, FieldPath, Map, Schema, Signal, Text, TextMode, Value, compare,

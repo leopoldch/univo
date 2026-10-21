@@ -6,7 +6,7 @@ statically: no HTTP, TLS or async-runtime crate may be reachable through
 normal (linked) dependencies of the listed packages. Build scripts and
 procedural macros run at compile time only and are not traversed.
 
-Model downloads (ADR 0008) are performed by each binding with its
+Model downloads are performed by each binding with its
 language's standard library; Rust crates only plan and verify them, so no
 listed package may link a network crate either.
 """

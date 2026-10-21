@@ -51,7 +51,7 @@ Measured on 2026-10-07: Apple M2, 16 GiB, macOS 27.0.1, Rust 1.99.0, release, on
 | 20,000 | 182.4 ms | 0.521 ms | 0.851 ms | 2.662 ms | 3.055 ms |
 | 40,000 | 718.0 ms | 1.146 ms | 1.739 ms | 5.406 ms | 6.199 ms |
 
-At 40k, current single-addition samples ranged from 1.735 to 1.780 ms without IDs and 6.088 to 6.448 ms with decreasing IDs. The 25 ms insertion budget leaves room for allocator/runtime noise while rejecting the previous dense-bucket sorting cost, including the normal CI slack. It is not an end-to-end ingestion or search-latency target. Ordered ID postings add tree-node storage and another owned ID key; total RSS and byte budgeting remain separate work. See [ADR 0006](../adr/0006-incremental-exact-postings.md).
+At 40k, current single-addition samples ranged from 1.735 to 1.780 ms without IDs and 6.088 to 6.448 ms with decreasing IDs. The 25 ms insertion budget leaves room for allocator/runtime noise while rejecting the previous dense-bucket sorting cost, including the normal CI slack. It is not an end-to-end ingestion or search-latency target. Ordered ID postings add tree-node storage and another owned ID key; total RSS and byte budgeting remain separate work.
 
 
 ## Python Finder (U-011)
@@ -188,7 +188,7 @@ no release or merge is performed by this implementation.
 
 ## U-016 explicit HNSW
 
-[Protocol and vector recall](../adr/evidence/ann-backends.md),
+Protocol and vector recall,
 [script](../../benchmarks/performance/python_ann.py) and
 [raw samples](../../benchmarks/performance/ann-macos-arm64.json). Release abi3
 wheel, Apple M2 / 16 GiB RAM, macOS 27.0.1, Python 3.14.7, Rust 1.99.0.
@@ -278,7 +278,7 @@ U-015; 115 linked crate names versus 112. GitHub Actions jobs did not start
 because account payments/spending limits block execution: no cross-platform
 CI success is claimed. No model change, release or merge.
 
-## Parallel all-pairs reports (ADR 0018)
+## Parallel all-pairs reports
 
 [Script](../../benchmarks/comparison/scale.py), [raw results](../../benchmarks/performance/all-pairs-macos-arm64.jsonl), U-003 protocol: synthetic company names in one partition, one record in ten a near-duplicate with a typo, `min_score=0.8`, pairs turned into removals by SemHash's rule inside the timed section. Apple M2 (4 performance and 4 efficiency cores), 16 GiB, macOS 27.0.1, CPython 3.14.7, Rust 1.99.0, release build, potion-base-8M at `bf8b0566` in OS cache, one run per line, one process at a time. Wall time includes model loading; CPU time covers deduplication on every thread.
 
@@ -297,11 +297,11 @@ CI success is claimed. No model change, release or merge.
 Every configuration removes the same records as before. For reference, SemHash 0.5.0 takes 1.0 s, 2.5 s and 14 s on the same data with every core ([U-003](../benchmarks.md)).
 
 - **Half the comparisons.** An all-pairs query now scans only the records after it, in the lexical verification and the dense semantic scan: one thread is about twice as fast.
-- **Threads.** Lexical reports scale to 5.1× on 8 threads at 100,000 records. Dense semantic reports stop at 1.9× there: each query streams every later vector from memory, up to 100 MB at 100,000 records, so memory bandwidth, not arithmetic, bounds them from about 4 threads. [ADR 0019](../adr/0019-blocked-dense-all-pairs.md) measures this cause in isolation and compares blocks of queries with each vector read.
+- **Threads.** Lexical reports scale to 5.1× on 8 threads at 100,000 records. Dense semantic reports stop at 1.9× there: each query streams every later vector from memory, up to 100 MB at 100,000 records, so memory bandwidth, not arithmetic, bounds them from about 4 threads. The blocked scan below measures this cause in isolation and compares blocks of queries with each vector read.
 - **HNSW** stays slower than the exhaustive scan up to 30,000 records; its graph is still built on one thread.
 - **Small calls.** With `threads=1`, a lexical index creates no pool: `find` of 20 records takes 483 µs against 510 µs before, and `group` 83 µs against 85 µs (median of five runs of 2,000 calls). With `threads=4`, creating the index's pool adds about 25 µs to `find` and 50 µs to `group`.
 
-## Blocked dense all-pairs (ADR 0019)
+## Blocked dense all-pairs
 
 **Cause, in isolation.** [`dense_bandwidth`](../../crates/univo-engine/examples/dense_bandwidth.rs) times the scoring cosine of 256-dimensional vectors, query by query or in blocks of 64 queries sharing each row read, with the vectors in cache (1 MB) or in memory (100 MB, a 100,000-record partition). [Raw output](../../benchmarks/performance/dense-bandwidth-macos-arm64.csv); best of three, Apple M2 on battery at full charge, low-power mode off.
 
@@ -328,9 +328,9 @@ Every run removes the same records as before. Univo's search is exact; SemHash's
 
 The all-pairs harness [`all_pairs`](../../crates/univo-engine/examples/all_pairs.rs) gives 11.2 ns per pair on one thread at 20,000 records, against 26.5 ns for the same kernel left to the compiler's vectorizer.
 
-## Multilingual default model (ADR 0021)
+## Multilingual default model
 
-The default model now has 128 dimensions instead of 256 ([ADR 0021](../adr/0021-multilingual-default-model.md)). Model-level budgets, release build, same reference machine:
+The default model now has 128 dimensions instead of 256. Model-level budgets, release build, same reference machine:
 
 | Measure | potion-base-8M | New default |
 | --- | --- | --- |
@@ -352,7 +352,7 @@ Loading is slower because the tokenizer and the vocabulary are larger (105,879 t
 
 Deduplication CPU time halves with the dimension. Univo's search stays exact and SemHash's approximate. Their thresholds differ, so the removal counts differ (9,688 and 4,120 at 100,000 records): this compares cost, not quality.
 
-## Acronym evidence (ADR 0022)
+## Acronym evidence
 
 Release builds, same reference machine, median of five runs, alternating `main` and the change three times.
 
@@ -384,7 +384,7 @@ Apple M2, release wheels outside the source tree, `main` and the change alternat
 | Search p95, group of 10,000 identical records | 6.45 ms | 6.22 ms |
 | `find`, `group` and search at 30,000 records | — | within noise (±3%) |
 
-With the same model, SemHash 0.5.0 takes 8.72 s on the 100,000-name semantic run ([multilingual default](#multilingual-default-model-adr-0021)).
+With the same model, SemHash 0.5.0 takes 8.72 s on the 100,000-name semantic run ([multilingual default](#multilingual-default-model)).
 
 - **Blocked dense scan.** For each group of eight queries and each row, the products of the first half of the dimensions come first. The rest is bounded by the product of the norms of the remaining dimensions (Cauchy–Schwarz), plus a rounding margin of `4·n·ε`.
   - **Skip.** When no query of the group can reach the lane threshold, the row is skipped.
@@ -465,7 +465,7 @@ Apple M2 on battery, release builds, one partition, minimum score 0.8, every cor
 - **Index build.** It takes 35 ms instead of 29 ms.
 - **Reproduce.** `cargo run --release -p univo-engine --example lexical_all_pairs -- names.txt 100000 8` prints the time and a hash of the report. The ROR sample is 100,000 distinct names from the ROR v2.14 dump, shuffled with seed 0.
 
-## Distinct words (ADR 0023)
+## Distinct words
 
 Release builds, Apple M2, `main` and the change alternated.
 

@@ -1,6 +1,6 @@
 # Snapshot format
 
-How [snapshots](../guide/persistence.md) are written and read. The decision is [ADR 0013](../adr/0013-versioned-snapshots.md).
+How [snapshots](../guide/persistence.md) are written and read.
 
 ## Publication
 

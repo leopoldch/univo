@@ -1,7 +1,6 @@
 //! Dense scan throughput with the vectors in cache or in memory, on 1 to 8
 //! threads, query by query or in blocks of queries sharing each row read.
-//! Separates the cost of arithmetic from the cost of reading vectors
-//! (ADR 0018, ADR 0019).
+//! Separates the cost of arithmetic from the cost of reading vectors.
 //!
 //! `cargo run --release -p univo-engine --example dense_bandwidth`
 

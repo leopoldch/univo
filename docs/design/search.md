@@ -26,7 +26,7 @@ A record's score is a weighted mean of its field similarities, so a score of at 
 | Text, semantic | [Vector search](vector-search.md) over the query's partition | Scans every embedding |
 | Exact scalar or list | Records with an equal value | The similarity is 1 for an equal value, 0 otherwise |
 | Exact object | Records sharing one equal leaf, or both empty | A positive similarity needs an equal leaf |
-| Any text, when `s ≤ 0.9` | Records whose text is the acronym of the query's words, or whose words the query's text abbreviates ([ADR 0022](../adr/0022-acronym-evidence.md)) | Such a pair shares one key: the acronym on one side equals the initials of the other |
+| Any text, when `s ≤ 0.9` | Records whose text is the acronym of the query's words, or whose words the query's text abbreviates | Such a pair shares one key: the acronym on one side equals the initials of the other |
 
 Two more rules complete the guarantee:
 - **Rounding.** Lanes use `s·(1 − 10⁻⁶)`, so that rounding in the weighted mean never drops a record that reaches `s`. The margin is relative, so it stays positive even for the smallest positive minimum.

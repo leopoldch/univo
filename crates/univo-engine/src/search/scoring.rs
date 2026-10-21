@@ -14,7 +14,7 @@ use super::{Query, SearchIndex, SearchMatch, SearchOptions, SearchResult, check_
 impl SearchIndex {
     /// What `slot` is against the query, scored without explanations.
     /// Records equal to the query without a score, such as unknown semantic
-    /// texts, score as exact (ADR 0010). `vectors` is a buffer reused across
+    /// texts, score as exact. `vectors` is a buffer reused across
     /// candidates.
     fn qualifying<'a>(
         &'a self,

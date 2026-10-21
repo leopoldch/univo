@@ -2,7 +2,7 @@
 
 The default model is `sentence-transformers/static-similarity-mrl-multilingual-v1`
 (Apache-2.0), converted to the Model2Vec layout, quantized to int8 and truncated
-to its first 128 Matryoshka dimensions (ADR 0021). This script reproduces the
+to its first 128 Matryoshka dimensions. This script reproduces the
 published files byte for byte with the standard library only:
 
     python tools/build_default_model.py --output build/default-model

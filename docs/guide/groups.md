@@ -61,4 +61,4 @@ Groups never merge or change records. A future `plan_merge` (after 1.0) would ch
 | 10,000 | 2.6 s | 2.6 s | 1,007 | 1,012 | 5 |
 | 20,000 | 10.3 s | 11.0 s | 2,041 | 2,062 | 13 |
 
-Both grow faster than linearly in one partition, because every record is searched against the others; partitions and higher thresholds reduce the work. Since [ADR 0018](../adr/0018-parallel-all-pairs.md), each pair is scanned once and the searches run on the `threads` budget, with the same groups: see [performance](../development/performance.md#parallel-all-pairs-reports-adr-0018).
+Both grow faster than linearly in one partition, because every record is searched against the others; partitions and higher thresholds reduce the work. Each pair is scanned once and the searches run on the `threads` budget, with the same groups: see [performance](../development/performance.md#parallel-all-pairs-reports).
