@@ -20,6 +20,17 @@ Univo against [SemHash](https://github.com/MinishLab/semhash) 0.5.0, the closest
 
 Univo also deduplicates lexically, with no model: 100,000 names take **1.9 s** for synthetic names and **2.2 s** for real ROR names. SemHash has no lexical mode.
 
+## One record at a time
+
+[check_or_add.py](../benchmarks/comparison/check_or_add.py) adds 100,000 of the same synthetic names to one partition, then checks 500 new ones with `check_or_add` at the default threshold of 0.8, timing each call. Release wheel 1.0.0 from PyPI, Python 3.14, one thread, on battery; two runs.
+
+| Name field | Add 100,000 | Check one, median | Check one, p95 |
+| --- | --- | --- | --- |
+| Lexical | 0.15 s | 0.15–0.16 ms | 0.36–0.39 ms |
+| Semantic, default model | 0.51–0.52 s | 2.18–2.21 ms | 2.37–2.41 ms |
+
+A semantic check scans every vector of the partition, so it grows with the partition. A lexical check grows with the number of candidates that share trigrams with the new record.
+
 ## Name quality
 
 **Corpus.** ROR name aliases, protocol `ror-alias-v2` ([manifest](../benchmarks/quality/ror-alias-v2/corpus.json)), built from the [ROR v2.14](https://zenodo.org/records/23187250) dump under CC0.
@@ -93,6 +104,7 @@ done
 semhash-env/bin/python -I benchmarks/comparison/dedupe.py /tmp/ror-pairs.jsonl --tool semhash --model-path $MODEL --output /tmp/ror-semhash.json
 python -I benchmarks/comparison/critical.py tests/fixtures/critical/cases.jsonl --tool univo-semantic --model-path $MODEL --output /tmp/critical.json
 python -I benchmarks/comparison/scale.py --tool univo-semantic --retrieval exact --records 100000 --model-path $MODEL
+python -I benchmarks/comparison/check_or_add.py --model-path $MODEL
 ```
 
 Run the timed commands one at a time, on mains power, with no other heavy workload. The [first comparison](../benchmarks/comparison/results/scale.jsonl), before parallel scoring, found SemHash 9 to 16 times faster; it led to parallel scoring and the blocked dense scan.

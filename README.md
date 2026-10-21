@@ -2,7 +2,7 @@
 
 **Compare anything. Keep every record clean.**
 
-Fast, local duplicate detection for Python data: strings, records and nested objects.
+Find duplicate Python records using fuzzy matching, local embeddings and field-level rules. Fast, lightweight, no server required.
 
 [![PyPI](https://img.shields.io/pypi/v/univo)](https://pypi.org/project/univo/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/leopoldch/univo/blob/main/pyproject.toml)
@@ -26,16 +26,7 @@ Northwind Traders ~ Northwnd Traders 0.94
 Northwnd Traders ~ NORTHWIND TRADERS 0.94
 ```
 
-No server, no training, no API key. Records never leave your machine.
-
-## Why Univo
-
-- **Real records, not just strings.** Customers, products, organizations, configuration objects: dicts, lists and nested fields, compared field by field.
-- **Rules before scores.** Two companies with different VAT numbers, or a `prod` and a `staging` config, never match, however alike they look.
-- **Meaning, spelling and exact values.** Fuzzy text, a local multilingual model and exact comparison, chosen per field.
-- **Every match explained.** Each match says which fields agreed and how. Univo never merges or deletes anything for you.
-- **Fast and complete.** 100,000 names are deduplicated in 4.8 s, and search returns every pair above the threshold.
-- **Light.** One 2 MiB wheel with no Python dependency. The 15 MB model downloads once, is verified, then works offline.
+No training and no API key: records never leave your machine.
 
 ## Records and rules
 
@@ -66,9 +57,16 @@ for match in finder.search(query).matches:
 
 Record 2 has another VAT number, so it can never match. For meaning rather than spelling, use `Text(mode="semantic")` ([models](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md)).
 
+## Why Univo
+
+- **Records, not just strings.** Dicts, lists and nested fields, compared field by field, with an explanation for every match.
+- **Rules before scores.** Different VAT numbers, tenants or environments rule out a match, however alike the records look.
+- **Spelling, meaning and exact values**, chosen per field, with a 15 MB multilingual model that runs offline.
+- **Fast, complete and light.** 100,000 names deduplicated in 4.8 s, every pair above the threshold found, one 2 MiB wheel with no dependency.
+
 ## New records as they arrive
 
-Keep an index and check each new record before you store it. Against 100,000 records, a check takes 0.15 ms on names, or 2.3 ms with embeddings.
+Keep an index and check each new record before you store it.
 
 ```python
 finder = Finder(
@@ -81,7 +79,16 @@ finder.check_or_add({"id": 3, "name": "Contoso", "vat": "FR777"}).status  # "ins
 finder.check_or_add({"id": 4, "name": "Northwind Traders", "vat": "FR401"}).status  # "matched"
 ```
 
-`review` means a similar record exists and nothing was inserted: your application decides. Indexes can be updated, saved and loaded ([mutations](https://github.com/leopoldch/univo/blob/main/docs/guide/mutations.md), [snapshots](https://github.com/leopoldch/univo/blob/main/docs/guide/persistence.md)).
+`review` means a similar record exists and nothing was inserted: your application decides.
+
+Checking one new record against 100,000 synthetic company names, in one partition, at the default threshold of 0.8 (Apple M2, PyPI wheel, [script](https://github.com/leopoldch/univo/blob/main/benchmarks/comparison/check_or_add.py)):
+
+| Name field | Median | p95 |
+| --- | --- | --- |
+| Lexical | 0.15 ms | 0.4 ms |
+| With embeddings | 2.2 ms | 2.4 ms |
+
+Times depend on your data: they grow with the records of a partition and with the number of close candidates. Indexes can be updated, saved and loaded ([mutations](https://github.com/leopoldch/univo/blob/main/docs/guide/mutations.md), [snapshots](https://github.com/leopoldch/univo/blob/main/docs/guide/persistence.md)).
 
 ## Compared with other tools
 
@@ -105,7 +112,4 @@ Univo's search is exact; SemHash's index is approximate. On names alone, neither
 
 ## Documentation
 
-- **Guide.** [Quickstart](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md), [models and offline use](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md), [mutations](https://github.com/leopoldch/univo/blob/main/docs/guide/mutations.md), [snapshots](https://github.com/leopoldch/univo/blob/main/docs/guide/persistence.md), [concurrency](https://github.com/leopoldch/univo/blob/main/docs/guide/concurrency.md), [groups](https://github.com/leopoldch/univo/blob/main/docs/guide/groups.md), [embedding cache](https://github.com/leopoldch/univo/blob/main/docs/guide/embedding-cache.md), [approximate search](https://github.com/leopoldch/univo/blob/main/docs/guide/ann.md).
-- **Reference.** [Errors](https://github.com/leopoldch/univo/blob/main/docs/reference/errors.md), [scoring](https://github.com/leopoldch/univo/blob/main/docs/reference/scoring.md), [duplicate definitions](https://github.com/leopoldch/univo/blob/main/docs/reference/duplicate-definitions.md), [stability](https://github.com/leopoldch/univo/blob/main/docs/reference/stability.md).
-- **Design.** [Search](https://github.com/leopoldch/univo/blob/main/docs/design/search.md), [lexical candidates](https://github.com/leopoldch/univo/blob/main/docs/design/lexical-search.md), [vector search](https://github.com/leopoldch/univo/blob/main/docs/design/vector-search.md), [exact index](https://github.com/leopoldch/univo/blob/main/docs/design/exact-index.md).
-- **Development.** [Setup](https://github.com/leopoldch/univo/blob/main/docs/development/setup.md), [performance](https://github.com/leopoldch/univo/blob/main/docs/development/performance.md), [dependencies](https://github.com/leopoldch/univo/blob/main/docs/development/dependencies.md), [releasing](https://github.com/leopoldch/univo/blob/main/docs/development/releasing.md).
+[Quickstart](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md) · [Reference](https://github.com/leopoldch/univo/tree/main/docs/reference) · [Benchmarks](https://github.com/leopoldch/univo/blob/main/docs/benchmarks.md) · [Architecture](https://github.com/leopoldch/univo/tree/main/docs/design) · [All docs](https://github.com/leopoldch/univo/tree/main/docs)
