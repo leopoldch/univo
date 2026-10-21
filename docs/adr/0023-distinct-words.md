@@ -23,7 +23,7 @@ They force the threshold up. The validation curve shows the cost: recall goes fr
   - **Related words** are equal, or one begins the other and has at least 3 characters, or their edit similarity is at least 0.8.
 - **Effect.** The field similarity, lexical or semantic, is multiplied by **0.8**.
   - **Contradiction.** The field reports a contradiction. A text field never turns it into a veto, and acronym evidence, when it wins, outweighs it.
-  - **Names only.** Texts with 20 spaces or more are descriptions, as for acronyms, and never have distinct words.
+  - **Names only.** Texts with 20 spaces or more are descriptions, as for acronyms, and never have distinct words. So are texts with more than 16 content words, whatever separates them: a comparison examines at most 16 × 16 word pairs.
 - **Cost.** Each prepared text keeps a 64-bit summary of its content words, recomputed when a snapshot is loaded; the snapshot format is unchanged. A comparison reads the words only when the two summaries share a bit, and then decides on the texts. Variants are tested by a bounded edit distance, equivalent to the 0.8 threshold of `edit_similarity`.
 - **Candidates.** The rule only lowers similarities, so every lane still proposes a superset of the matches, and search keeps returning exactly the exhaustive oracle.
 - **Versions.** `SCORING_VERSION` 4. Snapshots of version 3 are refused and must be rebuilt from their records.

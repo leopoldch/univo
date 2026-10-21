@@ -19,65 +19,53 @@ const MIN_PREFIX_CHARS: usize = 3;
 /// unrelated to every content word of the other. Words related by a prefix
 /// of [`MIN_PREFIX_CHARS`] characters or more, or by an edit similarity of
 /// 0.8 or more ([`crate::edit_similarity`]), are not distinct; articles and
-/// prepositions are not content words. Descriptions, with
-/// [`MAX_INITIALS_SPACES`] spaces or more, never have distinct words.
+/// prepositions are not content words. Descriptions never have distinct
+/// words: texts with [`MAX_INITIALS_SPACES`] spaces or more, or more than
+/// [`MAX_WORDS`] content words.
 pub fn distinct_words(left: &str, right: &str) -> bool {
-    if is_description(left) || is_description(right) {
+    let (mut left_buffer, mut right_buffer) = ([""; MAX_WORDS], [""; MAX_WORDS]);
+    let (Some(left), Some(right)) = (
+        name_words(left, &mut left_buffer),
+        name_words(right, &mut right_buffer),
+    ) else {
         return false;
-    }
-    let (mut left_buffer, mut right_buffer) = ([""; WORDS_ON_STACK], [""; WORDS_ON_STACK]);
-    let (left, right) = (
-        Words::split(left, &mut left_buffer),
-        Words::split(right, &mut right_buffer),
-    );
-    let (left, right) = (left.as_slice(), right.as_slice());
+    };
     left.iter().any(|word| right.contains(word))
         && has_own_word(left, right)
         && has_own_word(right, left)
 }
 
-/// Content words of a name kept on the stack; longer names spill to the
-/// heap.
-const WORDS_ON_STACK: usize = 16;
+/// Content words compared per name, whatever separates them: bounds a
+/// comparison to `MAX_WORDS²` word pairs.
+const MAX_WORDS: usize = 16;
 
-/// The content words of a name, in a buffer on the stack when they fit.
-enum Words<'a, 'b> {
-    Stack(&'b [&'a str]),
-    Heap(Vec<&'a str>),
-}
-
-impl<'a, 'b> Words<'a, 'b> {
-    fn split(text: &'a str, buffer: &'b mut [&'a str; WORDS_ON_STACK]) -> Self {
-        let mut len = 0;
-        for word in content_words(text) {
-            let Some(slot) = buffer.get_mut(len) else {
-                return Self::Heap(content_words(text).collect());
-            };
-            *slot = word;
-            len += 1;
-        }
-        Self::Stack(&buffer[..len])
+/// The content words of a name, or `None` for a description.
+fn name_words<'a, 'b>(
+    text: &'a str,
+    buffer: &'b mut [&'a str; MAX_WORDS],
+) -> Option<&'b [&'a str]> {
+    if is_description(text) {
+        return None;
     }
-
-    fn as_slice(&self) -> &[&'a str] {
-        match self {
-            Self::Stack(words) => words,
-            Self::Heap(words) => words,
-        }
+    let mut len = 0;
+    for word in content_words(text) {
+        *buffer.get_mut(len)? = word;
+        len += 1;
     }
+    Some(&buffer[..len])
 }
 
 /// 64 bits summarizing the content words of a name, the bit of each
 /// word's hash: two names share a content word only if they share a bit.
 /// Zero for descriptions, which never have distinct words.
 pub(crate) fn word_bits(text: &str) -> u64 {
-    if is_description(text) {
-        return 0;
-    }
-    content_words(text).fold(0, |bits, word| {
-        let mut hasher = FxHasher::default();
-        hasher.write(word.as_bytes());
-        bits | 1 << (hasher.finish() >> 58)
+    let mut buffer = [""; MAX_WORDS];
+    name_words(text, &mut buffer).map_or(0, |words| {
+        words.iter().fold(0, |bits, word| {
+            let mut hasher = FxHasher::default();
+            hasher.write(word.as_bytes());
+            bits | 1 << (hasher.finish() >> 58)
+        })
     })
 }
 
@@ -294,6 +282,31 @@ mod tests {
             }
         }
         assert!(variants >= 6, "{variants}");
+    }
+
+    #[test]
+    fn many_words_make_a_description_whatever_the_separators() {
+        let words: Vec<String> = (0..10_000).map(|i| format!("w{i:04}")).collect();
+        let forward = words.join("-");
+        let backward: Vec<&str> = words.iter().rev().map(String::as_str).collect();
+        assert!(!distinct_words(&forward, &backward.join("\t")));
+        assert_eq!(word_bits(&forward), 0);
+        let template = |count: usize| {
+            (0..count)
+                .map(|i| format!("w{i}"))
+                .collect::<Vec<_>>()
+                .join("-")
+        };
+        let shared = template(MAX_WORDS - 1);
+        assert!(distinct_words(
+            &format!("{shared}-epidemiology"),
+            &format!("{shared}/oncology")
+        ));
+        let shared = template(MAX_WORDS);
+        assert!(!distinct_words(
+            &format!("{shared}-epidemiology"),
+            &format!("{shared}/oncology")
+        ));
     }
 
     #[test]

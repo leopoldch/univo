@@ -62,7 +62,7 @@ Two words are related when they are equal, when one begins the other and has 3 c
 
 - **Effect.** The field similarity is multiplied by 0.8, and the field reports a contradiction, which a text field never turns into a veto. When acronym evidence wins, there is no contradiction.
 - **Not for one-sided words.** "Instituto Federal Goiano" against "Instituto Federal de Educação, Ciência e Tecnologia Goiano" is not penalized: only one side has words of its own.
-- **Names, not descriptions.** As for acronyms, a text with 20 spaces or more never has distinct words.
+- **Names, not descriptions.** As for acronyms, a text with 20 spaces or more never has distinct words, nor does a text with more than 16 content words, whatever separates them.
 - **Cost.** A 64-bit summary of each text's content words is computed when the record is prepared and when a snapshot is loaded. A comparison looks at the words only when the two summaries share a bit.
 
 The rule lowers similarities and never raises one, so candidate search stays complete. The measurements are in [ADR 0023](../adr/0023-distinct-words.md).
