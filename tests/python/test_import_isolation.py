@@ -66,7 +66,7 @@ before = set(sys.modules)
 events = []
 sys.addaudithook(lambda event, args: events.append(event) if event.startswith("socket.") else None)
 finder = Finder(schema=Schema(fields={"text": Text(mode="semantic")}),
-                model="/missing/univo/model", offline=True)
+                model_path="/missing/univo/model", offline=True)
 print(json.dumps({"loaded": finder.config()["model_loaded"],
                   "network": events,
                   "model_modules": sorted(name for name in set(sys.modules) - before
