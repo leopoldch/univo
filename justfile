@@ -55,6 +55,10 @@ wheel:
     uv run maturin build --release --out dist
     uv run python tools/checks/check_wheel.py dist/*.whl
 
+# Build and test a manylinux wheel in Docker, as CI does: `just linux aarch64 target/default-model`.
+linux arch="aarch64" model="":
+    tools/checks/linux_wheels.sh {{arch}} {{model}}
+
 # Regenerate docs/reference/errors.md from the error catalog.
 errors-doc:
     UNIVO_UPDATE_DOCS=1 cargo test -p univo-core --test error_catalog
