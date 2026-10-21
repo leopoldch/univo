@@ -1,6 +1,6 @@
 # U-004 spike: default embedding model
 
-Comparison of three architectural families from [specs/04-models-and-cache.md §11](../../../specs/04-models-and-cache.md): exact and lexical comparison without a model, static embeddings (Model2Vec) and small contextual encoders. The proposed decision is in [ADR 0007](../0007-default-embedding-model.md).
+Comparison of three architectural families from the model specification: exact and lexical comparison without a model, static embeddings (Model2Vec) and small contextual encoders. The proposed decision is in [ADR 0007](../0007-default-embedding-model.md).
 
 ## Reproduce
 
@@ -24,7 +24,7 @@ python -m venv /tmp/model-selection && /tmp/model-selection/bin/pip install -r b
   - Critical corpus: 160 short-text pairs (strings and names) and 74 description pairs. Cases decided by a veto, a partition or invalid input are excluded, since text does not decide them.
   - **Low-overlap duplicates**: the 32 duplicates whose character-trigram Jaccard is below 0.35, against every distinct pair. This isolates what a model adds over lexical comparison: rewordings, other scripts and acronyms.
   - [PAWS-X](https://huggingface.co/datasets/google-research-datasets/paws-x) test sets, English and French, 2000 pairs each, licensed for any use. Its pairs share most of their words, so it measures sensitivity to word order and roles.
-- **Speed.** Standard workload of [specs/07-performance.md](../../../specs/07-performance.md): 2000 names of about 20 characters and 2000 descriptions of about 30 words, the same texts for Python and Rust. The figure is the median of three runs after a warmup, with 1 and 4 threads.
+- **Speed.** Standard workload: 2000 names of about 20 characters and 2000 descriptions of about 30 words, the same texts for Python and Rust. The figure is the median of three runs after a warmup, with 1 and 4 threads.
   - Python: `model2vec` (numpy) and `sentence-transformers` (PyTorch).
   - Rust: `model2vec-rs` 0.3.0 without network or C dependency (`local-only`, `fancy-regex`), which is the path Univo would ship.
 - **Memory.** Peak resident memory of the measuring process, which loads the model once; the warm load is timed in a separate process that releases the first model before loading it again, so no peak counts two models. Python peaks are taken from the four-thread process, which only encodes; the one-thread process also evaluates quality and holds the PAWS-X data. In Python, the interpreter with the backend imported already takes about 69 MB (static) or 414 MB (PyTorch).

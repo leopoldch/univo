@@ -1,7 +1,7 @@
 //! End-to-end search budget, from `benchmarks/budgets.toml`: the standard
-//! workload of specs/07-performance.md (ID, tenant, a name of about 20
-//! characters, a semantic description) with synthetic embeddings of the
-//! default model's dimension, following its protocol: five independent
+//! workload (ID, tenant, a name of about 20 characters, a semantic
+//! description) with synthetic embeddings of the default model's dimension,
+//! following its protocol: five independent
 //! repetitions of 1000 queries after a warmup. Release builds only; shared
 //! CI runners multiply time budgets by `UNIVO_PERF_SLACK`.
 

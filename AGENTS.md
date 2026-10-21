@@ -2,9 +2,7 @@
 
 ## Purpose and source of truth
 
-Build Univo: a fast, local duplicate-detection library with a reusable Rust core and a thin Python interface. Read [specs/01-product.md](specs/01-product.md) before implementation, then the specification of the component being changed: `specs/02` to `specs/11` cover the Python API, matching, models, Rust architecture, persistence, performance, validation, distribution, roadmap and references.
-
-This repository currently contains specifications only. Do not treat API examples as working code, proposed budgets as measured performance, or roadmap entries as completed work. The specification prose is in French; identifiers and public APIs use English.
+Build Univo: a fast, local duplicate-detection library with a reusable Rust core and a thin Python interface. Before changing a component, read its pages in [docs](docs): the guide for behavior, the reference for contracts such as scoring, errors and stability, and the design pages for internals. Keep them in sync with the code.
 
 ## Non-negotiable design constraints
 
@@ -21,13 +19,13 @@ This repository currently contains specifications only. Do not treat API example
 
 ## Implementation workflow
 
-1. Select a task from [specs/10-roadmap.md](specs/10-roadmap.md), confirm its prerequisites and define the acceptance criterion before coding.
+1. Define the task and its acceptance criterion before coding.
 2. Keep changes scoped to that task and its necessary integration. Do not add Java bindings, database connectors or automatic merging before their planned milestones.
-3. For unresolved choices (model, ANN backend, thresholds, ABI), run the specified spike or benchmark. Record an architecture decision under docs/adr/ when the choice is made; include alternatives, evidence, trade-offs and conditions for revisiting it.
+3. For unresolved choices (model, ANN backend, thresholds, ABI), run a spike or benchmark first, and publish its results with the method ([benchmarks](docs/benchmarks.md), [performance](docs/development/performance.md)).
 4. Update affected contracts when changing API behavior, on-disk formats or model compatibility. Do not silently change a target just to make a check pass.
 5. Validate the concrete risks introduced by the change and report what was tested, the result and any remaining limitation.
 
-Follow current maintainer instructions for the task; reconcile changes with the specifications. Routine reversible implementation work does not require an extra approval step. Do not publish a release or merge a PR merely because the roadmap describes that step.
+Follow current maintainer instructions for the task; reconcile changes with the documentation. Routine reversible implementation work does not require an extra approval step. Do not publish a release or merge a PR without the maintainer's request.
 
 ## Rust and Python boundaries
 
@@ -40,12 +38,12 @@ Follow current maintainer instructions for the task; reconcile changes with the 
 
 ## Validation and performance
 
-- Use [specs/08-validation.md](specs/08-validation.md) for correctness and quality, [specs/07-performance.md](specs/07-performance.md) for measurement, and [specs/09-distribution.md](specs/09-distribution.md) for packaging.
+- Follow [performance](docs/development/performance.md) for measurement and budgets, [benchmarks](docs/benchmarks.md) for quality, and [releasing](docs/development/releasing.md) for packaging.
 - Measure release builds. Report hardware, dataset, threads, versions, cold/warm state, model footprint and end-to-end latency, not only index lookup time.
 - Compare approximate search at a measured recall. Report candidate recall separately from final duplicate precision/recall.
 - Keep train/validation/test entities separate. Never tune thresholds on the held-out test set.
 - Test mutations, snapshots and offline behavior when changing those components. Test installed wheels outside the source tree and without a Rust toolchain.
-- Documentation-only changes need link, contract and coverage checks; do not invent or run unrelated runtime tests when no implementation exists.
+- Documentation-only changes need link checks and tested examples.
 
 ## Dependencies and versioning
 

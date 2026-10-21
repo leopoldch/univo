@@ -1,6 +1,6 @@
 # Vector search
 
-`univo-engine` keeps the embeddings of the semantic text fields of prepared records and searches them exhaustively. This exhaustive search is the reference that any approximate index must be measured against ([specs/03-matching.md §12](../../specs/03-matching.md)), and a supported mode within its cost. [Search](search.md) uses it as the semantic lane, over the query's partition.
+`univo-engine` keeps the embeddings of the semantic text fields of prepared records and searches them exhaustively. This exhaustive search is the reference that any approximate index must be measured against, and a supported mode within its cost. [Search](search.md) uses it as the semantic lane, over the query's partition.
 
 ## Embedding records
 

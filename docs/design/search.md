@@ -54,13 +54,13 @@ Every candidate is then scored with `compare_with_vectors`:
 
 ## Cost
 
-Standard workload of [specs/07-performance.md](../../specs/07-performance.md):
+Standard workload:
 - 100,000 records: ID, tenant, a name of about 20 characters, a semantic description of 30 words;
 - one record in ten is a near-duplicate of the previous one;
 - synthetic embeddings of 256 dimensions;
 - search of a stored record at a minimum score of 0.8, `limit = 10`, Apple M2, one thread.
 
-Following the specification's protocol, each scenario runs five independent repetitions (index rebuilt each time) of 1,000 queries after a warmup. The figures are the median repetition.
+Each scenario runs five independent repetitions (index rebuilt each time) of 1,000 queries after a warmup. The figures are the median repetition.
 
 | Scenario | Median | p95 (range over 5) | p99 | Budget (p95) |
 | --- | --- | --- | --- | --- |

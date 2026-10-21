@@ -6,7 +6,7 @@
 
 ## Context
 
-Errors are what users see when something goes wrong; they must say what happened, where, and how to fix it. Python is the first binding and others, starting with Java, are planned on the same Rust core ([10-roadmap.md §28](../../specs/10-roadmap.md)). If each binding composed its own messages, wording, coverage and documentation would drift between languages.
+Errors are what users see when something goes wrong; they must say what happened, where, and how to fix it. Python is the first binding and others, starting with Java, are planned on the same Rust core. If each binding composed its own messages, wording, coverage and documentation would drift between languages.
 
 ## Decision
 

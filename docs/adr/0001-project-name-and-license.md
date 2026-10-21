@@ -6,7 +6,7 @@
 
 ## Context
 
-Implementation work (U-005 onwards) needs a distribution name for the Python package and the Rust crates, and a license that every dependency and model must be compatible with. The specifications propose the name Univo and the MIT license without confirming availability ([01-product.md §4](../../specs/01-product.md)).
+Implementation work (U-005 onwards) needs a distribution name for the Python package and the Rust crates, and a license that every dependency and model must be compatible with. The specifications propose the name Univo and the MIT license without confirming availability.
 
 ## Decision
 

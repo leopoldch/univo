@@ -6,7 +6,7 @@
 
 ## Context
 
-[ADR 0007](0007-default-embedding-model.md) selects static Model2Vec models, a pinned default and model selection by string. [04-models-and-cache.md](../../specs/04-models-and-cache.md) requires a download on first use only, pinned revisions and checksums, verification before an atomic publication, a lock per model, a strict offline path and no network access at import or Finder construction. [AGENTS.md](../../AGENTS.md) adds minimal installed size and dependencies, no network client in the core, and no panic across a binding.
+[ADR 0007](0007-default-embedding-model.md) selects static Model2Vec models, a pinned default and model selection by string. The product specification requires a download on first use only, pinned revisions and checksums, verification before an atomic publication, a lock per model, a strict offline path and no network access at import or Finder construction. [AGENTS.md](../../AGENTS.md) adds minimal installed size and dependencies, no network client in the core, and no panic across a binding.
 
 A download needs an HTTP client and a TLS stack. The core is shared by every binding (Python now, Java later), and each of these languages already ships an HTTP client that uses the system's certificates and proxies.
 

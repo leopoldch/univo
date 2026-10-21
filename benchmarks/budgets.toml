@@ -1,7 +1,6 @@
 # Resource budgets enforced by the perf test suites.
 #
-# Values come from specs/07-performance.md. They are upper bounds on the
-# reference machine described in docs/development/performance.md. Shared CI runners apply
+# Values are upper bounds on the reference machine described in docs/development/performance.md. Shared CI runners apply
 # the documented UNIVO_PERF_SLACK multiplier to time budgets only; size
 # budgets are never relaxed.
 
@@ -19,8 +18,7 @@ samples = 30
 max_compressed_mib = 30.0
 
 [core.prepare]
-# Validation and normalization of the standard workload of
-# specs/07-performance.md (identifier, tenant, 20-character name, hostname,
+# Validation and normalization of the standard workload (identifier, tenant, 20-character name, hostname,
 # 30-token description), single thread, median of five runs. Measured at
 # 86 ms on the reference machine (U-006), 110 ms once names keep their
 # trigrams for lexical comparison (U-008) and 129 ms once texts keep the
@@ -64,7 +62,7 @@ max_ms = 250.0
 [embed.first_encoding]
 # Loading the default model from local files already in the OS cache,
 # verifying every file and encoding one text, median of five.
-# specs/07-performance.md allows 2 s; measured at 18 ms with potion-base-8M
+# The target is 2 s; measured at 18 ms with potion-base-8M
 # (U-009) and 60 to 95 ms with the multilingual default (ADR 0021), whose
 # tokenizer and vocabulary are larger.
 max_ms = 200.0
@@ -74,8 +72,8 @@ max_ms = 200.0
 # tokens) with the default model, one thread, median of five after one
 # warmup. Measured at 0.82 s on the reference machine with the multilingual
 # default (ADR 0021; 0.95 s with potion-base-8M in U-009), about 24 000
-# texts per second, against the 2000 objects per second of
-# specs/07-performance.md. Tokenization takes nearly all of it.
+# texts per second, against a target of 2000 objects per second.
+# Tokenization takes nearly all of it.
 texts = 20000
 max_ms = 1400.0
 
@@ -104,21 +102,17 @@ max_query_ms = 15.0
 
 [engine.search]
 # End-to-end search of a stored record (all lanes, scoring, ranking) over
-# the standard workload of specs/07-performance.md: ID, tenant, a name of
-# about 20 characters, a semantic description of 30 words with synthetic
+# the standard workload: ID, tenant, a name of about 20 characters, a semantic description of 30 words with synthetic
 # embeddings of the default model's 128 dimensions, one record in ten a
 # near-duplicate of the previous one; one thread, limit 10, no work limit.
-# Protocol of
-# specs/07-performance.md: five independent repetitions of 1000 queries
-# after a warmup; the budget applies to the median of the five p95.
+# Protocol: five independent repetitions of 1000 queries after a warmup; the budget applies to the median of the five p95.
 # max_ms covers one partition (the worst case) and ten; max_group_ms covers
 # queries from a group of 10 000 identical records in one partition, which
 # score every member. Measured at 9.9 ms (one partition), 2.2 ms (ten) and
 # 8.0 ms (group) with 256 dimensions on the reference machine (U-010), and
 # 8.5 ms, 1.65 ms and 6.6 ms with 128 (ADR 0021; indexes 92 MiB instead of
-# 156 MiB);
-# specs/07-performance.md allows 50 ms with four threads. Encoding a new
-# query with the model is not included.
+# 156 MiB). The target is 50 ms with four threads. Encoding a new query
+# with the model is not included.
 records = 100000
 min_score = 0.8
 max_ms = 25.0

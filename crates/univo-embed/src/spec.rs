@@ -1,5 +1,4 @@
-//! Model references written by users, as defined in
-//! `specs/02-python-api.md` §5.5.
+//! Model references written by users ([models](../../../docs/guide/models.md)).
 
 use std::fmt;
 use std::path::PathBuf;

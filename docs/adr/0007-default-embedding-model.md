@@ -6,7 +6,7 @@
 
 ## Context
 
-The maintainer requires a default model that is powerful, fast and small, and the ability to switch model with a string: a Hugging Face repository, a local directory or another source. The specification orders the criteria as minimal quality on the target case, then memory and size, latency, dependencies and maintenance ([04-models-and-cache.md §11](../../specs/04-models-and-cache.md)), and caps the default model download at 100 MiB ([07-performance.md](../../specs/07-performance.md)). The [U-004 spike](evidence/model-selection.md) measured twelve candidates from three families, each in its own process, at one and four threads, in Python and, for static models, in Rust.
+The maintainer requires a default model that is powerful, fast and small, and the ability to switch model with a string: a Hugging Face repository, a local directory or another source. The specification orders the criteria as minimal quality on the target case, then memory and size, latency, dependencies and maintenance, and caps the default model download at 100 MiB. The [U-004 spike](evidence/model-selection.md) measured twelve candidates from three families, each in its own process, at one and four threads, in Python and, for static models, in Rust.
 
 ## Decision
 
@@ -15,7 +15,7 @@ The maintainer requires a default model that is powerful, fast and small, and th
   - The critical corpus does not separate it from `potion-base-2M`.
   - It is proposed because published benchmarks rank it higher (PairClass 76.62 against 73.72; Avg (MTEB) 51.08 against 47.49). These are public averages, not deduplication measures, so the choice remains open (see Alternatives).
 - **Language claim**: the default is announced as an English model. French text is handled through shared subwords and was measured on the critical corpus at the level of the multilingual static model, but no French or cross-lingual quality is claimed until the quality benchmark (U-012) validates it.
-- **Selection by string**, as specified in [02-python-api.md §5.5](../../specs/02-python-api.md):
+- **Selection by string**, as specified for the Python API:
   - `"default"`;
   - a Hugging Face repository `org/name`, optionally `@revision`;
   - a local directory (absolute, `./`, `../`, `~` or `file://`);

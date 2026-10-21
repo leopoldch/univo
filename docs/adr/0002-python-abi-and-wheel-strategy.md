@@ -6,7 +6,7 @@
 
 ## Context
 
-Univo ships a native extension that must install without a Rust toolchain on every advertised platform ([09-distribution.md §19](../../specs/09-distribution.md)). The number of wheels, the build tooling and the compilation profile determine install size, import time and CI cost.
+Univo ships a native extension that must install without a Rust toolchain on every advertised platform. The number of wheels, the build tooling and the compilation profile determine install size, import time and CI cost.
 
 ## Decision
 
@@ -39,7 +39,7 @@ Results for the other five platforms come from CI (`wheels`, `wheel-test` and `w
 ## Consequences
 
 - The ergonomic Python layer may only use the limited API from Rust; conversions are written against PyO3's abi3-compatible paths.
-- Free-threaded CPython is not covered by abi3 wheels and stays out of scope ([09-distribution.md](../../specs/09-distribution.md)).
+- Free-threaded CPython is not covered by abi3 wheels and stays out of scope.
 - Fat LTO lengthens release builds; debug builds remain fast for development.
 - Six native runners per CI run, including macOS runners that are billed at a higher rate on private repositories.
 - Any architecture-specific optimization must pass on both architectures before merge.

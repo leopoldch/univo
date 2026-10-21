@@ -6,7 +6,7 @@
 
 ## Context
 
-[specs/03-matching.md §17](../../specs/03-matching.md) keeps the pair as the basic result and allows optional groups, once pairs are stable:
+The product specification keeps the pair as the basic result and allows optional groups, once pairs are stable:
 - exact equalities, grouped by canonical key;
 - candidate groups as an explicit graph, without "single entity" status;
 - conservative grouping, where a record is added only if every pair it needs satisfies the policy, with a stable order, a size limit, and documented order dependence and `O(g²)` cost.

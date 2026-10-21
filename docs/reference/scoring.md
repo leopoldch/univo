@@ -1,8 +1,8 @@
 # Pairwise scoring
 
-How two prepared records are compared, field by field, into a score, a coverage and a list of contradictions. This implements [specs/03-matching.md §10](../../specs/03-matching.md) with the lexical signals of U-008 and the semantic similarity of U-010 ([ADR 0009](../adr/0009-semantic-evidence-in-scoring.md)). The rules are versioned by `SCORING_VERSION`, now 4: any change in a similarity, a signal or a score increments it. Version 3 adds acronym evidence ([ADR 0022](../adr/0022-acronym-evidence.md)), version 4 distinct words ([ADR 0023](../adr/0023-distinct-words.md)); snapshots saved with an earlier version are refused and must be rebuilt from the records.
+How two prepared records are compared, field by field, into a score, a coverage and a list of contradictions. It combines lexical signals and semantic similarity ([ADR 0009](../adr/0009-semantic-evidence-in-scoring.md)). The rules are versioned by `SCORING_VERSION`, now 4: any change in a similarity, a signal or a score increments it. Version 3 adds acronym evidence ([ADR 0022](../adr/0022-acronym-evidence.md)), version 4 distinct words ([ADR 0023](../adr/0023-distinct-words.md)); snapshots saved with an earlier version are refused and must be rebuilt from the records.
 
-Scores rank pairs. **They are not probabilities**, and no threshold is defined here: thresholds are calibrated on a separate dataset (U-012).
+Scores rank pairs. **They are not probabilities**, and no threshold is defined here: thresholds are calibrated on a separate dataset ([benchmarks](../benchmarks.md#name-quality)).
 
 ## Comparing two records
 
@@ -18,7 +18,7 @@ Otherwise each field yields a similarity in `[0, 1]`, or no similarity when it g
 | absent, null or blank on at least one side | none; `incomplete` when the other side has a value | `missing` |
 | text, lexical mode | the larger of the edit similarity and the trigram similarity | `edit_distance` or `trigrams` |
 | text, semantic mode | the cosine of the two embeddings, clamped to `[0, 1]`; none without both embeddings | `semantic` |
-| text, hybrid mode | as lexical mode; hybrid fields are not embedded until a combination is validated (U-012) | `edit_distance` or `trigrams` |
+| text, hybrid mode | as lexical mode; hybrid fields are not embedded until a combination is validated | `edit_distance` or `trigrams` |
 | text, any mode, one side the acronym of the other's words | at least 0.9: the larger of 0.9 and the mode's similarity | `acronym` when 0.9 is larger |
 | text, any mode, names with distinct words | 0.8 × the mode's similarity, with a contradiction (never a veto) | the mode's signal |
 | exact, scalar or list | 1 when equal after normalization, 0 otherwise, with a contradiction | `exact` |
@@ -98,13 +98,13 @@ The comparison lists, for each field in schema order, its similarity, its signal
 - `crates/univo-core/tests/comparison_corpus.rs`:
   - every pair of the critical corpus respects the hard rules: no comparison across partitions; a veto exactly when a discriminant field contradicts; `compatible` pairs incomplete and not vetoed; `exact` pairs scored 1;
   - the score is symmetric and deterministic;
-  - its AUC on the corpus (0.763 at U-008, 0.795 with distinct words) is guarded against regressions.
-- `crates/univo-engine/tests/semantic_corpus.rs`: with the default model's embeddings, the AUC is 0.776 (U-010) and 0.827 with distinct words, guarded at 0.756; it runs when the model's files are available, as in CI.
+  - its AUC on the corpus (0.763 at first, 0.795 with distinct words) is guarded against regressions.
+- `crates/univo-engine/tests/semantic_corpus.rs`: with the default model's embeddings, the AUC is 0.776 at first and 0.827 with distinct words, guarded at 0.756; it runs when the model's files are available, as in CI.
 - `crates/univo-core/tests/semantic_comparison.rs`: cosine and clamping, no evidence without both embeddings, lexical and hybrid fields unaffected by embeddings.
 - `crates/univo-core/tests/object_comparison.rs`: nested nulls are unknown, nested differences veto, one-sided keys lower the coverage, objects of unknown values give no evidence, empty objects are equal.
 - `crates/univo-core/tests/lexical_properties.rs`: edit similarity and trigram Jaccard against naive reference implementations.
 - `crates/univo-core/src/acronym.rs`: acronyms and initials, skipped words, case and accents, the 20-space limit, and prepared hashes that select exactly the pairs the text rule accepts.
-- Release budgets: one million comparisons of standard records in 550 ms (311 ms measured at U-008, 333 ms with acronym evidence) and of configurations with nested parameters in 250 ms (143 ms, then 158 ms).
+- Release budgets: one million comparisons of standard records in 550 ms (311 ms measured at first, 333 ms with acronym evidence) and of configurations with nested parameters in 250 ms (143 ms, then 158 ms).
 
 
 Search preserves verified whole-record equality when the pairwise score is absent because semantic tokens have no embedding. This is engine `SEARCH_VERSION=1`, independent of `SCORING_VERSION=2`; it assigns exact evidence only after the complete equality oracle succeeds, and does not turn partial unknown-token equality into semantic evidence. See [ADR 0010](../adr/0010-python-finder-and-exact-fallback.md).

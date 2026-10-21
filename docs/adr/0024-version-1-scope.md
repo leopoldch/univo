@@ -6,7 +6,7 @@
 
 ## Context
 
-The product specification ties 1.0 to stable contracts and to the quality and performance gates (`specs/01-product.md` §3). Its validation strategy adds: when the gates fail, publish an experimental alpha **or reduce the supported profiles**, rather than lower a threshold (`specs/08-validation.md` §21).
+The product specification ties 1.0 to stable contracts and to the quality and performance gates. Its validation strategy adds: when the gates fail, publish an experimental alpha **or reduce the supported profiles**, rather than lower a threshold.
 
 **Where the gates stand.** Measured on the named benchmarks, macOS arm64:
 

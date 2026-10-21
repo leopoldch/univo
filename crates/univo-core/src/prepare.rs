@@ -1,5 +1,5 @@
-//! Validation and normalization of one record against a schema: steps 1 to 3
-//! of the comparison pipeline in `specs/03-matching.md`.
+//! Validation and normalization of one record against a schema, before any
+//! comparison.
 
 use crate::acronym::AcronymKeys;
 use crate::budget::Budget;

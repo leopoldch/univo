@@ -10,7 +10,7 @@ The [U-003 comparison](../benchmarks.md) measured SemHash 9 to 16 times faster t
 - `find` and `group` ran every query on one thread, while SemHash used 5.5 to 6.2 cores. `threads` only bounded semantic encoding.
 - Each all-pairs query scanned its whole partition, although a pair is only kept from its lower slot: every lexical verification and dense cosine was computed twice.
 
-[specs/05-rust-architecture.md](../../specs/05-rust-architecture.md) asks that `threads` control the global budget, without multiplying pools, and AGENTS.md forbids nested oversubscription.
+The product specification asks that `threads` control the global budget, without multiplying pools, and AGENTS.md forbids nested oversubscription.
 
 ## Decision
 

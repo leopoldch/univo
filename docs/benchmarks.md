@@ -49,7 +49,7 @@ Raw results: [Univo](../benchmarks/comparison/results/ror-univo-semantic.json) (
 | [Lexical](../benchmarks/quality/ror-alias-v2/lexical.json) | 0.590 | 95.6% | 14.5% | 0.461 |
 | [Default model](../benchmarks/quality/ror-alias-v2/default-model.json) | 0.557 | 96.0% | 40.8% | 0.730 |
 
-- **Precision without full recall.** Both stay near 96% precision, below the 98% precision and 90% recall gates of [specs/08-validation.md](../specs/08-validation.md). Version 1.0 therefore promises complete search and explained scores, not automatic decisions ([ADR 0024](adr/0024-version-1-scope.md)).
+- **Precision without full recall.** Both stay near 96% precision, below the 98% precision and 90% recall targets set for automatic decisions. Version 1.0 therefore promises complete search and explained scores, not automatic decisions ([ADR 0024](adr/0024-version-1-scope.md)).
 - **History.** Earlier scoring versions and models are in the same folders, and in [ADR 0021](adr/0021-multilingual-default-model.md) for the model choice.
 
 ## Structured records

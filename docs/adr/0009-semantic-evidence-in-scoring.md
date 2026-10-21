@@ -6,7 +6,7 @@
 
 ## Context
 
-Pairwise scoring (U-008) compares text lexically. The model backend (U-009, [ADR 0008](0008-model-download-and-inference-backend.md)) now produces unit embeddings with the default static model. The schema declares three text modes, `lexical`, `semantic` and `hybrid` (the default), and the specifications describe hybrid fields only as "lexical and semantic", without a combination rule. [03-matching.md §10](../../specs/03-matching.md) requires a documented, versioned transformation of the cosine, warns that correlated signals are not independent evidence, and forbids tuning on test data.
+Pairwise scoring (U-008) compares text lexically. The model backend (U-009, [ADR 0008](0008-model-download-and-inference-backend.md)) now produces unit embeddings with the default static model. The schema declares three text modes, `lexical`, `semantic` and `hybrid` (the default), and the specifications describe hybrid fields only as "lexical and semantic", without a combination rule. The product specification requires a documented, versioned transformation of the cosine, warns that correlated signals are not independent evidence, and forbids tuning on test data.
 
 ## Decision
 

@@ -9,8 +9,8 @@
 
 ADR 0007 proposed `minishlab/potion-base-8M`, which is English only: an English WordPiece vocabulary, with lowercasing and accent stripping. The maintainer requires a default model that understands every language. Two constraints apply:
 
-- [specs/07-performance.md](../../specs/07-performance.md) caps the default download at 100 MiB.
-- [specs/04-models-and-cache.md](../../specs/04-models-and-cache.md) forbids announcing a multilingual model unless languages are measured separately.
+- The performance budget caps the default download at 100 MiB.
+- The model contract forbids announcing a multilingual model unless languages are measured separately.
 
 The only multilingual Model2Vec model, `minishlab/potion-multilingual-128M`, weighs 512 MB, and the U-004 spike found it no better than the English models.
 

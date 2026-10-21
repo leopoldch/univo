@@ -9,7 +9,7 @@ A `Finder` can be shared by the threads of one process.
 - **Encoding happens outside the lock:** the semantic fields of searches, `add` and `check_or_add` are encoded before the lock is taken, so a slow model run does not block readers. `upsert` still encodes under the lock.
 - **No lock is ever held while waiting for the Python interpreter:** long Rust work releases the interpreter, so other Python threads keep running.
 
-On the reference machine, a lexical `Finder` of 100,000 names serves about 257 searches per second on one thread, 510 on two and 968 on four. Before U-017, a Python lock kept it at 256 whatever the number of threads ([ADR 0016](../adr/0016-local-concurrency-and-check-or-add.md)).
+On the reference machine, a lexical `Finder` of 100,000 names serves about 257 searches per second on one thread, 510 on two and 968 on four. Before parallel searches, a Python lock kept it at 256 whatever the number of threads ([ADR 0016](../adr/0016-local-concurrency-and-check-or-add.md)).
 
 `threads` is the size of the Finder's worker pool, which runs semantic encoding and the all-pairs reports `find` and `group` ([ADR 0018](../adr/0018-parallel-all-pairs.md)); their results do not depend on it. By default it is every core the process may use ([ADR 0020](../adr/0020-every-core-by-default.md)). The pool is created once per Finder and shared by its indexes, so concurrent `find` calls on one Finder share its workers. Its threads start only at the first semantic encoding or the first report large enough to run in parallel. A single search (`search`, `check_or_add`) runs on the calling thread, and so do reports over fewer than 512 records.
 
@@ -25,9 +25,9 @@ decision = finder.check_or_add({"id": "org-1", "name": "Acme Corporation"})
 assert (decision.status, decision.id) == ("inserted", "org-1")
 
 decision = finder.check_or_add({"id": "org-2", "name": "ACME corporation"})
-assert decision.status == "matched"   # equal after normalization; not inserted
+assert decision.status == "matched"  # equal after normalization; not inserted
 decision = finder.check_or_add({"id": "org-3", "name": "Acme Corporatoin"})
-assert decision.status == "review"    # similar enough to need a decision; not inserted
+assert decision.status == "review"  # similar enough to need a decision; not inserted
 ```
 
 `check_or_add(record, *, min_score=0.8, limit=10, max_entries=None, exhaustive=False)` searches for the record and inserts it only if no stored record reaches `min_score`. The search and the insertion are one step under the exclusive lock, so two threads submitting the same duplicate never both insert it.

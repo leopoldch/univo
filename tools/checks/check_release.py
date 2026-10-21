@@ -17,7 +17,7 @@ import tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEMVER = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?")
 PRERELEASE = {"alpha": "a", "beta": "b", "rc": "rc"}
-# One wheel per platform of specs/09-distribution.md, built by ci.yml.
+# One wheel per advertised platform, built by ci.yml.
 PLATFORMS = {
     "linux-x86_64": re.compile(r"manylinux_2_17_x86_64(\.manylinux2014_x86_64)?"),
     "linux-aarch64": re.compile(r"manylinux_2_17_aarch64(\.manylinux2014_aarch64)?"),

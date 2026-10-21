@@ -72,7 +72,7 @@ impl Rng {
     }
 }
 
-/// The standard workload of specs/07-performance.md: identifier, tenant, a
+/// The standard workload: identifier, tenant, a
 /// name of about 20 characters and a description of about 30 tokens. One
 /// record in 20 is in decomposed Unicode form.
 fn workload(records: usize, tenants: u64) -> Vec<Value> {

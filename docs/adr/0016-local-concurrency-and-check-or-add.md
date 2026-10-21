@@ -6,7 +6,7 @@
 
 ## Context
 
-[specs/05-rust-architecture.md §16](../../specs/05-rust-architecture.md) asks for:
+The product specification asks for:
 - reads on a stable generation and changes serialized per instance, with a simple, correct lock;
 - encoding outside the lock when possible;
 - a `check_or_add` that searches and decides to insert in one local atomic section, returning `inserted`, `matched` or `review`.
@@ -39,7 +39,7 @@ Until U-016, the Python `Finder` held a reentrant lock around every call, search
 - **`check_or_add` as search then `add` in the wrapper.** Not atomic: in the race test below, eight threads inserted one to five copies of the same record per round. Rejected.
 - **Encode under the exclusive lock.** Correct, but writers would hold the lock during model inference and block every reader. Rejected; `upsert` still encodes under the lock (see Consequences).
 - **A lock-free or versioned (copy-on-write) index.** Readers would never wait for writers, at the cost of copying or versioning every lane. The specification prefers a simple correct lock first; revisit if write latency blocks readers in measured workloads.
-- **Two outcomes only (`inserted` / `matched`).** Collapses verified equality and resemblance, which the vocabulary of [specs/02-python-api.md §7](../../specs/02-python-api.md) keeps apart (`exact` versus `candidate`). Rejected.
+- **Two outcomes only (`inserted` / `matched`).** Collapses verified equality and resemblance, which the result vocabulary keeps apart (`exact` versus `candidate`). Rejected.
 
 ## Evidence
 

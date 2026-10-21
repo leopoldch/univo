@@ -1,17 +1,20 @@
 # Univo
 
-**Fast, local duplicate detection for strings and records.**
+**Fast, local duplicate detection for Python data: strings, records and nested objects.**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-Univo finds duplicate records using exact, lexical and semantic evidence. A Rust engine does the work behind a small Python API. Inference is local: no record leaves your machine.
+Univo finds duplicates in any structured Python data: customers, products, organizations, configuration objects. You say which fields to compare and how: fuzzy text, meaning, exact values, nested paths. You also say which fields must agree and which records belong together. Univo then compares records field by field and explains every match.
+
+A Rust engine does the work behind a small Python API. Inference is local: no record leaves your machine.
 
 > **Status: 1.0 in preparation.** Not on PyPI yet. The [stability contract](docs/reference/stability.md) says what 1.0 will keep.
 
 - **Fast.** 100,000 names are deduplicated in 4.8 s with embeddings and in 1.9 s lexically, on a laptop.
 - **Complete.** Search returns every pair above the threshold. A work or output limit, when reached, is flagged in the report ([limits](docs/guide/quickstart.md#limits-and-reports)). Approximate search is opt-in.
-- **Rules first.** Partitions, typed IDs and vetoes such as `prod` against `staging` apply before any score.
+- **Any structure.** Records are dicts, lists, strings, numbers, booleans and `None`, nested as deep as needed. Dict keys compare in any order.
+- **Rules first.** Partitions, typed IDs and vetoes, such as two different VAT numbers, apply before any score.
 - **Explained.** Each match lists its evidence per field. Univo never merges or deletes records for you.
 - **Light.** One 2 MiB wheel with no Python dependency, and a 15 MB multilingual model that is verified, cached and usable strictly offline.
 
@@ -38,31 +41,27 @@ for match in report.matches:
     print(match.left_id, match.right_id, round(match.score, 2), match.reasons)
 ```
 
-Records take a schema: an ID, partitions, and how each field compares.
+Structured records take a schema: an ID, and how each field compares. Nested fields are reached by path.
 
 ```python
 from univo import Exact, Finder, Schema, Text
 
-finder = Finder(
-    schema=Schema(
-        id_field="id",
-        partition_by=["tenant"],
-        fields={"name": Text(), "environment": Exact(conflict="reject")},
-    ),
-    offline=True,
+schema = Schema(
+    id_field="id",
+    fields={"name": Text(), "address.city": Text(), "vat": Exact(conflict="reject")},
 )
+finder = Finder(schema=schema, offline=True)
 finder.add(
     [
-        {"id": 1, "tenant": "shop", "name": "Northwind Traders", "environment": "prod"},
-        {"id": 2, "tenant": "shop", "name": "NORTHWIND TRADERS", "environment": "prod"},
-        {"id": 3, "tenant": "shop", "name": "Northwind Traders", "environment": "test"},
-        {"id": 4, "tenant": "bank", "name": "Northwind Traders", "environment": "prod"},
+        {"id": 1, "name": "Northwind Traders SAS", "address": {"city": "LYON"}, "vat": "FR401"},
+        {"id": 2, "name": "Northwind Traders", "address": {"city": "Lyon"}, "vat": "FR999"},
     ]
 )
-report = finder.search(
-    {"id": 1, "tenant": "shop", "name": "Northwind Traders", "environment": "prod"}
-)
-print([match.right_id for match in report.matches])  # [2]: 3 is vetoed, 4 is another tenant
+query = {"id": 3, "name": "Northwind Traders", "address": {"city": "Lyon"}, "vat": "FR401"}
+for match in finder.search(query).matches:
+    print(match.right_id, round(match.score, 2), match.reasons)
+# 1 0.94 ['name: trigrams', 'address.city: edit_distance', 'vat: exact']
+# Record 2 has another VAT number, so it can never match.
 ```
 
 Semantic fields load the default model on first use. Pass `Text(mode="semantic")` to use one ([models](docs/guide/models.md)).
@@ -80,7 +79,7 @@ uv sync --group dev
 
 - **Guide.** [Quickstart](docs/guide/quickstart.md), [models and offline use](docs/guide/models.md), [mutations](docs/guide/mutations.md), [snapshots](docs/guide/persistence.md), [concurrency](docs/guide/concurrency.md), [groups](docs/guide/groups.md), [embedding cache](docs/guide/embedding-cache.md), [approximate search](docs/guide/ann.md).
 - **Reference.** [Errors](docs/reference/errors.md), [scoring](docs/reference/scoring.md), [duplicate definitions](docs/reference/duplicate-definitions.md), [stability](docs/reference/stability.md).
-- **Design.** [Search](docs/design/search.md), [lexical candidates](docs/design/lexical-search.md), [vector search](docs/design/vector-search.md), [exact index](docs/design/exact-index.md), [decision records](docs/adr).
-- **Development.** [Setup](docs/development/setup.md), [performance](docs/development/performance.md), [dependencies](docs/development/dependencies.md), [releasing](docs/development/releasing.md). Product specifications, in French, are in [specs](specs/01-product.md).
+- **Design.** [Search](docs/design/search.md), [lexical candidates](docs/design/lexical-search.md), [vector search](docs/design/vector-search.md), [exact index](docs/design/exact-index.md).
+- **Development.** [Setup](docs/development/setup.md), [performance](docs/development/performance.md), [dependencies](docs/development/dependencies.md), [releasing](docs/development/releasing.md).
 
-[Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [MIT license](LICENSE)
+[Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [MIT license](LICENSE)

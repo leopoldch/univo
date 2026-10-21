@@ -14,7 +14,7 @@ groups = finder.group(
         {"id": 4, "name": "Globex"},
     ]
 )
-assert groups.exact == ((1, 2),)                    # equal after normalization
+assert groups.exact == ((1, 2),)  # equal after normalization
 assert [group.members for group in groups.groups] == [(1, 2, 3)]
 ```
 
