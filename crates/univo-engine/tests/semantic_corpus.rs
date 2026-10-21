@@ -10,7 +10,7 @@ use univo_testkit::corpus::{cases, prepare_pair, schema};
 
 /// The AUC with embeddings was 0.776 when this guard was set (U-010), 0.763
 /// without; the floor leaves 0.02 for deliberate changes, and a lower value
-/// is a regression to explain (ADR 0009).
+/// is a regression to explain.
 const SEMANTIC_AUC_FLOOR: f64 = 0.756;
 
 /// Mann-Whitney AUC with ties counted as one half.

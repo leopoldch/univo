@@ -17,7 +17,7 @@ finder = Finder(
 **When graphs are used.**
 - **Large partitions.** `Text(mode="semantic")` fields use one HNSW graph per field and typed partition, from 10,000 retained slots in the partition.
 - **Smaller partitions** use the complete vector scan.
-- **What the threshold is for.** It avoids graphs for small tenants. It is neither an `auto` choice nor a promise of a gain at 10,000 records: the [measurements](../../benchmarks/spikes/ann-backends/README.md) show workloads where the complete scan stays faster.
+- **What the threshold is for.** It avoids graphs for small tenants. It is neither an `auto` choice nor a promise of a gain at 10,000 records: the measurements show workloads where the complete scan stays faster.
 - **Hybrid fields** stay lexical.
 - **Partitions** are checked by value before traversal, even when fingerprints collide.
 - **No allocation without need.** Without embeddings or graphs, no approximate index is allocated, and import and construction load no model.
@@ -61,7 +61,7 @@ A rebuild after mutations or a restore may change the approximate recall, the to
 **Backend.** `fast-hnsw` 1.0.1, M = 16, efConstruction = 200, `Heuristic` pruning, seed 16. The distance is the true Euclidean distance, accumulated portably over eight lanes.
 - **Final score.** It uses the core's cosine. Validated vectors are unit vectors.
 - **Requirements.** No particular CPU instruction, no unsafe Univo code, no extra worker pool and no persistence of the dependency is needed.
-- **Threads.** One search is sequential. `threads` bounds inference and the parallel queries of `find` and `group` ([ADR 0018](../adr/0018-parallel-all-pairs.md)). Graph construction stays sequential.
+- **Threads.** One search is sequential. `threads` bounds inference and the parallel queries of `find` and `group`. Graph construction stays sequential.
 
 **Memory.** The graph copies the distinct vectors and stores links, hashes and slots.
 - **`stats().ann_nodes`** counts distinct vectors, tombstones included.
@@ -69,4 +69,4 @@ A rebuild after mutations or a restore may change the approximate recall, the to
 - **Not a memory ceiling.** It excludes the model, the selected records, Python inputs, the temporary allocation of visited sets and rebuilds.
 - **Open budget.** The 512 MiB total incremental budget remains to be demonstrated.
 
-Wheel and full resident-memory measurements are published separately. See [ADR 0015](../adr/0015-explicit-partition-ann.md).
+Wheel and full resident-memory measurements are published separately.

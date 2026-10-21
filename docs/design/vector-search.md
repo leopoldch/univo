@@ -1,10 +1,10 @@
 # Vector search
 
-`univo-engine` keeps the embeddings of the semantic text fields of prepared records and searches them exhaustively. This exhaustive search is the reference that any approximate index must be measured against ([specs/03-matching.md §12](../../specs/03-matching.md)), and a supported mode within its cost. [Search](search.md) uses it as the semantic lane, over the query's partition.
+`univo-engine` keeps the embeddings of the semantic text fields of prepared records and searches them exhaustively. This exhaustive search is the reference that any approximate index must be measured against, and a supported mode within its cost. [Search](search.md) uses it as the semantic lane, over the query's partition.
 
 ## Embedding records
 
-`embed_records(schema, records, embedder)` embeds every field declared `semantic`, with one `encode_batch` call per field. Hybrid fields are scored lexically and are not embedded ([ADR 0009](../adr/0009-semantic-evidence-in-scoring.md)).
+`embed_records(schema, records, embedder)` embeds every field declared `semantic`, with one `encode_batch` call per field. Hybrid fields are scored lexically and are not embedded.
 
 - The text embedded is the normalized one: NFC and, unless the field disables it, case folded. Two spellings that normalize alike are one text.
 - Identical texts in a batch are encoded once and stored once: records point to a shared row.

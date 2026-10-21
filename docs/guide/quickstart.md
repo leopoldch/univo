@@ -1,17 +1,21 @@
-# Python Finder
+# Quickstart
 
-`Finder`, `Schema`, `Text`, `Exact`, `Match` and `Report` expose the Rust engine to Python. The package is not published yet; use the [development setup](../development/setup.md) or an internally built wheel. No Python runtime dependency is required. The examples use synthetic records.
+## Find duplicates in a list
 
 ```python
 from univo import Finder
 
 finder = Finder(offline=True)
-report = finder.find(["Amazon", "Amiazon", "Microsoft"])
+report = finder.find(["Northwind Traders", "Northwnd Traders", "Contoso"])
 for match in report.matches:
     print(match.left_id, match.right_id, match.kind, match.score)
 ```
 
-This example returns the Amazon/Amiazon pair as a candidate. Its score ranks lexical resemblance; it is not an identity probability. `Finder()` and `fields=[...]` use `generic-v1`: equal-weight hybrid text, Unicode NFC and case folding, scored lexically under [ADR 0009](../adr/0009-semantic-evidence-in-scoring.md). This path needs no model, download or worker pool. Explicit semantic fields load the configured model lazily on the first operation, through the same verified registry and strict offline path as [univo.models](models.md).
+This prints the Northwind pair. Plain strings are compared lexically and need no model. A score ranks how alike two records are. It is not a probability, and the default `min_score` of 0.8 is not calibrated.
+
+## Records
+
+A schema says which fields to compare, how, and which records can never match.
 
 ```python
 from univo import Exact, Finder, Schema, Text
@@ -26,71 +30,70 @@ schema = Schema(
 )
 finder = Finder(schema=schema, offline=True)
 records = [
-    {"id": "org-1", "tenant": "shop", "name": "Amazon", "environment": "prod"},
-    {"id": "org-2", "tenant": "shop", "name": "AMAZON", "environment": "prod"},
-    {"id": "org-3", "tenant": "shop", "name": "Amazon", "environment": "test"},
+    {"id": "org-1", "tenant": "shop", "name": "Northwind Traders", "environment": "prod"},
+    {"id": "org-2", "tenant": "shop", "name": "NORTHWIND TRADERS", "environment": "prod"},
+    {"id": "org-3", "tenant": "shop", "name": "Northwind Traders", "environment": "test"},
 ]
-ids = finder.add(records)
+finder.add(records)
 report = finder.search(records[0])
 assert [match.right_id for match in report.matches] == ["org-2"]
 ```
 
-`find` creates a temporary index and never changes the stored records or generation. `group` does the same and returns exact and conservative groups, never closing a chain of similar records into one group ([groups](groups.md)). It reports each unordered pair once. `add` validates and encodes a bounded batch before committing; it returns typed external IDs or generated integer slots when no `id_field` is configured. An ID collision rejects the entire batch, across partitions too. Integer `1` and string `"1"` are distinct IDs. Generated slots are stable within the instance; `upsert` replaces by external ID and `remove` returns missing IDs; see [mutations](mutations.md). With no ID field, a query has no external ID to exclude. `search` is read-only and excludes an existing query ID when the schema provides one.
+- **`Text`** compares text. `mode` is `"hybrid"` by default, or `"lexical"` or `"semantic"`.
+- **`Exact`** compares values as they are. `conflict="reject"` makes a difference a veto: `org-3` never matches.
+- **`partition_by`** limits matches to records with the same values.
+- **`id_field`** gives records their IDs. Without it, records get integer slots.
 
-Only the selected fields, identifier and partition keys are converted. Values outside that projection can be arbitrary Python objects. Supported selected values are strings, signed 64-bit integers, finite floats, booleans, null, lists and dictionaries with string keys. No implicit `str()` call is made. Inputs are never changed. Nested dotted paths are supported; an object and its child cannot both be selected. Required fields, types, normalizers, vetoes and missing evidence follow the shared Rust contracts. Errors expose a stable `code`, `path`, `hint`, structured `details` and, for batches, `record_index`; see the [error catalog](../reference/errors.md).
+Compared values can be strings, signed 64-bit integers, finite floats, booleans, `None`, lists, and dicts with string keys. Fields outside the schema are ignored, and inputs are never modified.
 
-## Limits and reports
+A schema also bounds each record: 64 fields, 1 MiB of compared values, 16 levels of nesting. Raise them with `max_fields`, `max_selected_bytes` and `max_depth` (at most 128).
 
-| Option | Default | Meaning |
-| --- | --- | --- |
-| `min_score` on find/search | `0.8` | Uncalibrated convenience cutoff, in `(0, 1]`; not calibrated yet |
-| `find(..., limit=...)` | `1000` | Maximum returned pairs, globally ranked |
-| `search(..., limit=...)` | `10` | Maximum returned records |
-| `max_entries` on find/search | `None` | Work per lexical/value lane; `None` uses the largest supported budget; exact and semantic lanes are not capped by it |
-| `exhaustive` on find/search | `False` | Score every admissible pair/record rather than use candidate lanes |
-| `Finder(max_records=...)` | `100000` | Active capacity of each index; mutation batches also stop at capacity plus one |
-| `Finder(max_exhaustive_pairs=...)` | `1000000` | Maximum pair-count upper bound for an exhaustive `find`, including when output limit is zero |
-| `Schema(max_selected_bytes=...)` | `1048576` | Bytes per selected record, with node/key accounting |
-| `Schema(max_depth=...)` | `16` | Nesting in a selected value; cycles hit this bound |
-| `Schema(max_fields=...)` | `64` | Selected field count |
-| `Finder(max_semantic_comparisons=...)` | `1000000` | Maximum dense semantic lane entries for candidate `find`; raise explicitly for large jobs |
-| `embedding_cache_bytes` | `4194304` | Estimated retained semantic cache bytes per Finder; `0` disables it; [contract](embedding-cache.md) |
-| `threads` | `None` | Worker threads for semantic encoding, `find` and `group`; `None` uses every core available to the process. Single searches run on the calling thread |
+## Keep an index
 
-`Report.matches` is a bounded tuple of `Match` values. `processed` counts input records (one for search). `total_matches` counts qualifying matches found, including output omitted by `limit`. `candidates` counts comparisons attempted after self/ID exclusion; find counts unordered pairs, search counts records. Hash collisions may contribute attempted cross-partition comparisons, which Rust still rejects.
+`add`, `upsert` and `remove` change the records of a `Finder`, and `search` queries them. `find` and `group` work on a temporary set and leave the index unchanged.
 
-`output_truncated` means more qualifying matches were found than returned. `candidate_truncated` means a candidate lane exhausted its work budget and qualifying matches might have been missed. `warnings` distinguishes these two cases. `search_profile` is `exhaustive` only with the explicit oracle; the candidate union reports `bounded` even when its lanes are complete. Verified whole-record equality remains exact even when semantic texts contain no known token ([ADR 0010](../adr/0010-python-finder-and-exact-fallback.md)); distinct unknown texts give no semantic evidence. Ranking is by descending score, then left input position and right typed ID/slot for find, or typed ID/slot for search.
+`check_or_add(record)` searches and adds in one step. It returns `inserted`, `matched` or `review`, and never merges anything itself ([concurrency](concurrency.md)).
 
-The pair budget sums `n*(n-1)/2` within partition fingerprint buckets. Collisions can conservatively overestimate it, never underestimate it. Above the budget Rust raises `ResourceLimitError` (`limit.pair_count`) before scoring. Candidate semantic find also checks `semantic_fields * sum(n*n)` over partition fingerprint buckets before retrieval, including both directions and self entries. Above `max_semantic_comparisons`, Rust raises `ResourceLimitError` (`limit.semantic_comparisons`). Missing vectors and fingerprint collisions can conservatively overestimate this bound. Neither `limit=0` nor `max_entries=0` bypasses it. For example, explicitly pass `Finder(max_semantic_comparisons=10_000_000)` to authorize a larger scan. This guard runs after input preparation/encoding; it bounds retrieval, not model loading. Invalid `min_score` is validated in Rust before model resolution, including non-finite values and values that underflow the engine’s float32 representation. Candidate-mode find still has a worst case of quadratic work for dense matches; `limit` bounds output memory, not total work. Temporary find uses an additional index. The per-record/capacity limits do not enforce a total RSS cap. Batch generators must be finite within these limits; there is no transaction over an unbounded stream.
-
-`config()` returns field options, partitions, policy/normalizer/scoring/search versions, configured and resolved model, requested/effective thread counts and limits. `config_fingerprint` identifies schema/scoring/model evidence within this build, including verified model descriptors after loading. It is not a snapshot compatibility format. A fresh configured semantic Finder has an unresolved fingerprint until the model loads. `stats()` returns record count, generation and estimated index bytes; the estimate excludes prepared records, model weights, Python input/output and allocator overhead. No business values are reported.
-
-A `Finder` can be shared by threads: searches run in parallel, and `add`, `upsert`, `remove` and `check_or_add` run one at a time ([concurrency](concurrency.md)). Long Rust work detaches from the interpreter. Semantic encoding, `find` and `group` share one worker pool per Finder, of every available core by default, rather than multiplying pools. `check_or_add(record)` searches and inserts in one atomic step and returns `inserted`, `matched` or `review`. This is an instance guarantee, not database or distributed atomicity.
-
-## Local semantic model
+## Semantic fields
 
 ```python
 from univo import Finder, Schema, Text
 
-finder = Finder(
-    schema=Schema(fields={"description": Text(mode="semantic")}),
-    model="/opt/models/univo/default-v1",
-    offline=True,
-    threads=2,
-)
-# The directory must contain a verified, supported Model2Vec model before add/search/find.
+finder = Finder(schema=Schema(fields={"description": Text(mode="semantic")}))
 ```
 
-`model_path` accepts a filesystem path explicitly and is exclusive of `model`. `model="org/name"` is always a hub repository, never guessed to be a relative directory. `hub_url` and `cache_dir` retain the U-009 semantics. `Finder(model="minishlab/potion-multilingual-128M")` accepts the reference, but only an explicit semantic field uses it; the current model resolver also enforces its download-size limit. The default model is itself multilingual since [ADR 0021](../adr/0021-multilingual-default-model.md).
+The default model is downloaded on first use, verified and cached. With `offline=True`, Univo uses only the cache or a local model and never connects. [Models](models.md) covers other models and mirrors.
 
-[Explicit snapshots](persistence.md) and [bounded embedding reuse](embedding-cache.md) are implemented. `finder.save(path)` publishes the persistent index; `Finder.load(path, offline=True)` verifies and restores it without reencoding saved vectors. Upsert/remove, calibrated production thresholds and ANN remain later roadmap tasks.
+## Limits and reports
 
-The first [offline quality benchmark](../../benchmarks/quality/README.md) does not meet the precision/recall gates on organization-name aliases. Its validation thresholds are experimental measurements, not supported production profiles. The default score is still uncalibrated.
+Every result says whether it is complete:
 
-`stats()` exposes active `records`, `retained_slots` and `tombstones`. Periodic Rust compaction reclaims obsolete versions without inference; it may pause calls and temporarily increase memory. Mutations become durable only after `save()`.
+| Attribute | Meaning |
+| --- | --- |
+| `matches` | The matches, best first, up to `limit` |
+| `total_matches` | All the matches found, including those beyond `limit` |
+| `output_truncated` | More matches were found than returned |
+| `candidate_truncated` | A work budget ran out: matches may be missing |
+| `search_profile` | `exhaustive`, `bounded` or `approximate` |
 
-For large semantic partitions, explicit `Finder(..., retrieval="hnsw")`
-enables approximate routing; default `retrieval="exact"` keeps the full vector
-scan. `ann_ef_search=512` and `ann_max_candidates=1024` control graph retrieval.
-An approximate report can miss matches without saturation. Read the
-[ANN contract and costs](ann.md) before selecting this profile.
+The main options:
+
+| Option | Default | |
+| --- | --- | --- |
+| `min_score` | `0.8` | Lowest score returned |
+| `limit` | `1000` for `find`, `10` for `search` | Matches returned |
+| `exhaustive` | `False` | Compare every pair instead of using candidate search |
+| `threads` | every core | Threads for `find`, `group` and encoding |
+| `max_records` | `100000` | Records per index |
+| `max_exhaustive_pairs` | `1000000` | Pairs an exhaustive `find` may compare |
+| `max_semantic_comparisons` | `1000000` | Vector comparisons a semantic `find` may make |
+
+Limits act in two ways:
+- **Truncation.** Reaching `limit` cuts the results and sets `output_truncated`. A candidate lane that runs out of work sets `candidate_truncated`.
+- **Errors.** Going over `max_records`, `max_exhaustive_pairs` or `max_semantic_comparisons` raises `ResourceLimitError`, without a partial result. Raise the limit explicitly for larger jobs.
+
+These limits bound each operation, not the memory of the process: large records or indexes can still need more memory than is available. Errors have a stable `code` and a `hint` ([errors](../reference/errors.md)).
+
+## Next
+
+[Mutations](mutations.md) · [Snapshots](persistence.md) · [Groups](groups.md) · [Concurrency](concurrency.md) · [Approximate search](ann.md) · [Scoring](../reference/scoring.md)

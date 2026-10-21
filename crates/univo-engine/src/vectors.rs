@@ -1,6 +1,6 @@
 //! Embeddings of the semantic text fields of prepared records, one
 //! contiguous buffer per field. Hybrid fields are scored lexically and not
-//! embedded (ADR 0009).
+//! embedded.
 
 use std::collections::HashMap;
 

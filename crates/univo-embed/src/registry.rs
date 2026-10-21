@@ -14,7 +14,7 @@ pub struct PinnedModel {
     pub files: Vec<FileExpectation>,
 }
 
-/// The default model (ADR 0021): `sentence-transformers/static-similarity-mrl-multilingual-v1`
+/// The default model: `sentence-transformers/static-similarity-mrl-multilingual-v1`
 /// reduced to int8 and 128 dimensions, Apache-2.0, 50 languages. The files
 /// are rebuilt byte for byte by `tools/build_default_model.py`, which checks
 /// the same checksums.

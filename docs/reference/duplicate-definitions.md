@@ -1,6 +1,6 @@
 # Duplicate definitions
 
-A duplicate is defined per profile, never globally. Each profile fixes which fields are compared, how, and which contradictions forbid a match. These definitions are the labelling rules of the [critical corpus](../../tests/fixtures/critical/README.md) and the reference for the matching contract in [specs/03-matching.md](../../specs/03-matching.md).
+A duplicate is defined per profile, never globally. Each profile fixes which fields are compared, how, and which contradictions forbid a match. These definitions are the labelling rules of the [critical corpus](../development/critical-corpus.md).
 
 ## Labels
 

@@ -26,7 +26,7 @@ A record's score is a weighted mean of its field similarities, so a score of at 
 | Text, semantic | [Vector search](vector-search.md) over the query's partition | Scans every embedding |
 | Exact scalar or list | Records with an equal value | The similarity is 1 for an equal value, 0 otherwise |
 | Exact object | Records sharing one equal leaf, or both empty | A positive similarity needs an equal leaf |
-| Any text, when `s ≤ 0.9` | Records whose text is the acronym of the query's words, or whose words the query's text abbreviates ([ADR 0022](../adr/0022-acronym-evidence.md)) | Such a pair shares one key: the acronym on one side equals the initials of the other |
+| Any text, when `s ≤ 0.9` | Records whose text is the acronym of the query's words, or whose words the query's text abbreviates | Such a pair shares one key: the acronym on one side equals the initials of the other |
 
 Two more rules complete the guarantee:
 - **Rounding.** Lanes use `s·(1 − 10⁻⁶)`, so that rounding in the weighted mean never drops a record that reaches `s`. The margin is relative, so it stays positive even for the smallest positive minimum.
@@ -54,13 +54,13 @@ Every candidate is then scored with `compare_with_vectors`:
 
 ## Cost
 
-Standard workload of [specs/07-performance.md](../../specs/07-performance.md):
+Standard workload:
 - 100,000 records: ID, tenant, a name of about 20 characters, a semantic description of 30 words;
 - one record in ten is a near-duplicate of the previous one;
 - synthetic embeddings of 256 dimensions;
 - search of a stored record at a minimum score of 0.8, `limit = 10`, Apple M2, one thread.
 
-Following the specification's protocol, each scenario runs five independent repetitions (index rebuilt each time) of 1,000 queries after a warmup. The figures are the median repetition.
+Each scenario runs five independent repetitions (index rebuilt each time) of 1,000 queries after a warmup. The figures are the median repetition.
 
 | Scenario | Median | p95 (range over 5) | p99 | Budget (p95) |
 | --- | --- | --- | --- | --- |

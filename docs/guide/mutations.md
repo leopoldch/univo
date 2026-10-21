@@ -13,8 +13,8 @@ Both methods need `Schema(id_field=...)`. The implicit IDs of string schemas sta
 from univo import Finder, Schema, Text
 
 finder = Finder(schema=Schema(id_field="id", fields={"name": Text()}))
-finder.add([{"id": "a", "name": "Amazon"}])
-finder.upsert([{"id": "a", "name": "Microsoft"}])
+finder.add([{"id": "a", "name": "Northwind Traders"}])
+finder.upsert([{"id": "a", "name": "Contoso"}])
 assert finder.remove(["a", "missing"]) == ["missing"]
 ```
 
@@ -67,4 +67,4 @@ The rebuild is amortized but can cause a peak in latency and memory, since the o
 - **Loading.** `load` restores this view with its generation, without inference, and mutations can resume.
 - **Durability.** In-memory changes become durable only after a successful `save`. Older generations on disk keep their content, including data removed later in memory: see [persistence](persistence.md).
 
-Choices and alternatives: [ADR 0014](../adr/0014-id-mutations.md).
+

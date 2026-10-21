@@ -9,367 +9,367 @@
     "hard_rule_violations": 35,
     "veto_violations": 24,
     "partition_violations": 11,
-    "duplicates_found": 44,
-    "distinct_matched": 25
+    "duplicates_found": 46,
+    "distinct_matched": 16
   },
-  "auc": 0.6221378874130298,
+  "auc": 0.7137887413029728,
   "sweep": {
     "0.5": {
       "hard_rule_violations": 44,
       "veto_violations": 32,
       "partition_violations": 12,
-      "duplicates_found": 78,
-      "distinct_matched": 69
+      "duplicates_found": 81,
+      "distinct_matched": 64
     },
     "0.51": {
-      "hard_rule_violations": 43,
-      "veto_violations": 31,
+      "hard_rule_violations": 44,
+      "veto_violations": 32,
       "partition_violations": 12,
-      "duplicates_found": 77,
-      "distinct_matched": 69
+      "duplicates_found": 80,
+      "distinct_matched": 63
     },
     "0.52": {
-      "hard_rule_violations": 43,
-      "veto_violations": 31,
+      "hard_rule_violations": 44,
+      "veto_violations": 32,
       "partition_violations": 12,
-      "duplicates_found": 77,
-      "distinct_matched": 67
+      "duplicates_found": 79,
+      "distinct_matched": 63
     },
     "0.53": {
-      "hard_rule_violations": 43,
-      "veto_violations": 31,
+      "hard_rule_violations": 44,
+      "veto_violations": 32,
       "partition_violations": 12,
-      "duplicates_found": 77,
-      "distinct_matched": 64
+      "duplicates_found": 79,
+      "distinct_matched": 62
     },
     "0.54": {
-      "hard_rule_violations": 43,
-      "veto_violations": 31,
+      "hard_rule_violations": 44,
+      "veto_violations": 32,
       "partition_violations": 12,
-      "duplicates_found": 77,
-      "distinct_matched": 64
+      "duplicates_found": 79,
+      "distinct_matched": 60
     },
     "0.55": {
-      "hard_rule_violations": 43,
-      "veto_violations": 31,
+      "hard_rule_violations": 44,
+      "veto_violations": 32,
       "partition_violations": 12,
-      "duplicates_found": 76,
-      "distinct_matched": 64
+      "duplicates_found": 79,
+      "distinct_matched": 59
     },
     "0.56": {
-      "hard_rule_violations": 43,
-      "veto_violations": 31,
+      "hard_rule_violations": 44,
+      "veto_violations": 32,
       "partition_violations": 12,
-      "duplicates_found": 76,
-      "distinct_matched": 63
+      "duplicates_found": 79,
+      "distinct_matched": 57
     },
     "0.57": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 75,
-      "distinct_matched": 63
+      "duplicates_found": 79,
+      "distinct_matched": 57
     },
     "0.58": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 73,
-      "distinct_matched": 63
+      "duplicates_found": 78,
+      "distinct_matched": 57
     },
     "0.59": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 73,
-      "distinct_matched": 63
+      "duplicates_found": 78,
+      "distinct_matched": 56
     },
     "0.6": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 72,
-      "distinct_matched": 62
+      "duplicates_found": 78,
+      "distinct_matched": 56
     },
     "0.61": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 72,
-      "distinct_matched": 59
+      "duplicates_found": 78,
+      "distinct_matched": 56
     },
     "0.62": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 72,
-      "distinct_matched": 58
+      "duplicates_found": 78,
+      "distinct_matched": 56
     },
     "0.63": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 71,
-      "distinct_matched": 57
+      "duplicates_found": 78,
+      "distinct_matched": 55
     },
     "0.64": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 70,
-      "distinct_matched": 56
+      "duplicates_found": 78,
+      "distinct_matched": 54
     },
     "0.65": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 70,
-      "distinct_matched": 56
+      "duplicates_found": 77,
+      "distinct_matched": 50
     },
     "0.66": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 70,
-      "distinct_matched": 53
+      "duplicates_found": 75,
+      "distinct_matched": 47
     },
     "0.67": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 70,
-      "distinct_matched": 53
+      "duplicates_found": 75,
+      "distinct_matched": 46
     },
     "0.68": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 70,
-      "distinct_matched": 51
+      "duplicates_found": 74,
+      "distinct_matched": 46
     },
     "0.69": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 69,
-      "distinct_matched": 49
+      "duplicates_found": 74,
+      "distinct_matched": 42
     },
     "0.7": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 68,
-      "distinct_matched": 47
+      "duplicates_found": 73,
+      "distinct_matched": 38
     },
     "0.71": {
       "hard_rule_violations": 43,
       "veto_violations": 31,
       "partition_violations": 12,
-      "duplicates_found": 67,
-      "distinct_matched": 42
+      "duplicates_found": 72,
+      "distinct_matched": 35
     },
     "0.72": {
       "hard_rule_violations": 42,
-      "veto_violations": 31,
-      "partition_violations": 11,
-      "duplicates_found": 67,
-      "distinct_matched": 41
+      "veto_violations": 30,
+      "partition_violations": 12,
+      "duplicates_found": 71,
+      "distinct_matched": 33
     },
     "0.73": {
       "hard_rule_violations": 42,
-      "veto_violations": 31,
-      "partition_violations": 11,
-      "duplicates_found": 67,
-      "distinct_matched": 40
+      "veto_violations": 30,
+      "partition_violations": 12,
+      "duplicates_found": 69,
+      "distinct_matched": 33
     },
     "0.74": {
-      "hard_rule_violations": 42,
-      "veto_violations": 31,
-      "partition_violations": 11,
-      "duplicates_found": 65,
-      "distinct_matched": 40
+      "hard_rule_violations": 41,
+      "veto_violations": 29,
+      "partition_violations": 12,
+      "duplicates_found": 69,
+      "distinct_matched": 31
     },
     "0.75": {
       "hard_rule_violations": 41,
-      "veto_violations": 30,
-      "partition_violations": 11,
-      "duplicates_found": 63,
-      "distinct_matched": 40
+      "veto_violations": 29,
+      "partition_violations": 12,
+      "duplicates_found": 69,
+      "distinct_matched": 30
     },
     "0.76": {
-      "hard_rule_violations": 40,
-      "veto_violations": 29,
-      "partition_violations": 11,
-      "duplicates_found": 63,
-      "distinct_matched": 40
+      "hard_rule_violations": 38,
+      "veto_violations": 26,
+      "partition_violations": 12,
+      "duplicates_found": 68,
+      "distinct_matched": 28
     },
     "0.77": {
       "hard_rule_violations": 38,
-      "veto_violations": 27,
-      "partition_violations": 11,
-      "duplicates_found": 63,
-      "distinct_matched": 40
+      "veto_violations": 26,
+      "partition_violations": 12,
+      "duplicates_found": 68,
+      "distinct_matched": 26
     },
     "0.78": {
       "hard_rule_violations": 38,
-      "veto_violations": 27,
-      "partition_violations": 11,
-      "duplicates_found": 63,
-      "distinct_matched": 38
+      "veto_violations": 26,
+      "partition_violations": 12,
+      "duplicates_found": 68,
+      "distinct_matched": 26
     },
     "0.79": {
-      "hard_rule_violations": 37,
+      "hard_rule_violations": 38,
       "veto_violations": 26,
-      "partition_violations": 11,
-      "duplicates_found": 62,
-      "distinct_matched": 38
+      "partition_violations": 12,
+      "duplicates_found": 67,
+      "distinct_matched": 26
     },
     "0.8": {
       "hard_rule_violations": 37,
       "veto_violations": 26,
       "partition_violations": 11,
-      "duplicates_found": 61,
-      "distinct_matched": 37
+      "duplicates_found": 67,
+      "distinct_matched": 26
     },
     "0.81": {
       "hard_rule_violations": 37,
       "veto_violations": 26,
       "partition_violations": 11,
-      "duplicates_found": 61,
-      "distinct_matched": 37
+      "duplicates_found": 65,
+      "distinct_matched": 26
     },
     "0.82": {
       "hard_rule_violations": 37,
       "veto_violations": 26,
       "partition_violations": 11,
-      "duplicates_found": 60,
-      "distinct_matched": 37
+      "duplicates_found": 65,
+      "distinct_matched": 25
     },
     "0.83": {
-      "hard_rule_violations": 36,
-      "veto_violations": 25,
+      "hard_rule_violations": 37,
+      "veto_violations": 26,
       "partition_violations": 11,
-      "duplicates_found": 59,
-      "distinct_matched": 36
+      "duplicates_found": 63,
+      "distinct_matched": 25
     },
     "0.84": {
-      "hard_rule_violations": 36,
-      "veto_violations": 25,
+      "hard_rule_violations": 37,
+      "veto_violations": 26,
       "partition_violations": 11,
-      "duplicates_found": 58,
-      "distinct_matched": 35
+      "duplicates_found": 63,
+      "distinct_matched": 25
     },
     "0.85": {
-      "hard_rule_violations": 36,
-      "veto_violations": 25,
+      "hard_rule_violations": 37,
+      "veto_violations": 26,
       "partition_violations": 11,
-      "duplicates_found": 56,
-      "distinct_matched": 33
+      "duplicates_found": 58,
+      "distinct_matched": 24
     },
     "0.86": {
+      "hard_rule_violations": 37,
+      "veto_violations": 26,
+      "partition_violations": 11,
+      "duplicates_found": 56,
+      "distinct_matched": 23
+    },
+    "0.87": {
       "hard_rule_violations": 36,
       "veto_violations": 25,
       "partition_violations": 11,
-      "duplicates_found": 55,
-      "distinct_matched": 30
-    },
-    "0.87": {
-      "hard_rule_violations": 35,
-      "veto_violations": 24,
-      "partition_violations": 11,
-      "duplicates_found": 51,
-      "distinct_matched": 28
+      "duplicates_found": 54,
+      "distinct_matched": 20
     },
     "0.88": {
-      "hard_rule_violations": 35,
-      "veto_violations": 24,
+      "hard_rule_violations": 36,
+      "veto_violations": 25,
       "partition_violations": 11,
-      "duplicates_found": 49,
-      "distinct_matched": 26
+      "duplicates_found": 51,
+      "distinct_matched": 18
     },
     "0.89": {
-      "hard_rule_violations": 35,
-      "veto_violations": 24,
+      "hard_rule_violations": 36,
+      "veto_violations": 25,
       "partition_violations": 11,
-      "duplicates_found": 46,
-      "distinct_matched": 26
+      "duplicates_found": 48,
+      "distinct_matched": 17
     },
     "0.9": {
       "hard_rule_violations": 35,
       "veto_violations": 24,
       "partition_violations": 11,
-      "duplicates_found": 44,
-      "distinct_matched": 25
+      "duplicates_found": 46,
+      "distinct_matched": 16
     },
     "0.91": {
-      "hard_rule_violations": 35,
-      "veto_violations": 24,
+      "hard_rule_violations": 32,
+      "veto_violations": 21,
       "partition_violations": 11,
-      "duplicates_found": 41,
-      "distinct_matched": 25
+      "duplicates_found": 45,
+      "distinct_matched": 14
     },
     "0.92": {
-      "hard_rule_violations": 34,
-      "veto_violations": 23,
+      "hard_rule_violations": 32,
+      "veto_violations": 21,
       "partition_violations": 11,
-      "duplicates_found": 38,
-      "distinct_matched": 21
+      "duplicates_found": 42,
+      "distinct_matched": 14
     },
     "0.93": {
-      "hard_rule_violations": 33,
-      "veto_violations": 22,
+      "hard_rule_violations": 32,
+      "veto_violations": 21,
       "partition_violations": 11,
-      "duplicates_found": 36,
-      "distinct_matched": 20
+      "duplicates_found": 38,
+      "distinct_matched": 14
     },
     "0.94": {
       "hard_rule_violations": 30,
       "veto_violations": 19,
       "partition_violations": 11,
-      "duplicates_found": 36,
-      "distinct_matched": 19
-    },
-    "0.95": {
-      "hard_rule_violations": 30,
-      "veto_violations": 19,
-      "partition_violations": 11,
-      "duplicates_found": 33,
-      "distinct_matched": 16
-    },
-    "0.96": {
-      "hard_rule_violations": 28,
-      "veto_violations": 17,
-      "partition_violations": 11,
-      "duplicates_found": 27,
+      "duplicates_found": 34,
       "distinct_matched": 13
     },
-    "0.97": {
-      "hard_rule_violations": 23,
-      "veto_violations": 12,
-      "partition_violations": 11,
-      "duplicates_found": 25,
-      "distinct_matched": 11
+    "0.95": {
+      "hard_rule_violations": 26,
+      "veto_violations": 16,
+      "partition_violations": 10,
+      "duplicates_found": 33,
+      "distinct_matched": 12
     },
-    "0.98": {
-      "hard_rule_violations": 21,
-      "veto_violations": 10,
-      "partition_violations": 11,
-      "duplicates_found": 25,
+    "0.96": {
+      "hard_rule_violations": 13,
+      "veto_violations": 11,
+      "partition_violations": 2,
+      "duplicates_found": 32,
+      "distinct_matched": 10
+    },
+    "0.97": {
+      "hard_rule_violations": 10,
+      "veto_violations": 8,
+      "partition_violations": 2,
+      "duplicates_found": 28,
       "distinct_matched": 9
     },
-    "0.99": {
-      "hard_rule_violations": 7,
-      "veto_violations": 5,
+    "0.98": {
+      "hard_rule_violations": 8,
+      "veto_violations": 6,
       "partition_violations": 2,
-      "duplicates_found": 25,
-      "distinct_matched": 8
+      "duplicates_found": 23,
+      "distinct_matched": 7
+    },
+    "0.99": {
+      "hard_rule_violations": 6,
+      "veto_violations": 4,
+      "partition_violations": 2,
+      "duplicates_found": 22,
+      "distinct_matched": 7
     },
     "1.0": {
       "hard_rule_violations": 5,
       "veto_violations": 3,
       "partition_violations": 2,
-      "duplicates_found": 17,
-      "distinct_matched": 6
+      "duplicates_found": 15,
+      "distinct_matched": 4
     }
   }
 }

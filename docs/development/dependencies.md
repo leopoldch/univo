@@ -9,7 +9,7 @@ Every dependency is recorded here with its purpose, enabled features, license, f
 | `pyo3` | 0.29.3 | `univo-python` | Python bindings | `macros`, `abi3-py311`; `extension-module` for wheels only | MIT OR Apache-2.0 | `libc`, `once_cell`, `portable-atomic`, `pyo3-ffi`; macros and build config at compile time only | extension of 0.31 MiB stripped, wheel of 0.15 MiB (U-005) |
 | `unicode-normalization` | 0.1.25 | `univo-core` | NFC composition and its quick check; embeds Unicode 17.0 | `std` only | MIT OR Apache-2.0 | `tinyvec` (Zlib OR Apache-2.0 OR MIT) | with `caseless`: +177 KiB in a stripped release binary that normalizes (U-006) |
 | `caseless` | 0.2.2 | `univo-core` | Unicode default full case folding | none | MIT | `unicode-normalization` | included above |
-| `wide` | 0.7.33 | `univo-core` | Four-wide `f32` vectors for the blocked dot product of all-pairs reports ([ADR 0019](../adr/0019-blocked-dense-all-pairs.md)): NEON on arm64, SSE2 on x86-64, plain code elsewhere, with no runtime detection | default features off | Zlib OR Apache-2.0 OR MIT | `safe_arch` 0.7.4, `bytemuck` 1.25.2 (both Zlib OR Apache-2.0 OR MIT); pure Rust, no native code; their `unsafe` stays inside them, Univo's crates keep `unsafe_code = "forbid"` | macOS arm64 wheel 1.836 → 1.845 MiB (+9 KiB) with the blocked lane (ADR 0019) |
+| `wide` | 0.7.33 | `univo-core` | Four-wide `f32` vectors for the blocked dot product of all-pairs reports: NEON on arm64, SSE2 on x86-64, plain code elsewhere, with no runtime detection | default features off | Zlib OR Apache-2.0 OR MIT | `safe_arch` 0.7.4, `bytemuck` 1.25.2 (both Zlib OR Apache-2.0 OR MIT); pure Rust, no native code; their `unsafe` stays inside them, Univo's crates keep `unsafe_code = "forbid"` | macOS arm64 wheel 1.836 → 1.845 MiB (+9 KiB) with the blocked lane |
 | `rustc-hash` | 2.1.3 | `univo-core` | Fast non-cryptographic hash for normalization fingerprints | `std` disabled | Apache-2.0 OR MIT | none | negligible |
 | `model2vec-rs` | =0.3.0 | `univo-embed` | Static Model2Vec inference from verified bytes | default features off; `local-only`, `fancy-regex` | MIT | `tokenizers` 0.21.4 (Apache-2.0), `safetensors`, `ndarray`, `half`, `rayon`, `serde`, `anyhow`, about 100 crates in all; pure Rust, no C or C++ build, no network crate | +2.68 MB stripped, +1.15 MB compressed on macOS arm64 (U-009) |
 | `sha2` | 0.11.0 | `univo-embed` | SHA-256 of pinned and LFS model files | default features off | MIT OR Apache-2.0 | `digest`, `block-buffer`, `cpufeatures` (runtime detection with portable fallback) | included above |
@@ -17,11 +17,11 @@ Every dependency is recorded here with its purpose, enabled features, license, f
 | `serde` | 1.0.229 | `univo-embed` | Reads only the length settings of `tokenizer.json`, skipping the rest | `derive`, `std` | MIT OR Apache-2.0 | already linked through `tokenizers` and `serde_json` | included above |
 | `serde_json` | 1.0.151 | `univo-embed` | Hub metadata, cache manifests and the length settings of `tokenizer.json` | default | MIT OR Apache-2.0 | `itoa`, `memchr`, `ryu`, `serde` | included above |
 
-`caseless` was checked against CPython's `str.casefold` on every Unicode code point (0 differences); the check runs in `crates/univo-core/tests/unicode_oracle.rs`. See [ADR 0003](../adr/0003-unicode-normalization.md).
+`caseless` was checked against CPython's `str.casefold` on every Unicode code point (0 differences); the check runs in `crates/univo-core/tests/unicode_oracle.rs`.
 
-`univo-embed` ([ADR 0008](../adr/0008-model-download-and-inference-backend.md)) is linked into the Python extension since U-009: the macOS arm64 wheel grows from 0.15 MiB to 1.43 MiB (extension of 3.2 MB stripped). Downloads use Python's standard library (`urllib`), imported only when a download starts, so the package still has no runtime Python dependency. Its 108 linked packages are listed by `cargo tree -p univo-embed -e normal`; their licenses are permissive (MIT, Apache-2.0, BSD-2-Clause, Unlicense, Zlib, BSL-1.0 and Unicode-3.0 options), and their notices ship with the wheels in U-019. `tokenizers` runs batches on Rayon's global thread pool.
+`univo-embed` is linked into the Python extension since U-009: the macOS arm64 wheel grows from 0.15 MiB to 1.43 MiB (extension of 3.2 MB stripped). Downloads use Python's standard library (`urllib`), imported only when a download starts, so the package still has no runtime Python dependency. Its 108 linked packages are listed by `cargo tree -p univo-embed -e normal`; their licenses are permissive (MIT, Apache-2.0, BSD-2-Clause, Unlicense, Zlib, BSL-1.0 and Unicode-3.0 options), and their notices ship with the wheels in U-019. `tokenizers` runs batches on Rayon's global thread pool.
 
-`univo-engine` depends on the local `univo-core` and `univo-embed` crates (MIT, no additional features); it embeds records through the `Embedder` trait. Its indexes use standard-library collections and the core's fingerprint and dot-product code. Through U-015 it adds no third-party or native dependency beyond `univo-embed`; U-011 links it into the Python wheel. U-016 adds the HNSW dependency described below. [ADR 0018](../adr/0018-parallel-all-pairs.md) adds `rayon`, already linked through `tokenizers`, for parallel all-pairs reports. The wheel-size effect is recorded in [performance](performance.md).
+`univo-engine` depends on the local `univo-core` and `univo-embed` crates (MIT, no additional features); it embeds records through the `Embedder` trait. Its indexes use standard-library collections and the core's fingerprint and dot-product code. Through U-015 it adds no third-party or native dependency beyond `univo-embed`; U-011 links it into the Python wheel. U-016 adds the HNSW dependency described below. Parallel all-pairs reports add `rayon`, already linked through `tokenizers`. The wheel-size effect is recorded in [performance](performance.md).
 
 ## Development only
 
@@ -40,9 +40,9 @@ The minimum supported Rust version is 1.89: `model2vec-rs` requires 1.88, and th
 Python development tools (`maturin`, `pytest`, `ruff`, `mypy`) are pinned in `uv.lock`; the package has no runtime Python dependency.
 
 
-U-011 adds `rayon` 1.12.0 as a direct runtime dependency of `univo-python` to bound semantic encoding by the Finder thread budget (default features; MIT OR Apache-2.0). Rayon and its transitive dependencies were already linked through `tokenizers`: no new third-party or native package is added. Since [ADR 0018](../adr/0018-parallel-all-pairs.md), every native index has a pool of `threads` workers, lexical ones included, and `univo-engine` depends on `rayon` 1.12.0 (default features) to run the queries of `find` and `group` on the current pool; it is the same crate, already linked, so the wheel gains no package. The Python facade uses only the standard library; it introduces no runtime Python requirement.
+U-011 adds `rayon` 1.12.0 as a direct runtime dependency of `univo-python` to bound semantic encoding by the Finder thread budget (default features; MIT OR Apache-2.0). Rayon and its transitive dependencies were already linked through `tokenizers`: no new third-party or native package is added. Every native index has a pool of `threads` workers, lexical ones included, and `univo-engine` depends on `rayon` 1.12.0 (default features) to run the queries of `find` and `group` on the current pool; it is the same crate, already linked, so the wheel gains no package. The Python facade uses only the standard library; it introduces no runtime Python requirement.
 
-U-012 quality tooling uses only the Python standard library and the installed Univo wheel. It adds no runtime, development, native or wheel dependency. ROR names/IDs are an explicitly downloaded CC0 benchmark input, not bundled data or a library dependency; GeoNames location metadata is not exported. See the [corpus manifest and protocol](../../benchmarks/quality/README.md).
+U-012 quality tooling uses only the Python standard library and the installed Univo wheel. It adds no runtime, development, native or wheel dependency. ROR names/IDs are an explicitly downloaded CC0 benchmark input, not bundled data or a library dependency; GeoNames location metadata is not exported. See the [corpus manifest and protocol](../benchmarks.md#name-quality).
 
 U-013 adds no dependency or enabled feature. Embedding memoization uses Rust standard-library HashMap/VecDeque, immutable Arc rows and a Mutex, entirely in univo-engine. Python holds only the native cache handle; no Python cache, external runtime, disk cache or bundled model is added.
 
@@ -69,10 +69,9 @@ other advertised wheels. Notices remain part of U-019.
 
 The standalone spike additionally uses hnsw_rs 0.3.5 (MIT OR Apache-2.0,
 default features disabled) as a reference; it is not a production dependency.
-See [ADR 0015](../adr/0015-explicit-partition-ann.md) for maturity risks, alternatives
-and evidence. Model footprint and default budget do not change.
+Model footprint and default budget do not change.
 
-## Default model (ADR 0021)
+## Default model
 
 The default model is data, not a package dependency.
 - **What it is:** `univo-models/static-similarity-mrl-multilingual-int8-128`, which is `sentence-transformers/static-similarity-mrl-multilingual-v1` (Apache-2.0) reduced to int8 and 128 dimensions.

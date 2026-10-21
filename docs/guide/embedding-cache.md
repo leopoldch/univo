@@ -44,7 +44,7 @@ Atomic add and read-only search describe the record index, not the memoization c
 
 Counting Rust encoders prove reuse across add/query/indexes, normalized Unicode equality, absent vectors, FIFO re-encoding and synchronized warm reads. Budget tests exercise tiny limits, container growth and oversized keys; compatibility tests change file digests, dimensions, backend and source. Plain, cold and warm vectors agree exactly. Installed-wheel tests cover field-local changes, unselected data, disabled retention, limits, diagnostics and normalization explanations.
 
-The real default-model quality evaluator reproduces the merged U-012 threshold, held-out/group metrics, candidate/oracle counts and critical regression results exactly. [Performance measurements](../development/performance.md) isolate repeated semantic text reuse; they do not imply a speedup for every large-partition search.
+The real default-model quality evaluator reproduces the published quality threshold, held-out and group metrics, candidate/oracle counts and critical regression results exactly. [Performance measurements](../development/performance.md) isolate repeated semantic text reuse; they do not imply a speedup for every large-partition search.
 
 Temporary field encoding is bounded to at most 1,024 distinct texts per call and approximately 1 MiB of float output (one row minimum), instead of retaining a corpus-sized encoder matrix and Arc row list. Deduplication/row references remain global and a late failure leaves the index unchanged; earlier cache publication may remain. This controls active inference buffers, not the whole index or RSS. See the [snapshot measurements](../development/performance.md).
 

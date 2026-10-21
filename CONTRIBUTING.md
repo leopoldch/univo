@@ -16,7 +16,7 @@ CI also builds and tests the wheels on every platform, and runs the tests that n
 ## Rules
 
 - **One subject per pull request**, with its tests and docs.
-- **Contracts first.** The [specs](specs/README.md) and [ADRs](docs/adr/README.md) set the behavior. Update them with any change of API, format or model compatibility.
+- **Docs follow the code.** A change of API, format or model compatibility updates the [docs](docs) in the same pull request.
 - **Logic stays in Rust.** Python only converts inputs and outputs.
 - **Performance claims are measured.** Use release builds, compare against `main` in ABBA order, and show that results are identical ([policy](docs/development/performance.md)).
 - **New dependencies** go in the [register](docs/development/dependencies.md).

@@ -80,7 +80,7 @@ fn default_model_dir() -> Option<PathBuf> {
     Some(directory)
 }
 
-/// Descriptions of the standard workload of specs/07-performance.md: about
+/// Descriptions of the standard workload: about
 /// 30 tokens each, from a deterministic xorshift generator.
 fn descriptions(count: usize) -> Vec<String> {
     let mut state = 0x9E37_79B9_7F4A_7C15_u64;

@@ -26,10 +26,10 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/leopoldch/univo"
-Documentation = "https://github.com/leopoldch/univo/blob/main/docs/README.md"
+Documentation = "https://github.com/leopoldch/univo/tree/main/docs"
 Repository = "https://github.com/leopoldch/univo"
 Issues = "https://github.com/leopoldch/univo/issues"
-Changelog = "https://github.com/leopoldch/univo/blob/main/CHANGELOG.md"
+Changelog = "https://github.com/leopoldch/univo/releases"
 
 [dependency-groups]
 dev = ["maturin>=1.15,<2", "pytest>=9.1", "ruff>=0.16", "mypy>=2.4"]
@@ -50,7 +50,7 @@ markers = ["perf: resource budget checks from benchmarks/budgets.toml"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-extend-exclude = ["specs", "docs"]
+extend-exclude = ["docs"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "PT"]

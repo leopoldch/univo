@@ -1,6 +1,6 @@
 //! Candidates for one text field by acronym: records whose text spells the
 //! initials of the query's words, or whose words have the query's text as
-//! initials (ADR 0022).
+//! initials.
 //!
 //! A text field reaches [`univo_core::ACRONYM_SIMILARITY`] against a text it is the
 //! acronym of, whatever its lexical or semantic similarity. Every such pair

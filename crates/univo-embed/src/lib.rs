@@ -9,7 +9,7 @@
 //!   a binding's [`Transport`].
 //!
 //! This crate performs no network access: bindings download the files a
-//! plan lists with their language's standard library (ADR 0008).
+//! plan lists with their language's standard library.
 
 pub mod cache;
 pub mod files;

@@ -2,7 +2,7 @@
 
 The default model is `sentence-transformers/static-similarity-mrl-multilingual-v1`
 (Apache-2.0), converted to the Model2Vec layout, quantized to int8 and truncated
-to its first 128 Matryoshka dimensions (ADR 0021). This script reproduces the
+to its first 128 Matryoshka dimensions. This script reproduces the
 published files byte for byte with the standard library only:
 
     python tools/build_default_model.py --output build/default-model
@@ -52,7 +52,8 @@ OUTPUT_FILES = {
         "88d69c30a2a4395cf169631e47f3c4fbb95d300650028d541ec531ed18eb0ff1",
     ),
 }
-CARD_FILES = ("README.md", "LICENSE")
+# Published name of each card file, and its source in CARD_DIRECTORY.
+CARD_FILES = {"README.md": "model-card.md", "LICENSE": "LICENSE"}
 CARD_DIRECTORY = pathlib.Path(__file__).resolve().parent / "default_model"
 
 
@@ -162,8 +163,8 @@ def build(source: pathlib.Path, output: pathlib.Path) -> None:
     (output / "config.json").write_bytes(config())
     (output / "model.safetensors").write_bytes(safetensors(quantize(values, rows, columns), rows))
     (output / "tokenizer.json").write_bytes(tokenizer(source / "0_StaticEmbedding/tokenizer.json"))
-    for name in CARD_FILES:
-        shutil.copyfile(CARD_DIRECTORY / name, output / name)
+    for name, source_name in CARD_FILES.items():
+        shutil.copyfile(CARD_DIRECTORY / source_name, output / name)
     for name, (size, checksum) in OUTPUT_FILES.items():
         verify(output / name, size, checksum)
 
