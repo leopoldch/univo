@@ -28,7 +28,7 @@ Northwnd Traders ~ NORTHWIND TRADERS 0.94
 
 No training and no API key: records never leave your machine.
 
-By default, `find` returns up to 1,000 matches scoring 0.8 or more (`limit`, `min_score`), and text is compared by spelling. `Text(mode="semantic")` compares by meaning, with a local model. More: [choosing a mode](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#choosing-a-text-mode), [every option](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#limits-and-reports).
+By default, `find` returns up to 1,000 matches scoring 0.8 or more (`limit`, `min_score`), and text is compared by spelling. `Text(mode="semantic")` compares by meaning, with a local model: the 15 MB multilingual default, or any [Model2Vec](https://github.com/MinishLab/model2vec) model from Hugging Face or a folder. More: [choosing a mode](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#choosing-a-text-mode), [choosing a model](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md#choosing-a-model), [every option](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#limits-and-reports).
 
 Built for data cleaning, entity resolution, ML dataset deduplication and real-time duplicate checks.
 
@@ -61,11 +61,32 @@ for match in finder.search(query).matches:
 
 Record 2 has another VAT number, so it can never match.
 
+## Meaning, with the model you choose
+
+```python
+from univo import Finder, Schema, Text
+
+finder = Finder(
+    schema=Schema(fields={"description": Text(mode="semantic")}),
+    model="minishlab/potion-base-8M",  # any Model2Vec model on Hugging Face, or a folder
+)
+texts = ["online clothing store", "shop selling clothes on the internet", "steel factory"]
+report = finder.find([{"description": text} for text in texts], min_score=0.6)
+for match in report.matches:
+    print(texts[match.left_id], "~", texts[match.right_id], round(match.score, 2))
+```
+
+```text
+online clothing store ~ shop selling clothes on the internet 0.74
+```
+
+Without `model`, Univo uses its 15 MB multilingual default. The model downloads once, is verified, then works offline ([models](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md)).
+
 ## Why Univo
 
 - **Records, not just strings.** Dicts, lists and nested fields, compared field by field, with an explanation for every match.
 - **Rules before scores.** Different VAT numbers, tenants or environments rule out a match, however alike the records look.
-- **Spelling, meaning and exact values**, chosen per field, with a 15 MB multilingual model that runs offline.
+- **Spelling, meaning and exact values**, chosen per field, with a 15 MB multilingual model that runs offline, or any Model2Vec model you choose.
 - **Fast, exact by default, and light.** 100,000 names deduplicated in 4.8 s. Search is exact by default, with explicit limits and optional approximate retrieval. One 2 MiB wheel, no Python dependency.
 
 ## New records as they arrive
