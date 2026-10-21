@@ -15,7 +15,7 @@ A Rust engine does the work behind a small Python API. Inference is local: no re
 
 - **Fast.** 100,000 names are deduplicated in 4.8 s with embeddings and in 1.9 s lexically, on a laptop.
 - **Complete.** Search returns every pair above the threshold. A work or output limit, when reached, is flagged in the report ([limits](docs/guide/quickstart.md#limits-and-reports)). Approximate search is opt-in.
-- **Any structure.** Records are dicts, lists, strings, numbers, booleans and `None`, nested as deep as needed. Dict keys compare in any order.
+- **Any structure.** Records are dicts, lists, strings, numbers, booleans and `None`, nested within configurable limits ([supported values](docs/guide/quickstart.md#records)). Dict keys compare in any order.
 - **Rules first.** Partitions, typed IDs and vetoes, such as two different VAT numbers, apply before any score.
 - **Explained.** Each match lists its evidence per field. Univo never merges or deletes records for you.
 - **Light.** One 2 MiB wheel with no Python dependency, and a 15 MB multilingual model that is verified, cached and usable strictly offline.

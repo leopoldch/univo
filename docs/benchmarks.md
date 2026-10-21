@@ -92,7 +92,7 @@ for tool in univo-exact univo-lexical univo-semantic; do
 done
 semhash-env/bin/python -I benchmarks/comparison/dedupe.py /tmp/ror-pairs.jsonl --tool semhash --model-path $MODEL --output /tmp/ror-semhash.json
 python -I benchmarks/comparison/critical.py tests/fixtures/critical/cases.jsonl --tool univo-semantic --model-path $MODEL --output /tmp/critical.json
-python -I benchmarks/comparison/scale.py --tool univo-semantic --records 100000 --model-path $MODEL
+python -I benchmarks/comparison/scale.py --tool univo-semantic --retrieval exact --records 100000 --model-path $MODEL
 ```
 
 Run the timed commands one at a time, on mains power, with no other heavy workload. The [first comparison](../benchmarks/comparison/results/scale.jsonl), before parallel scoring, found SemHash 9 to 16 times faster; it led to parallel scoring and the blocked dense scan.

@@ -69,8 +69,7 @@ other advertised wheels. Notices remain part of U-019.
 
 The standalone spike additionally uses hnsw_rs 0.3.5 (MIT OR Apache-2.0,
 default features disabled) as a reference; it is not a production dependency.
-Maturity risks, alternatives
-and evidence. Model footprint and default budget do not change.
+Model footprint and default budget do not change.
 
 ## Default model
 

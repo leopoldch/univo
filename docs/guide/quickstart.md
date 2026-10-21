@@ -44,7 +44,9 @@ assert [match.right_id for match in report.matches] == ["org-2"]
 - **`partition_by`** limits matches to records with the same values.
 - **`id_field`** gives records their IDs. Without it, records get integer slots.
 
-Fields outside the schema are ignored, and inputs are never modified.
+Compared values can be strings, signed 64-bit integers, finite floats, booleans, `None`, lists, and dicts with string keys. Fields outside the schema are ignored, and inputs are never modified.
+
+A schema also bounds each record: 64 fields, 1 MiB of compared values, 16 levels of nesting. Raise them with `max_fields`, `max_selected_bytes` and `max_depth` (at most 128).
 
 ## Keep an index
 
@@ -86,7 +88,11 @@ The main options:
 | `max_exhaustive_pairs` | `1000000` | Pairs an exhaustive `find` may compare |
 | `max_semantic_comparisons` | `1000000` | Vector comparisons a semantic `find` may make |
 
-Going over a limit raises `ResourceLimitError` before the search starts; raise the limit explicitly for larger jobs. Errors have a stable `code` and a `hint` ([errors](../reference/errors.md)).
+Limits act in two ways:
+- **Truncation.** Reaching `limit` cuts the results and sets `output_truncated`. A candidate lane that runs out of work sets `candidate_truncated`.
+- **Errors.** Going over `max_records`, `max_exhaustive_pairs` or `max_semantic_comparisons` raises `ResourceLimitError`, without a partial result. Raise the limit explicitly for larger jobs.
+
+These limits bound each operation, not the memory of the process: large records or indexes can still need more memory than is available. Errors have a stable `code` and a `hint` ([errors](../reference/errors.md)).
 
 ## Next
 

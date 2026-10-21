@@ -2,11 +2,10 @@
 //!
 //! Each all-pairs query scans every later vector of its partition. One query
 //! at a time, a large partition streams all its vectors from memory for
-//! every query, and memory bandwidth bounds the scan, whatever the threads
-//!. A block
-//! of consecutive queries of one partition reads each later vector once and
-//! compares it with every query of the block, with the arithmetic of
-//! [`univo_core::dot`]: the candidates are the ones the per-query scan
+//! every query, and memory bandwidth bounds the scan, whatever the threads.
+//! A block of consecutive queries of one partition reads each later vector
+//! once and compares it with every query of the block, with the arithmetic
+//! of [`univo_core::dot`]: the candidates are the ones the per-query scan
 //! finds, bit for bit.
 
 use std::collections::HashMap;
