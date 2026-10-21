@@ -148,9 +148,15 @@ mod tests {
             ModelSpec::parse("minishlab/potion-base-8M@bf8b0566").unwrap(),
             hub("minishlab", "potion-base-8M", Some("bf8b0566"))
         );
+        // "/opt/models/m" has no drive, so it is not absolute on Windows.
+        let absolute = if cfg!(windows) {
+            r"C:\models\m"
+        } else {
+            "/opt/models/m"
+        };
         assert_eq!(
-            ModelSpec::parse("/opt/models/m").unwrap(),
-            ModelSpec::Local("/opt/models/m".into())
+            ModelSpec::parse(absolute).unwrap(),
+            ModelSpec::Local(absolute.into())
         );
         assert_eq!(
             ModelSpec::parse("./models/m").unwrap(),
