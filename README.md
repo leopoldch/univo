@@ -28,7 +28,7 @@ Northwnd Traders ~ NORTHWIND TRADERS 0.94
 
 No training and no API key: records never leave your machine.
 
-By default, `find` returns up to 1,000 matches scoring 0.8 or more (`limit`, `min_score`), and text is compared by spelling. `Text(mode="semantic")` compares by meaning, with a local model. More: [choosing a mode](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#choosing-a-text-mode), [every option](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#limits-and-reports).
+By default, `find` returns up to 1,000 matches scoring 0.8 or more (`limit`, `min_score`), and text is compared by spelling. `Text(mode="semantic")` compares by meaning, with a local model: the 15 MB multilingual default, or any [Model2Vec](https://github.com/MinishLab/model2vec) model from Hugging Face or a folder, such as `Finder(model="minishlab/potion-base-8M")`. More: [choosing a mode](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#choosing-a-text-mode), [choosing a model](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md#choosing-a-model), [every option](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#limits-and-reports).
 
 Built for data cleaning, entity resolution, ML dataset deduplication and real-time duplicate checks.
 
@@ -65,7 +65,7 @@ Record 2 has another VAT number, so it can never match.
 
 - **Records, not just strings.** Dicts, lists and nested fields, compared field by field, with an explanation for every match.
 - **Rules before scores.** Different VAT numbers, tenants or environments rule out a match, however alike the records look.
-- **Spelling, meaning and exact values**, chosen per field, with a 15 MB multilingual model that runs offline.
+- **Spelling, meaning and exact values**, chosen per field, with a 15 MB multilingual model that runs offline, or any Model2Vec model you choose.
 - **Fast, exact by default, and light.** 100,000 names deduplicated in 4.8 s. Search is exact by default, with explicit limits and optional approximate retrieval. One 2 MiB wheel, no Python dependency.
 
 ## New records as they arrive
