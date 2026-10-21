@@ -16,7 +16,7 @@ pip install univo
 from univo import Finder
 
 names = ["Northwind Traders", "Contoso", "Northwnd Traders", "NORTHWIND TRADERS", "Fabrikam"]
-for match in Finder().find(names).matches:
+for match in Finder().find(names, min_score=0.8).matches:
     print(names[match.left_id], "~", names[match.right_id], round(match.score, 2))
 ```
 
@@ -26,7 +26,9 @@ Northwind Traders ~ Northwnd Traders 0.94
 Northwnd Traders ~ NORTHWIND TRADERS 0.94
 ```
 
-Text is compared by spelling by default; `Text(mode="semantic")` uses local embedding similarity ([models](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md)). No training and no API key: records never leave your machine.
+No training and no API key: records never leave your machine.
+
+By default, `find` returns up to 1,000 matches scoring 0.8 or more (`limit`, `min_score`), and text is compared by spelling. `Text(mode="semantic")` compares by meaning, with a local model. More: [choosing a mode](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#choosing-a-text-mode), [every option](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#limits-and-reports).
 
 Built for data cleaning, entity resolution, ML dataset deduplication and real-time duplicate checks.
 
