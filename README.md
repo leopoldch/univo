@@ -26,7 +26,7 @@ Northwind Traders ~ Northwnd Traders 0.94
 Northwnd Traders ~ NORTHWIND TRADERS 0.94
 ```
 
-Text is compared by spelling by default; `Text(mode="semantic")` adds local embeddings. No training and no API key: records never leave your machine.
+Text is compared by spelling by default; `Text(mode="semantic")` uses local embedding similarity ([models](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md)). No training and no API key: records never leave your machine.
 
 Built for data cleaning, entity resolution, ML dataset deduplication and real-time duplicate checks.
 
@@ -57,7 +57,7 @@ for match in finder.search(query).matches:
 1 0.94 ['name: trigrams', 'address.city: edit_distance', 'vat: exact']
 ```
 
-Record 2 has another VAT number, so it can never match. For meaning rather than spelling, use `Text(mode="semantic")` ([models](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md)).
+Record 2 has another VAT number, so it can never match.
 
 ## Why Univo
 
