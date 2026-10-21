@@ -85,8 +85,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.14"
-      - run: cargo test --workspace --locked
-      - run: cargo test --workspace --locked --release
+      - run: cargo test --workspace --locked --no-fail-fast
+      - run: cargo test --workspace --locked --release --no-fail-fast
 
   wheels:
     name: wheels (${{ matrix.platform }})
