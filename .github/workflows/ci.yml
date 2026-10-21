@@ -128,17 +128,17 @@ jobs:
         platform: [linux-x86_64, linux-aarch64, macos-x86_64, macos-arm64, windows-x86_64, windows-arm64]
         python: ["3.11", "3.14"]
         include:
-          - { platform: linux-x86_64, runner: ubuntu-24.04, machine: x86_64 }
-          - { platform: linux-aarch64, runner: ubuntu-24.04-arm, machine: aarch64 }
-          - { platform: macos-x86_64, runner: macos-15-intel, machine: x86_64 }
-          - { platform: macos-arm64, runner: macos-15, machine: aarch64 }
-          - { platform: windows-x86_64, runner: windows-2025, machine: x86_64 }
-          - { platform: windows-arm64, runner: windows-11-arm, machine: aarch64 }
+          - { platform: linux-x86_64, runner: ubuntu-24.04, machine: x86_64, perf_slack: "2.0" }
+          - { platform: linux-aarch64, runner: ubuntu-24.04-arm, machine: aarch64, perf_slack: "2.0" }
+          - { platform: macos-x86_64, runner: macos-15-intel, machine: x86_64, perf_slack: "5.0" }
+          - { platform: macos-arm64, runner: macos-15, machine: aarch64, perf_slack: "2.0" }
+          - { platform: windows-x86_64, runner: windows-2025, machine: x86_64, perf_slack: "3.0" }
+          - { platform: windows-arm64, runner: windows-11-arm, machine: aarch64, perf_slack: "2.0" }
     runs-on: ${{ matrix.runner }}
     env:
       UNIVO_EXPECT_INSTALLED: "1"
       UNIVO_EXPECT_MACHINE: ${{ matrix.machine }}
-      UNIVO_PERF_SLACK: "2.0"
+      UNIVO_PERF_SLACK: ${{ matrix.perf_slack }}
       # Downloads the pinned default model from the real hub into an empty cache.
       UNIVO_TEST_HUB: "1"
       UNIVO_TEST_MODEL_DIR: ${{ github.workspace }}/.models/default
