@@ -1,6 +1,8 @@
 # Univo
 
-**Fast, local duplicate detection for Python data: strings, records and nested objects.**
+**Compare anything. Keep every record clean.**
+
+Fast, local duplicate detection for Python data: strings, records and nested objects.
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -81,5 +83,3 @@ uv sync --group dev
 - **Reference.** [Errors](docs/reference/errors.md), [scoring](docs/reference/scoring.md), [duplicate definitions](docs/reference/duplicate-definitions.md), [stability](docs/reference/stability.md).
 - **Design.** [Search](docs/design/search.md), [lexical candidates](docs/design/lexical-search.md), [vector search](docs/design/vector-search.md), [exact index](docs/design/exact-index.md).
 - **Development.** [Setup](docs/development/setup.md), [performance](docs/development/performance.md), [dependencies](docs/development/dependencies.md), [releasing](docs/development/releasing.md).
-
-[Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [MIT license](LICENSE)
