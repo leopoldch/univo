@@ -10,7 +10,7 @@ members = [
 exclude = ["benchmarks"]
 
 [workspace.package]
-version = "1.0.0-rc.1"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT"
@@ -19,9 +19,9 @@ homepage = "https://github.com/leopoldch/univo"
 authors = ["Léopold Chappuis"]
 
 [workspace.dependencies]
-univo-core = { path = "crates/univo-core", version = "1.0.0-rc.1" }
-univo-engine = { path = "crates/univo-engine", version = "1.0.0-rc.1" }
-univo-embed = { path = "crates/univo-embed", version = "1.0.0-rc.1" }
+univo-core = { path = "crates/univo-core", version = "1.0.0" }
+univo-engine = { path = "crates/univo-engine", version = "1.0.0" }
+univo-embed = { path = "crates/univo-embed", version = "1.0.0" }
 pyo3 = { version = "0.29.3", default-features = false }
 
 [workspace.lints.rust]
