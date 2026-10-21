@@ -31,6 +31,7 @@ Each record captures one decision, the alternatives considered, the evidence, th
 | [0020](0020-every-core-by-default.md) | Every core by default, one pool per Finder | Accepted (U-003 follow-up) |
 | [0021](0021-multilingual-default-model.md) | Multilingual default model | Accepted (U-004 follow-up) |
 | [0022](0022-acronym-evidence.md) | Acronym evidence for text fields | Accepted (U-012) |
+| [0023](0023-distinct-words.md) | Distinct words lower the similarity of names | Accepted (U-012) |
 
 ## Template
 

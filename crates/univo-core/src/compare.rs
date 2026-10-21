@@ -5,6 +5,7 @@
 use std::cmp::Ordering;
 
 use crate::acronym::{ACRONYM_SIMILARITY, acronym_similarity};
+use crate::distinct::{DISTINCT_WORDS_FACTOR, distinct_words};
 use crate::error::{Error, Result};
 use crate::lexical;
 use crate::normalize::NormalizedValue;
@@ -18,7 +19,9 @@ use crate::semantic::semantic_similarity;
 /// 2: semantic text fields compared by the cosine of their embeddings.
 /// 3: a text spelling the initials of the other's words scores at least
 /// [`ACRONYM_SIMILARITY`], in every text mode (ADR 0022).
-pub const SCORING_VERSION: u32 = 3;
+/// 4: names with distinct words score [`DISTINCT_WORDS_FACTOR`] of their
+/// similarity, and contradict (ADR 0023).
+pub const SCORING_VERSION: u32 = 4;
 
 /// What produced a field's similarity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -289,6 +292,12 @@ fn compare_text(
     // Hybrid fields are scored lexically: on the critical corpus, adding
     // their cosine lowered the ranking quality (ADR 0009).
     let mut best = lexical.or(semantic);
+    let distinct = best.is_some_and(|(similarity, _)| similarity > 0.0)
+        && left_field.word_bits & right_field.word_bits != 0
+        && distinct_words(left, right);
+    if distinct {
+        best = best.map(|(similarity, signal)| (similarity * DISTINCT_WORDS_FACTOR, signal));
+    }
     if best.is_none_or(|(similarity, _)| similarity < ACRONYM_SIMILARITY)
         && left_field.acronyms.may_match(&right_field.acronyms)
         && let Some(acronym) = acronym_similarity(left, right)
@@ -302,7 +311,8 @@ fn compare_text(
     FieldComparison {
         similarity,
         signal,
-        contradiction: false,
+        // Acronym evidence, when it wins, outweighs the distinct words.
+        contradiction: distinct && signal != Signal::Acronym,
         veto: false,
         incomplete: false,
         evidence,

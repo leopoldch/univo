@@ -465,3 +465,19 @@ Apple M2 on battery, release builds, one partition, minimum score 0.8, every cor
 - **Index build.** It takes 35 ms instead of 29 ms.
 - **Reproduce.** `cargo run --release -p univo-engine --example lexical_all_pairs -- names.txt 100000 8` prints the time and a hash of the report. The ROR sample is 100,000 distinct names from the ROR v2.14 dump, shuffled with seed 0.
 
+## Distinct words (ADR 0023)
+
+Release builds, Apple M2, `main` and the change alternated.
+
+| Measure | `main` | Distinct words |
+| --- | --- | --- |
+| Compare 1,000,000 standard record pairs, alone | 325 ns per pair | 371 ns per pair |
+| Prepare 100,000 standard records, alone | 1,175 ns per record | 1,255 ns per record |
+| Lexical all-pairs, 100,000 ROR names, wheel | 2.06–2.09 s | 2.15–2.17 s |
+| Semantic all-pairs, 100,000 synthetic names, wheel | 4.49–4.56 s | 4.46–4.52 s |
+| Lexical all-pairs, 100,000 synthetic names, wheel | 1.91–1.97 s | 1.91–1.93 s |
+
+- **Where it costs.** A 64-bit summary of content words, kept per text, settles most pairs without reading words. The standard comparison workload draws names from 23 words, so 14% of its pairs share one and take the word path.
+- **Dead ends.** Splitting words on each comparison, word arrays on the stack and lazy article lookups each left the comparison at 460–490 ns.
+- **Edit distance.** Variants are checked by a bounded edit distance instead of `edit_similarity`, whose ASCII path clears a 1 KiB table per call; a test checks that both agree.
+

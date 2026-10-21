@@ -271,9 +271,12 @@ impl<R: Read> Reader<'_, R> {
             }
             _ => None,
         };
-        let acronyms = match &state {
-            FieldState::Text(text) => crate::AcronymKeys::of(text),
-            _ => crate::AcronymKeys::default(),
+        let (acronyms, word_bits) = match &state {
+            FieldState::Text(text) => (
+                crate::AcronymKeys::of(text),
+                crate::distinct::word_bits(text),
+            ),
+            _ => (crate::AcronymKeys::default(), 0),
         };
         Ok(PreparedField {
             state,
@@ -281,6 +284,7 @@ impl<R: Read> Reader<'_, R> {
             stages: Stages(stages),
             trigrams,
             acronyms,
+            word_bits,
         })
     }
     fn normalized(&mut self) -> Result<NormalizedValue> {

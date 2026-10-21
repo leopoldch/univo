@@ -3,6 +3,7 @@
 
 use crate::acronym::AcronymKeys;
 use crate::budget::Budget;
+use crate::distinct::word_bits;
 use crate::error::{Error, Result};
 use crate::fingerprint::{self, Stages};
 use crate::lexical;
@@ -44,6 +45,8 @@ pub struct PreparedField {
     pub(crate) trigrams: Option<Box<[u64]>>,
     /// Acronym and initials of normalized text, zero for other values.
     pub(crate) acronyms: AcronymKeys,
+    /// [`word_bits`] of normalized text, zero for other values.
+    pub(crate) word_bits: u64,
 }
 
 impl PreparedField {
@@ -154,6 +157,7 @@ pub fn prepare(schema: &Schema, record: &Value) -> Result<PreparedRecord> {
                     stages: Stages::default(),
                     trigrams: None,
                     acronyms: AcronymKeys::default(),
+                    word_bits: 0,
                 });
                 continue;
             }
@@ -244,6 +248,7 @@ fn prepare_text(input: &str, options: Text) -> PreparedField {
     let trigrams = (options.mode != TextMode::Semantic).then(|| lexical::trigrams(&out));
     PreparedField {
         acronyms: AcronymKeys::of(&out),
+        word_bits: word_bits(&out),
         state: FieldState::Text(out.into_boxed_str()),
         transforms,
         stages,
@@ -274,6 +279,7 @@ fn prepare_exact(
             stages,
             trigrams: None,
             acronyms: AcronymKeys::default(),
+            word_bits: 0,
         });
     }
 
@@ -292,6 +298,7 @@ fn prepare_exact(
         stages,
         trigrams: None,
         acronyms: AcronymKeys::default(),
+        word_bits: 0,
     })
 }
 
