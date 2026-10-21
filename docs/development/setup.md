@@ -28,6 +28,8 @@ python tools/fixtures/build_critical_corpus.py --check
 uv run pytest tests/tools
 ```
 
+Linux wheels can be checked without CI, with Docker: `just linux aarch64 target/default-model` builds the manylinux wheel of the committed HEAD and runs the installed-wheel suite in Python 3.11 and 3.14, without Rust and as a non-root user. `just linux x86_64` does the same under emulation on Apple silicon, where timing budgets may need a rerun.
+
 Wheel checks:
 
 ```bash
