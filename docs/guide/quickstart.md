@@ -6,12 +6,12 @@
 from univo import Finder
 
 finder = Finder(offline=True)
-report = finder.find(["Amazon", "Amiazon", "Microsoft"])
+report = finder.find(["Northwind Traders", "Northwnd Traders", "Contoso"])
 for match in report.matches:
     print(match.left_id, match.right_id, match.kind, match.score)
 ```
 
-This example returns the Amazon/Amiazon pair as a candidate. Its score ranks lexical resemblance; it is not an identity probability. `Finder()` and `fields=[...]` use `generic-v1`: equal-weight hybrid text, Unicode NFC and case folding, scored lexically under [ADR 0009](../adr/0009-semantic-evidence-in-scoring.md). This path needs no model, download or worker pool. Explicit semantic fields load the configured model lazily on the first operation, through the same verified registry and strict offline path as [univo.models](models.md).
+This example returns the Northwind Traders/Northwnd Traders pair as a candidate. Its score ranks lexical resemblance; it is not an identity probability. `Finder()` and `fields=[...]` use `generic-v1`: equal-weight hybrid text, Unicode NFC and case folding, scored lexically under [ADR 0009](../adr/0009-semantic-evidence-in-scoring.md). This path needs no model, download or worker pool. Explicit semantic fields load the configured model lazily on the first operation, through the same verified registry and strict offline path as [univo.models](models.md).
 
 ```python
 from univo import Exact, Finder, Schema, Text
@@ -26,9 +26,9 @@ schema = Schema(
 )
 finder = Finder(schema=schema, offline=True)
 records = [
-    {"id": "org-1", "tenant": "shop", "name": "Amazon", "environment": "prod"},
-    {"id": "org-2", "tenant": "shop", "name": "AMAZON", "environment": "prod"},
-    {"id": "org-3", "tenant": "shop", "name": "Amazon", "environment": "test"},
+    {"id": "org-1", "tenant": "shop", "name": "Northwind Traders", "environment": "prod"},
+    {"id": "org-2", "tenant": "shop", "name": "NORTHWIND TRADERS", "environment": "prod"},
+    {"id": "org-3", "tenant": "shop", "name": "Northwind Traders", "environment": "test"},
 ]
 ids = finder.add(records)
 report = finder.search(records[0])

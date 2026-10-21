@@ -4,7 +4,7 @@
 from univo import Finder
 
 finder = Finder(offline=True)
-finder.add(["Amazon", "AMAZON", "Microsoft"])
+finder.add(["Northwind Traders", "NORTHWIND TRADERS", "Contoso"])
 finder.save("./company-index")
 restored = Finder.load("./company-index", offline=True)
 assert restored.stats()["records"] == 3

@@ -33,7 +33,7 @@ Univo's search is exact, while SemHash's index is approximate. Neither tool reac
 ```python
 from univo import Finder
 
-report = Finder(offline=True).find(["Amazon", "Amiazon", "Microsoft"])
+report = Finder(offline=True).find(["Northwind Traders", "Northwnd Traders", "Contoso"])
 for match in report.matches:
     print(match.left_id, match.right_id, round(match.score, 2), match.reasons)
 ```
@@ -53,13 +53,15 @@ finder = Finder(
 )
 finder.add(
     [
-        {"id": 1, "tenant": "shop", "name": "Amazon", "environment": "prod"},
-        {"id": 2, "tenant": "shop", "name": "AMAZON", "environment": "prod"},
-        {"id": 3, "tenant": "shop", "name": "Amazon", "environment": "test"},
-        {"id": 4, "tenant": "bank", "name": "Amazon", "environment": "prod"},
+        {"id": 1, "tenant": "shop", "name": "Northwind Traders", "environment": "prod"},
+        {"id": 2, "tenant": "shop", "name": "NORTHWIND TRADERS", "environment": "prod"},
+        {"id": 3, "tenant": "shop", "name": "Northwind Traders", "environment": "test"},
+        {"id": 4, "tenant": "bank", "name": "Northwind Traders", "environment": "prod"},
     ]
 )
-report = finder.search({"id": 1, "tenant": "shop", "name": "Amazon", "environment": "prod"})
+report = finder.search(
+    {"id": 1, "tenant": "shop", "name": "Northwind Traders", "environment": "prod"}
+)
 print([match.right_id for match in report.matches])  # [2]: 3 is vetoed, 4 is another tenant
 ```
 

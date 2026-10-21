@@ -13,8 +13,8 @@ Both methods need `Schema(id_field=...)`. The implicit IDs of string schemas sta
 from univo import Finder, Schema, Text
 
 finder = Finder(schema=Schema(id_field="id", fields={"name": Text()}))
-finder.add([{"id": "a", "name": "Amazon"}])
-finder.upsert([{"id": "a", "name": "Microsoft"}])
+finder.add([{"id": "a", "name": "Northwind Traders"}])
+finder.upsert([{"id": "a", "name": "Contoso"}])
 assert finder.remove(["a", "missing"]) == ["missing"]
 ```
 
