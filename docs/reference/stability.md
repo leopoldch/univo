@@ -21,7 +21,7 @@ From 1.0, Univo follows [Semantic Versioning](https://semver.org/). This page sa
 Each change is announced in the [changelog](../../CHANGELOG.md), with its evidence in an ADR.
 
 - **Scores.** Raising `SCORING_VERSION` changes the scores of some pairs, as version 4 did for names with distinct words ([ADR 0023](../adr/0023-distinct-words.md)). Rankings stay explained; thresholds calibrated on an earlier version should be checked again.
-- **The default model.** It is pinned by revision and checksums. A new default model is a minor release; snapshots record the model they were built with.
+- **The default model.** It is pinned by revision and checksums. A new default model is a minor release. Existing snapshots keep the model they were built with: `Finder.load` uses the pinned model recorded in the snapshot, not the current default.
 - **Messages, hints and warning texts.**
 
 ## Not covered
@@ -32,7 +32,6 @@ Each change is announced in the [changelog](../../CHANGELOG.md), with its eviden
 ## Upgrading
 
 1. **Read the changelog** for the versions in between.
-2. **Rebuild snapshots when a version changed.** A snapshot records the scoring, search and normalizer versions, and the model, it was built with. A release that changes any of them refuses older snapshots with `IndexCompatibilityError`: there is no silent migration. Snapshots keep only normalized selected fields, so rebuild from the original records: create the `Finder` with the same schema, `add` the records, then `save`.
-3. **Check calibrated thresholds** when `SCORING_VERSION` changed, on the same labelled data as before.
-
-Snapshots written by a newer release are refused by older ones.
+2. **Rebuild snapshots that a release refuses.** A snapshot records its format, normalizer, scoring and search versions, its schema, and the identity of its model: repository, revision and file checksums. `Finder.load` refuses it with `IndexCompatibilityError` when one of the four versions differs from the running release, in either direction, or when the model files it loads do not match the recorded identity. There is no silent migration. These versions change independently of the package version: a snapshot can survive an upgrade, and an older release loads a newer snapshot when they all match, unless the snapshot uses a `Finder` option the older release lacks (`InvalidParameterError`, code `parameter.invalid_option`). Snapshots keep only normalized selected fields, so rebuild from the original records: create the `Finder` with the same schema, `add` the records, then `save`.
+3. **Keep the snapshot's model available.** Loading a semantic snapshot needs its recorded model, in the cache when offline, even after the default model changed.
+4. **Check calibrated thresholds** when `SCORING_VERSION` changed, on the same labelled data as before.
