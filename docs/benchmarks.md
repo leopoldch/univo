@@ -22,7 +22,7 @@ Univo also deduplicates lexically, with no model: 100,000 names take **1.9 s** f
 
 ## One record at a time
 
-[check_or_add.py](../benchmarks/comparison/check_or_add.py) adds 100,000 of the same synthetic names to one partition, then checks 500 new ones with `check_or_add` at the default threshold of 0.8, timing each call. Release wheel 1.0.0 from PyPI, Python 3.14, one thread, on battery; two runs.
+[check_or_add.py](../benchmarks/comparison/check_or_add.py) adds 100,000 of the same synthetic names to one partition, then checks 500 new ones with `check_or_add` at the default threshold of 0.8, timing each call. The model is loaded while adding, so the checks do not include it. Release wheel 1.0.0 from PyPI, Python 3.14, one thread, on battery; two runs.
 
 | Name field | Add 100,000 | Check one, median | Check one, p95 |
 | --- | --- | --- | --- |

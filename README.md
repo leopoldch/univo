@@ -2,7 +2,7 @@
 
 **Compare anything. Keep every record clean.**
 
-Find duplicate Python records using fuzzy matching, local embeddings and field-level rules. Fast, lightweight, no server required.
+Find duplicates in Python data, from text datasets to structured records. Combine fuzzy matching, local embeddings and field-level rules. Fast, lightweight, no server required.
 
 [![PyPI](https://img.shields.io/pypi/v/univo)](https://pypi.org/project/univo/)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)](https://github.com/leopoldch/univo/blob/main/pyproject.toml)
@@ -26,7 +26,9 @@ Northwind Traders ~ Northwnd Traders 0.94
 Northwnd Traders ~ NORTHWIND TRADERS 0.94
 ```
 
-No training and no API key: records never leave your machine.
+Text is compared by spelling by default; `Text(mode="semantic")` adds local embeddings. No training and no API key: records never leave your machine.
+
+Built for data cleaning, entity resolution, ML dataset deduplication and real-time duplicate checks.
 
 ## Records and rules
 
@@ -62,7 +64,7 @@ Record 2 has another VAT number, so it can never match. For meaning rather than 
 - **Records, not just strings.** Dicts, lists and nested fields, compared field by field, with an explanation for every match.
 - **Rules before scores.** Different VAT numbers, tenants or environments rule out a match, however alike the records look.
 - **Spelling, meaning and exact values**, chosen per field, with a 15 MB multilingual model that runs offline.
-- **Fast, complete and light.** 100,000 names deduplicated in 4.8 s, every pair above the threshold found, one 2 MiB wheel with no dependency.
+- **Fast, exact by default, and light.** 100,000 names deduplicated in 4.8 s. Search is exact by default, with explicit limits and optional approximate retrieval. One 2 MiB wheel, no Python dependency.
 
 ## New records as they arrive
 
@@ -81,7 +83,7 @@ finder.check_or_add({"id": 4, "name": "Northwind Traders", "vat": "FR401"}).stat
 
 `review` means a similar record exists and nothing was inserted: your application decides.
 
-Checking one new record against 100,000 synthetic company names, in one partition, at the default threshold of 0.8 (Apple M2, PyPI wheel, [script](https://github.com/leopoldch/univo/blob/main/benchmarks/comparison/check_or_add.py)):
+Checking one new record against 100,000 synthetic company names, in one partition, at the default threshold of 0.8, with the model already loaded (Apple M2, PyPI wheel, [script](https://github.com/leopoldch/univo/blob/main/benchmarks/comparison/check_or_add.py)):
 
 | Name field | Median | p95 |
 | --- | --- | --- |
