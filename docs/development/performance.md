@@ -491,4 +491,4 @@ The 1.0.0 wheels were built with the Rust preinstalled on each runner. On macOS 
 | Same code, built locally with Rust 1.98.0 | 7.6–7.9 s |
 | Same code, built locally with Rust 1.99.0 or 1.99.1 | 4.5–4.8 s |
 
-Apple M2 on mains power, CPython 3.14, the U-003 script with `--retrieval exact`, runs alternated. The wheel build now pins Rust 1.99.1; a new version is adopted with this measurement.
+Apple M2 on mains power, CPython 3.14, the U-003 script with `--retrieval exact`, runs alternated. The wheel build now pins Rust 1.99.1; a new version is adopted with this measurement. The 1.0.1 wheel from PyPI, built that way, takes 4.41–4.43 s.
