@@ -1381,7 +1381,7 @@ checksum = "39ec24b3121d976906ece63c9daad25b85969647682eee313cb5779fdd69e14e"
 
 [[package]]
 name = "univo-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "caseless",
  "criterion",
@@ -1396,7 +1396,7 @@ dependencies = [
 
 [[package]]
 name = "univo-embed"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "model2vec-rs",
  "rayon",
@@ -1411,7 +1411,7 @@ dependencies = [
 
 [[package]]
 name = "univo-engine"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "fast-hnsw",
  "rayon",
@@ -1426,7 +1426,7 @@ dependencies = [
 
 [[package]]
 name = "univo-python"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "pyo3",
  "rayon",
@@ -1438,7 +1438,7 @@ dependencies = [
 
 [[package]]
 name = "univo-testkit"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "serde_json",
  "univo-core",
