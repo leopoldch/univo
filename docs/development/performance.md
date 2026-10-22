@@ -22,7 +22,7 @@ Budgets are upper bounds on this machine with release builds.
 
 ## Shared CI runners
 
-GitHub-hosted runners are noisy, and some are much slower than the reference machine. CI sets `UNIVO_PERF_SLACK` per platform, for the Rust and the installed-wheel tests alike, which multiplies **time** budgets only: 2.0 in general, 3.0 on Windows x86_64 runners, where preparing the standard workload took 343 ms against 150 ms budgeted, and 5.0 on macOS x86_64 runners, where it took up to 393 ms against 85 ms on the reference machine and `import univo` took 66 ms at p95 against a 20 ms budget. Every Rust budget test records its measurement in the job summary of the CI run. Size and memory budgets are never relaxed. A failure on a shared runner is confirmed by repetition before it blocks a change; small regressions are detected on the reference machine, not in CI.
+GitHub-hosted runners are noisy, and some are much slower than the reference machine. CI sets `UNIVO_PERF_SLACK` per platform, for the Rust and the installed-wheel tests alike, which multiplies **time** budgets only: 2.0 in general, 3.0 on Windows x86_64 runners, where preparing the standard workload took 343 ms against 150 ms budgeted, and 5.0 on macOS x86_64 runners, where it took up to 393 ms against 85 ms on the reference machine and `import univo` took 66 to 112 ms at p95 against a 20 ms budget. Their installed-wheel tests use 8.0, their Rust tests 5.0. Every Rust budget test records its measurement in the job summary of the CI run. Size and memory budgets are never relaxed. A failure on a shared runner is confirmed by repetition before it blocks a change; small regressions are detected on the reference machine, not in CI.
 
 ## Current measurements
 
@@ -481,3 +481,14 @@ Release builds, Apple M2, `main` and the change alternated.
 - **Dead ends.** Splitting words on each comparison, word arrays on the stack and lazy article lookups each left the comparison at 460–490 ns.
 - **Edit distance.** Variants are checked by a bounded edit distance instead of `edit_similarity`, whose ASCII path clears a 1 KiB table per call; a test checks that both agree.
 
+## Compiler of the published wheels
+
+The 1.0.0 wheels were built with the Rust preinstalled on each runner. On macOS arm64 that was Rust 1.98.0, which compiles the blocked dense scan 1.65 times slower than Rust 1.99. The results are the same.
+
+| 100,000 synthetic names, semantic all-pairs, every core | Dedupe time |
+| --- | --- |
+| PyPI wheel 1.0.0 | 7.5–7.8 s |
+| Same code, built locally with Rust 1.98.0 | 7.6–7.9 s |
+| Same code, built locally with Rust 1.99.0 or 1.99.1 | 4.5–4.8 s |
+
+Apple M2 on mains power, CPython 3.14, the U-003 script with `--retrieval exact`, runs alternated. The wheel build now pins Rust 1.99.1; a new version is adopted with this measurement.
