@@ -87,7 +87,7 @@ Without `model`, Univo uses its 15 MB multilingual default. The model downloads 
 - **Records, not just strings.** Dicts, lists and nested fields, compared field by field, with an explanation for every match.
 - **Rules before scores.** Different VAT numbers, tenants or environments rule out a match, however alike the records look.
 - **Spelling, meaning and exact values**, chosen per field, with a 15 MB multilingual model that runs offline, or any Model2Vec model you choose.
-- **Fast, exact by default, and light.** 100,000 names deduplicated in 4.8 s. Search is exact by default, with explicit limits and optional approximate retrieval. One 2 MiB wheel, no Python dependency.
+- **Fast, exact by default, and light.** 100,000 names deduplicated in 4.5 s. Search is exact by default, with explicit limits and optional approximate retrieval. One 2 MiB wheel, no Python dependency.
 
 ## New records as they arrive
 
@@ -106,12 +106,12 @@ finder.check_or_add({"id": 4, "name": "Northwind Traders", "vat": "FR401"}).stat
 
 `review` means a similar record exists and nothing was inserted: your application decides.
 
-Checking one new record against 100,000 synthetic company names, in one partition, at the default threshold of 0.8, with the model already loaded (Apple M2, PyPI wheel, [script](https://github.com/leopoldch/univo/blob/main/benchmarks/comparison/check_or_add.py)):
+Checking one new record against 100,000 synthetic company names, in one partition, at the default threshold of 0.8, with the model already loaded (Apple M2, PyPI wheel 1.0.1, [script](https://github.com/leopoldch/univo/blob/main/benchmarks/comparison/check_or_add.py)):
 
 | Name field | Median | p95 |
 | --- | --- | --- |
 | Lexical | 0.15 ms | 0.4 ms |
-| With embeddings | 2.2 ms | 2.4 ms |
+| With embeddings | 1.3 ms | 1.4 ms |
 
 Times depend on your data: they grow with the records of a partition and with the number of close candidates. Indexes can be updated, saved and loaded ([mutations](https://github.com/leopoldch/univo/blob/main/docs/guide/mutations.md), [snapshots](https://github.com/leopoldch/univo/blob/main/docs/guide/persistence.md)).
 
@@ -124,11 +124,11 @@ Times depend on your data: they grow with the records of a partition and with th
 | [Dedupe](https://github.com/dedupeio/dedupe) | Matching learned from labelled examples | you want results without labelling or training |
 | [Splink](https://github.com/moj-analytical-services/splink) | Probabilistic record linkage at scale, on SQL engines | you want an in-process library that also checks records one at a time |
 
-Against SemHash 0.5.0, with the same model, on an Apple M2:
+Against SemHash 0.5.0, with the same model, on an Apple M2 on mains power:
 
 | | Univo | SemHash |
 | --- | --- | --- |
-| Deduplicate 100,000 names, semantic | **4.8 s**, 270 MiB | 8.7 s, 491 MiB |
+| Deduplicate 100,000 names, semantic | **4.5 s**, 262 MiB | 7.6 s, 488 MiB |
 | Organization aliases (ROR), test precision / recall | **62.5% / 32.1%** | 48.0% / 30.1% |
 | Structured records: forbidden matches, of 44 | **0** | 35 |
 | Installed size | **4 MiB**, 1 package | 64 MiB, 30 packages |
