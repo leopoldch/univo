@@ -110,6 +110,9 @@ jobs:
         with:
           target: ${{ matrix.target }}
           manylinux: auto
+          # Pinned: the runners' preinstalled Rust 1.98 compiled the dense
+          # all-pairs loop 1.65 times slower. Change it with a benchmark.
+          rust-toolchain: "1.99.1"
           args: --release --locked --out dist
       - run: python tools/checks/check_wheel.py --platform-tag "${{ matrix.tag }}" dist/*.whl
         shell: bash
