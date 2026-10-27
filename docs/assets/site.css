@@ -178,10 +178,14 @@
 
 /* The four-clients demo of the home page. */
 .demo {
+  background: var(--md-code-bg-color);
   border: 1px solid var(--md-default-fg-color--lightest);
   border-radius: 12px;
   padding: 0.9rem 1rem 0.4rem;
   margin: 1.2rem 0;
+}
+.md-typeset .demo-table tbody tr + tr td {
+  border-top: 1px solid var(--md-default-fg-color--lightest);
 }
 .demo-title {
   font-size: 0.85rem;
