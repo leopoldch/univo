@@ -38,7 +38,7 @@ Plain strings, such as a list of names.
 
 | Field | Comparison |
 | --- | --- |
-| the string | text, hybrid (lexical and semantic) |
+| the string | text, hybrid (lexical for now) |
 
 Duplicate: the two strings designate the same thing despite spelling, spacing, accent, case, abbreviation or word-order variation. Different entities with related meanings are distinct.
 

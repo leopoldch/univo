@@ -35,7 +35,7 @@ Before tagging a release, and 1.0 first of all:
 - [ ] **Model tests pass.** `just check` with `UNIVO_TEST_MODEL_DIR` set, and `UNIVO_TEST_HUB=1` once against the real hub.
 - [ ] **Quality is re-measured.** Run the [quality benchmark](../benchmarks.md#name-quality) with the release wheel; update its figures if they moved.
 - [ ] **Comparison is re-measured.** Run the [SemHash comparison](../benchmarks.md) on the reference machine, on mains power, in ABBA order, and update the [performance](performance.md) figures.
-- [ ] **Docs are current.** The release notes list the changes, the [stability](../reference/stability.md) page matches the API, and the README and quickstart examples run.
+- [ ] **Docs are current.** The release notes list the changes, the [stability](../reference/api.md#stability) page matches the API, and the README and quickstart examples run.
 - [ ] **TestPyPI first.** Publish a pre-release and install it from TestPyPI on each platform.
 
 ## Each release
@@ -51,4 +51,4 @@ Before tagging a release, and 1.0 first of all:
 
 A version cannot be uploaded twice to PyPI, even after deletion. If the workflow fails after uploading, fix the problem and release the next version.
 
-The default model is downloaded from Hugging Face, not from PyPI. Its repository must be published at the commit the release pins ([models](../guide/models.md)).
+The default model is downloaded from Hugging Face, not from PyPI. Its repository must be published at the commit the release pins ([models](../design/models.md)).

@@ -78,3 +78,10 @@ The default model is data, not a package dependency.
 - **Delivery:** downloaded on first semantic use and verified against checksums compiled into the release. It is not shipped in the wheels: they gain no file, license text or native code.
 - **License obligations:** its published repository carries the Apache-2.0 license, the attribution and the list of modifications.
 - **Build tool:** [`tools/build_default_model.py`](../../tools/build_default_model.py) uses only the Python standard library.
+
+## Documentation site
+
+`mkdocs-material` 9.7.7 (MIT), with `mkdocs` 1.6.1 (BSD-2-Clause) held below 2.0, builds the site from `docs/` in the `docs` dependency group of `pyproject.toml`.
+- **Footprint:** 30 packages, pure Python, in the docs group only. They are never installed with Univo and do not change the wheels.
+- **Pinning:** MkDocs 2.0 drops the theme and plugin system Material relies on. The site stays on 1.x; [Zensical](https://zensical.org), from the Material authors, reads the same `mkdocs.yml` if a move is needed.
+- **Charts:** `docs/assets/charts.js` draws them in plain JavaScript, with no external script.

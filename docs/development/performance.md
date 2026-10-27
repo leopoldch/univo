@@ -86,7 +86,7 @@ The corrected macOS arm64 wheel is 1.663 MiB compressed, with no dependency chan
 
 Median of five search p95 values: 0.0721 ms with cache disabled, 0.0218 ms with the default 4 MiB cache. Median full add including local model load is 59.2 ms without cache and 59.9 ms with cache; this small difference is within measurement noise. The cache retains 1,000 entries in 1,475,218 accounted bytes, with 1,000 misses, 1,020 hits and zero evictions in the final repeat. All queries return the expected record without truncation.
 
-This workload isolates semantic-text reuse rather than large-partition retrieval. It does not imply that cache hits accelerate every 100k search by the same ratio or improve quality. Process peak RSS across both settings/repeat lifetimes is recorded in the raw file; cache bytes are a conservative retained estimate, not an isolated RSS delta or peak bound. The measured compressed wheel is approximately 1.672 MiB; no dependency is added. The real-model U-012 threshold, held-out/group metrics, candidate/oracle results and critical regression measurements remain exactly equal. See the [cache contract](../guide/embedding-cache.md).
+This workload isolates semantic-text reuse rather than large-partition retrieval. It does not imply that cache hits accelerate every 100k search by the same ratio or improve quality. Process peak RSS across both settings/repeat lifetimes is recorded in the raw file; cache bytes are a conservative retained estimate, not an isolated RSS delta or peak bound. The measured compressed wheel is approximately 1.672 MiB; no dependency is added. The real-model U-012 threshold, held-out/group metrics, candidate/oracle results and critical regression measurements remain exactly equal. See the [cache contract](../design/embedding-cache.md).
 
 ## Explicit snapshots (U-014)
 
@@ -133,7 +133,7 @@ transitive/native dependency). Installed-wheel tests pass 1,095 tests on each of
 CPython 3.12 and 3.14 outside the source tree with Rust absent from PATH; one
 conditional skip each. Rust codec/property tests and affected engine suites pass
 in release, including abrupt process exits at twelve boundaries and a real-model
-whole-batch versus chunked-row oracle. The [persistence contract](../guide/persistence.md)
+whole-batch versus chunked-row oracle. The [persistence contract](../design/snapshots.md)
 documents Windows directory-sync and retained-generation limitations. Other
 platform results await native CI; no release is published by U-014.
 
@@ -173,7 +173,7 @@ indexes, matrices and allocator high-water effects. It does **not** demonstrate
 the 512 MiB incremental engine target. That budget remains unchanged and open;
 compaction latency and peak memory need profiling before release. Removal only
 masks data immediately; obsolete records/vectors are reclaimed on a later
-mutation's compaction. See the [mutation contract](../guide/mutations.md).
+mutation's compaction. See the [mutation contract](../design/mutations.md).
 
 Validation: 208 Rust workspace tests pass (nine performance-budget tests ignored
 in debug); seven mutation tests and engine snapshot units pass in release.

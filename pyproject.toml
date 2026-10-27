@@ -26,13 +26,15 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/leopoldch/univo"
-Documentation = "https://github.com/leopoldch/univo/tree/main/docs"
+Documentation = "https://leopoldch.github.io/univo/"
 Repository = "https://github.com/leopoldch/univo"
 Issues = "https://github.com/leopoldch/univo/issues"
 Changelog = "https://github.com/leopoldch/univo/releases"
 
 [dependency-groups]
 dev = ["maturin>=1.15,<2", "pytest>=9.1", "ruff>=0.16", "mypy>=2.4"]
+# Builds the documentation site; never installed with the package.
+docs = ["mkdocs-material==9.7.7", "mkdocs>=1.6,<2"]
 
 [tool.maturin]
 manifest-path = "crates/univo-python/Cargo.toml"

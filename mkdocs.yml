@@ -1,0 +1,79 @@
+site_name: Univo
+site_description: Find duplicate records without crossing your rules, locally, in Python.
+site_url: https://leopoldch.github.io/univo/
+repo_url: https://github.com/leopoldch/univo
+repo_name: leopoldch/univo
+edit_uri: edit/main/docs/
+copyright: MIT License · Léopold Chappuis
+
+docs_dir: docs
+# The site holds what users need. Contributor pages (design, development)
+# stay on GitHub, where links to them point. iCloud Drive copies
+# ("name 2.md") must never become pages.
+exclude_docs: |
+  * [0-9].md
+  * [0-9]
+  design/
+  development/
+  reference/duplicate-definitions.md
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: blue
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: blue
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - assets/site.css
+extra_javascript:
+  - assets/charts.js
+
+hooks:
+  - tools/docs/hooks.py
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+
+validation:
+  links:
+    absolute_links: relative_to_docs
+    anchors: warn
+
+nav:
+  - Home: index.md
+  - Guide: guide.md
+  - Example: examples/chicago.md
+  - API: reference/api.md
+  - Scoring: reference/scoring.md
+  - Errors: reference/errors.md
+  - Benchmarks: benchmarks.md

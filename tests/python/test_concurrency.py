@@ -125,7 +125,7 @@ def test_searches_run_alongside_changes() -> None:
 def test_the_documented_example_runs() -> None:
     import pathlib
 
-    document = pathlib.Path(__file__).resolve().parents[2] / "docs" / "guide" / "concurrency.md"
+    document = pathlib.Path(__file__).resolve().parents[2] / "docs" / "design" / "concurrency.md"
     text = document.read_text(encoding="utf-8")
     example = text.split("```python\n", 1)[1].split("```", 1)[0]
     exec(compile(example, str(document), "exec"), {})

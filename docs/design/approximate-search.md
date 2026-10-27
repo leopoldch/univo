@@ -36,7 +36,7 @@ finder = Finder(
 - **`exhaustive=True`** ignores the graphs and keeps its explicit limits.
 - **Observable profile.** The generation, the configuration fingerprint, the parameters and the backend's versioned identity make the profile observable.
 
-**The `find(max_semantic_comparisons=...)` guard remains mandatory.**
+**The `Finder(max_semantic_comparisons=...)` budget remains mandatory.** It applies to `find` and `group`.
 - **Two checks.** A first check by partition refuses the dense minimum (queries × slots × semantic fields) before encoding and graph construction. A final check adds the levels and retries observed after construction.
 - **What it bounds.** This budget does not cap the cost of resolving, preparing or building the indexes.
 - **Exhaustive runs.** A temporary exhaustive `find` builds no graph.
@@ -64,8 +64,8 @@ A rebuild after mutations or a restore may change the approximate recall, the to
 - **Threads.** One search is sequential. `threads` bounds inference and the parallel queries of `find` and `group`. Graph construction stays sequential.
 
 **Memory.** The graph copies the distinct vectors and stores links, hashes and slots.
-- **`stats().ann_nodes`** counts distinct vectors, tombstones included.
-- **`ann_bytes`** is a rough estimate of the graphs' retained memory, included in `index_bytes`.
+- **`stats()["ann_nodes"]`** counts distinct vectors, tombstones included.
+- **`stats()["ann_bytes"]`** is a rough estimate of the graphs' retained memory, included in `stats()["index_bytes"]`.
 - **Not a memory ceiling.** It excludes the model, the selected records, Python inputs, the temporary allocation of visited sets and rebuilds.
 - **Open budget.** The 512 MiB total incremental budget remains to be demonstrated.
 

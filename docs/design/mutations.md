@@ -31,7 +31,7 @@ Conversion, ID and capacity validation, and encoding all happen before publicati
 - **When they advance.** The generation advances once per successful non-empty `add` or `upsert`, and per `remove` that removes at least one active ID. An identical upsert counts as a publication. An empty batch, or a removal whose IDs are all missing, does not advance it.
 - **Exhaustion.** An exhausted generation is refused before any mutation.
 - **Where it appears.** Reports and snapshots carry the current generation.
-- **Concurrency.** Python calls on one instance are serialized, and the Python runtime is released during Rust work.
+- **Concurrency.** Searches on one Finder run in parallel; changes run one at a time. The Python runtime is released during Rust work.
 - **Rust API.** It requires `&mut SearchIndex` for mutations, and the caller still passes the generation to `save`, as the snapshot contract requires.
 
 **Tombstones.**
@@ -65,6 +65,6 @@ The rebuild is amortized but can cause a peak in latency and memory, since the o
 `save` writes only active records and the vector rows they still reference, remapping rows and streaming the floats.
 - **Format.** Format v1 stays compatible: its content is a dense view of the active records, so no tombstone table is needed.
 - **Loading.** `load` restores this view with its generation, without inference, and mutations can resume.
-- **Durability.** In-memory changes become durable only after a successful `save`. Older generations on disk keep their content, including data removed later in memory: see [persistence](persistence.md).
+- **Durability.** In-memory changes become durable only after a successful `save`. Older generations on disk keep their content, including data removed later in memory: see [persistence](snapshots.md).
 
 

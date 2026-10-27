@@ -1,6 +1,6 @@
 # Snapshot format
 
-How [snapshots](../guide/persistence.md) are written and read.
+How [snapshots](snapshots.md) are written and read.
 
 ## Publication
 

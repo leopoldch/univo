@@ -53,4 +53,4 @@ assert decision.status == "review"  # similar enough to need a decision; not ins
 
 A distributed application must enforce uniqueness where the data lives: a unique constraint, a transaction, or idempotent writes keyed by a stable ID. Univo then serves as the detector that proposes the matches, not as the arbiter.
 
-Snapshots refuse concurrent writers with an operating-system lock ([persistence](persistence.md)); that lock protects the files, not the decisions of separate processes. Do not share a `Finder` across `fork()`: create it in the child process.
+Snapshots refuse concurrent writers with an operating-system lock ([persistence](snapshots.md)); that lock protects the files, not the decisions of separate processes. Do not share a `Finder` across `fork()`: create it in the child process.
