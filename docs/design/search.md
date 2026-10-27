@@ -1,6 +1,6 @@
 # Search
 
-`SearchIndex` finds the records whose score against a query reaches a minimum, using the scoring of [pairwise scoring](../reference/scoring.md). It gathers candidates through one lane per field, then scores them, and returns exactly what scoring every record of the query's partition would return. Python access arrives with `Finder` (U-011).
+`SearchIndex` finds the records whose score against a query reaches a minimum, using the scoring of [pairwise scoring](../reference/scoring.md). It gathers candidates through one lane per field, then scores them, and returns exactly what scoring every record of the query's partition would return. Python reaches it through `Finder`.
 
 ```rust
 use std::sync::Arc;
@@ -90,7 +90,7 @@ Each scenario runs five independent repetitions (index rebuilt each time) of 1,0
   - A reversed ID order in the bounded heap makes the tests fail.
 - `crates/univo-engine/tests/search_budget.rs` enforces the budget in release builds.
 
-Semantic fields can use optional [HNSW routing](../guide/ann.md). The dense default
+Semantic fields can use optional [HNSW routing](approximate-search.md). The dense default
 and exhaustive oracle remain complete within their declared limits. Reports
 using a graph expose `approximate` even without observed saturation; the
 exact/lexical union and core reranking remain. Snapshot reconstruction and

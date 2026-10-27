@@ -23,7 +23,7 @@ A snapshot is protected against corruption by checksums, but it is neither encry
 
 `Finder.load` checks the files and restores the index without encoding anything again. A semantic snapshot loads the model it was built with, at the same revision, even if the default model has changed since. With `offline=True`, that model must already be in the cache.
 
-A snapshot from a release with a different format, normalizer, scoring or search version is refused with `IndexCompatibilityError`. Rebuild it from the original records ([stability](../reference/stability.md)).
+A snapshot from a release with a different format, normalizer, scoring or search version is refused with `IndexCompatibilityError`. Rebuild it from the original records ([stability](../reference/api.md#stability)).
 
 ## Limits
 
@@ -39,4 +39,4 @@ One process saves at a time; a second one gets `state.snapshot_locked`. Readers 
 
 Each save adds a new generation and keeps the old ones, so that open readers stay valid. Nothing is deleted automatically, so old generations still hold records removed since. To reclaim space, remove old `g-*` directories when no process uses the snapshot, keeping `CURRENT` and the generation it names.
 
-Snapshots are meant for local disks, not network shares. How files are published and laid out: [snapshot format](../design/snapshot-format.md).
+Snapshots are meant for local disks, not network shares. How files are published and laid out: [snapshot format](snapshot-format.md).

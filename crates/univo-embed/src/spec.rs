@@ -1,4 +1,4 @@
-//! Model references written by users ([models](../../../docs/guide/models.md)).
+//! Model references written by users ([models](../../../docs/design/models.md)).
 
 use std::fmt;
 use std::path::PathBuf;

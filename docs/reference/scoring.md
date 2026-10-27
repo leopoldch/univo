@@ -69,7 +69,7 @@ The rule lowers similarities and never raises one, so candidate search stays com
 
 ## Semantic signal
 
-A semantic field compares the unit embeddings of its two normalized texts, from the model chosen for the index ([models](../guide/models.md)). The similarity is their cosine clamped to `[0, 1]`: opposite and unrelated texts are equally dissimilar. A text without any token the model knows has no embedding, and the field then gives no evidence rather than a made-up similarity.
+A semantic field compares the unit embeddings of its two normalized texts, from the model chosen for the index ([models](../design/models.md)). The similarity is their cosine clamped to `[0, 1]`: opposite and unrelated texts are equally dissimilar. A text without any token the model knows has no embedding, and the field then gives no evidence rather than a made-up similarity.
 
 Hybrid fields are scored lexically. On the critical corpus, adding their cosine to the score, as the larger or the mean of both signals, lowered the ranking quality.
 
@@ -107,4 +107,4 @@ The comparison lists, for each field in schema order, its similarity, its signal
 - Release budgets: one million comparisons of standard records in 550 ms (311 ms measured at first, 333 ms with acronym evidence) and of configurations with nested parameters in 250 ms (143 ms, then 158 ms).
 
 
-Search preserves verified whole-record equality when the pairwise score is absent because semantic tokens have no embedding. This is engine `SEARCH_VERSION=1`, independent of `SCORING_VERSION=2`; it assigns exact evidence only after the complete equality oracle succeeds, and does not turn partial unknown-token equality into semantic evidence.
+Search preserves verified whole-record equality when the pairwise score is absent because semantic tokens have no embedding. This is engine `SEARCH_VERSION=1`, independent of the scoring version (`SCORING_VERSION=4`); it assigns exact evidence only after the complete equality oracle succeeds, and does not turn partial unknown-token equality into semantic evidence.

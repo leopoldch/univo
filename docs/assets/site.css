@@ -1,0 +1,177 @@
+/* Chart tokens: light by default, dark when the site uses the slate scheme. */
+.viz-root {
+  --viz-surface: var(--md-default-bg-color);
+  --viz-ink: #0b0b0b;
+  --viz-ink-2: #52514e;
+  --viz-muted: #898781;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-1: #2a78d6;
+  --viz-2: #eb6834;
+  --viz-3: #1baf7a;
+  --viz-ref: #898781;
+}
+[data-md-color-scheme="slate"] .viz-root {
+  --viz-ink: #f0efec;
+  --viz-ink-2: #c3c2b7;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
+  --viz-1: #3987e5;
+  --viz-2: #d95926;
+  --viz-3: #199e70;
+}
+
+.viz-root {
+  position: relative;
+  margin: 1.5em 0 0.5em;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--viz-ink);
+}
+.viz-root svg {
+  display: block;
+  width: 100%;
+  max-width: 680px;
+  height: auto;
+  overflow: visible;
+}
+.viz-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin: 0 0 0.2rem;
+}
+.viz-subtitle {
+  font-size: 0.7rem;
+  color: var(--viz-ink-2);
+  margin: 0 0 0.6rem;
+}
+.viz-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  font-size: 0.68rem;
+  color: var(--viz-ink-2);
+  margin: 0 0 0.4rem;
+}
+.viz-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.18rem;
+  border-radius: 2px;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  background: var(--swatch);
+}
+.viz-tip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--md-default-bg-color);
+  color: var(--viz-ink);
+  border: 1px solid var(--viz-axis);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.66rem;
+  line-height: 1.45;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 80ms;
+  z-index: 2;
+}
+.viz-tip b {
+  font-weight: 600;
+}
+.viz-tip i {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  margin-right: 0.3rem;
+  background: var(--swatch);
+  font-style: normal;
+}
+.viz-root .tick {
+  font-size: 10px;
+  fill: var(--viz-muted);
+  font-variant-numeric: tabular-nums;
+}
+.viz-root .label {
+  font-size: 11px;
+  fill: var(--viz-ink-2);
+}
+.viz-root .value {
+  font-size: 11px;
+  font-weight: 600;
+  fill: var(--viz-ink);
+  font-variant-numeric: tabular-nums;
+}
+.md-typeset .viz-root details {
+  font-size: 0.68rem;
+  margin: 0.3rem 0 0;
+  max-width: 680px;
+  border: none;
+  box-shadow: none;
+  background: none;
+  padding: 0;
+}
+.md-typeset .viz-root details > summary {
+  background: none;
+  padding: 0 0 0 1rem;
+  color: var(--md-default-fg-color--light);
+  cursor: pointer;
+}
+.md-typeset .viz-root details > summary::before {
+  display: none;
+}
+.md-typeset .viz-root details > summary::after {
+  left: 0;
+  right: auto;
+  top: 0.1rem;
+}
+
+/* Stat tiles. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.8rem;
+  margin: 1.2em 0;
+}
+.tile {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 10px;
+  padding: 0.8rem 0.9rem;
+}
+.tile .figure {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--md-default-fg-color);
+}
+.tile .caption {
+  font-size: 0.68rem;
+  color: var(--md-default-fg-color--light);
+  margin-top: 0.3rem;
+}
+
+/* Home page. */
+.hero {
+  padding: 1.5rem 0 0.5rem;
+}
+.hero h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin: 0 0 0.4rem;
+  color: var(--md-default-fg-color);
+}
+.hero .lead {
+  font-size: 1rem;
+  color: var(--md-default-fg-color--light);
+  max-width: 38rem;
+}
+
+/* Each tab is one page: on wide screens the left column would only repeat it. */
+@media screen and (min-width: 76.25em) {
+  .md-sidebar--primary {
+    display: none;
+  }
+}

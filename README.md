@@ -28,7 +28,7 @@ Northwnd Traders ~ NORTHWIND TRADERS 0.94
 
 No training and no API key: records never leave your machine.
 
-By default, `find` returns up to 1,000 matches scoring 0.8 or more (`limit`, `min_score`), and text is compared by spelling. `Text(mode="semantic")` compares by meaning, with a local model: the 15 MB multilingual default, or any [Model2Vec](https://github.com/MinishLab/model2vec) model from Hugging Face or a folder. More: [choosing a mode](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#choosing-a-text-mode), [choosing a model](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md#choosing-a-model), [every option](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md#limits-and-reports).
+By default, `find` returns up to 1,000 matches scoring 0.8 or more (`limit`, `min_score`), and text is compared by spelling. `Text(mode="semantic")` compares by meaning, with a local model: the 15 MB multilingual default, or any [Model2Vec](https://github.com/MinishLab/model2vec) model from Hugging Face or a folder. More: [choosing a mode](https://github.com/leopoldch/univo/blob/main/docs/guide.md#describe-your-records), [choosing a model](https://github.com/leopoldch/univo/blob/main/docs/design/models.md#choosing-a-model), [every option](https://github.com/leopoldch/univo/blob/main/docs/reference/api.md).
 
 Built for data cleaning, entity resolution, ML dataset deduplication and real-time duplicate checks.
 
@@ -80,7 +80,7 @@ for match in report.matches:
 online clothing store ~ shop selling clothes on the internet 0.74
 ```
 
-Without `model`, Univo uses its 15 MB multilingual default. The model downloads once, is verified, then works offline ([models](https://github.com/leopoldch/univo/blob/main/docs/guide/models.md)).
+Without `model`, Univo uses its 15 MB multilingual default. The model downloads once, is verified, then works offline ([models](https://github.com/leopoldch/univo/blob/main/docs/design/models.md)).
 
 ## Why Univo
 
@@ -113,7 +113,7 @@ Checking one new record against 100,000 synthetic company names, in one partitio
 | Lexical | 0.15 ms | 0.4 ms |
 | With embeddings | 1.3 ms | 1.4 ms |
 
-Times depend on your data: they grow with the records of a partition and with the number of close candidates. Indexes can be updated, saved and loaded ([mutations](https://github.com/leopoldch/univo/blob/main/docs/guide/mutations.md), [snapshots](https://github.com/leopoldch/univo/blob/main/docs/guide/persistence.md)).
+Times depend on your data: they grow with the records of a partition and with the number of close candidates. Indexes can be updated, saved and loaded ([mutations](https://github.com/leopoldch/univo/blob/main/docs/design/mutations.md), [snapshots](https://github.com/leopoldch/univo/blob/main/docs/design/snapshots.md)).
 
 ## Compared with other tools
 
@@ -137,4 +137,4 @@ Univo's search is exact; SemHash's index is approximate. On names alone, neither
 
 ## Documentation
 
-[Quickstart](https://github.com/leopoldch/univo/blob/main/docs/guide/quickstart.md) · [Reference](https://github.com/leopoldch/univo/tree/main/docs/reference) · [Benchmarks](https://github.com/leopoldch/univo/blob/main/docs/benchmarks.md) · [Architecture](https://github.com/leopoldch/univo/tree/main/docs/design) · [All docs](https://github.com/leopoldch/univo/tree/main/docs)
+[Website](https://leopoldch.github.io/univo/) · [Guide](https://github.com/leopoldch/univo/blob/main/docs/guide.md) · [API](https://github.com/leopoldch/univo/blob/main/docs/reference/api.md) · [Benchmarks](https://github.com/leopoldch/univo/blob/main/docs/benchmarks.md) · [Architecture](https://github.com/leopoldch/univo/tree/main/docs/design) · [All docs](https://github.com/leopoldch/univo/tree/main/docs)
