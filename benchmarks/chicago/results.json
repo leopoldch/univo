@@ -1,0 +1,227 @@
+{
+  "records": 3337,
+  "sites": 1162,
+  "rule": "best validation recall with precision >= 95%",
+  "chosen": {
+    "schema": "name + address + phone + zip",
+    "min_score": 0.65
+  },
+  "validation_curves": {
+    "name + address": [
+      {
+        "min_score": 0.5,
+        "pairs": 3664,
+        "precision": 0.8572598253275109,
+        "recall": 0.8436744560838034
+      },
+      {
+        "min_score": 0.55,
+        "pairs": 3055,
+        "precision": 0.9423895253682488,
+        "recall": 0.7733011012624228
+      },
+      {
+        "min_score": 0.6,
+        "pairs": 2657,
+        "precision": 0.969890854347008,
+        "recall": 0.6921837228041902
+      },
+      {
+        "min_score": 0.65,
+        "pairs": 2332,
+        "precision": 0.9789879931389366,
+        "recall": 0.613215149073328
+      },
+      {
+        "min_score": 0.7,
+        "pairs": 2042,
+        "precision": 0.9911851126346719,
+        "recall": 0.5436475960247112
+      },
+      {
+        "min_score": 0.75,
+        "pairs": 1751,
+        "precision": 0.9925756710451171,
+        "recall": 0.46682782702121944
+      },
+      {
+        "min_score": 0.8,
+        "pairs": 1526,
+        "precision": 0.9927916120576671,
+        "recall": 0.40692989524576956
+      },
+      {
+        "min_score": 0.85,
+        "pairs": 1288,
+        "precision": 0.9914596273291926,
+        "recall": 0.34300295460650015
+      },
+      {
+        "min_score": 0.9,
+        "pairs": 1116,
+        "precision": 0.9919354838709677,
+        "recall": 0.29734085414987915
+      },
+      {
+        "min_score": 0.95,
+        "pairs": 994,
+        "precision": 0.9989939637826962,
+        "recall": 0.26672038678485094
+      }
+    ],
+    "name + address + phone": [
+      {
+        "min_score": 0.5,
+        "pairs": 3591,
+        "precision": 0.9108883319409635,
+        "recall": 0.8785925329035724
+      },
+      {
+        "min_score": 0.55,
+        "pairs": 3380,
+        "precision": 0.9298816568047338,
+        "recall": 0.844211657265646
+      },
+      {
+        "min_score": 0.6,
+        "pairs": 3163,
+        "precision": 0.9478343344925704,
+        "recall": 0.8052645715820574
+      },
+      {
+        "min_score": 0.65,
+        "pairs": 2826,
+        "precision": 0.9723991507430998,
+        "recall": 0.7381144238517324
+      },
+      {
+        "min_score": 0.7,
+        "pairs": 2489,
+        "precision": 0.9839292888710326,
+        "recall": 0.6578028471662638
+      },
+      {
+        "min_score": 0.75,
+        "pairs": 2136,
+        "precision": 0.9929775280898876,
+        "recall": 0.5697018533440773
+      },
+      {
+        "min_score": 0.8,
+        "pairs": 1798,
+        "precision": 0.9961067853170189,
+        "recall": 0.48106365834004833
+      },
+      {
+        "min_score": 0.85,
+        "pairs": 1474,
+        "precision": 0.9972862957937585,
+        "recall": 0.39484286865431106
+      },
+      {
+        "min_score": 0.9,
+        "pairs": 1205,
+        "precision": 0.9975103734439834,
+        "recall": 0.3228579102874026
+      },
+      {
+        "min_score": 0.95,
+        "pairs": 1016,
+        "precision": 0.9990157480314961,
+        "recall": 0.2726295997851195
+      }
+    ],
+    "name + address + phone + zip": [
+      {
+        "min_score": 0.5,
+        "pairs": 3849,
+        "precision": 0.8661990127305794,
+        "recall": 0.8955143701316143
+      },
+      {
+        "min_score": 0.55,
+        "pairs": 3488,
+        "precision": 0.919151376146789,
+        "recall": 0.8611334944936879
+      },
+      {
+        "min_score": 0.6,
+        "pairs": 3263,
+        "precision": 0.9417713760343243,
+        "recall": 0.825409615901155
+      },
+      {
+        "min_score": 0.65,
+        "pairs": 3004,
+        "precision": 0.9567243675099867,
+        "recall": 0.7719580983078163
+      },
+      {
+        "min_score": 0.7,
+        "pairs": 2685,
+        "precision": 0.9720670391061452,
+        "recall": 0.7010475423045931
+      },
+      {
+        "min_score": 0.75,
+        "pairs": 2309,
+        "precision": 0.9861411866608921,
+        "recall": 0.6116035455278002
+      },
+      {
+        "min_score": 0.8,
+        "pairs": 1872,
+        "precision": 0.9914529914529915,
+        "recall": 0.4985226967499328
+      },
+      {
+        "min_score": 0.85,
+        "pairs": 1535,
+        "precision": 0.9960912052117263,
+        "recall": 0.41069030351866775
+      },
+      {
+        "min_score": 0.9,
+        "pairs": 1245,
+        "precision": 0.9975903614457832,
+        "recall": 0.33360193392425463
+      },
+      {
+        "min_score": 0.95,
+        "pairs": 1016,
+        "precision": 0.9990157480314961,
+        "recall": 0.2726295997851195
+      }
+    ]
+  },
+  "test_find": {
+    "pairs": 2174,
+    "precision": 0.9618215271389144,
+    "recall": 0.7247833622183709
+  },
+  "test_group": {
+    "pairs": 1959,
+    "precision": 0.9765186319550792,
+    "recall": 0.6630849220103986
+  },
+  "whole_dataset": {
+    "groups": 889,
+    "rows_once_merged": 1462,
+    "seconds": 0.09661662497092038
+  },
+  "check_new_records": {
+    "checked": 2009,
+    "decisions": {
+      "inserted": 609,
+      "review": 1353,
+      "matched": 47
+    },
+    "right": {
+      "inserted": 0.625615763546798,
+      "review": 0.9571322985957132,
+      "matched": 1.0
+    },
+    "mean_ms": 0.1392792585834809,
+    "median_ms": 0.12658396735787392
+  }
+}
