@@ -175,3 +175,94 @@
     display: none;
   }
 }
+
+/* The four-clients demo of the home page. */
+.demo {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 12px;
+  padding: 0.9rem 1rem 0.4rem;
+  margin: 1.2rem 0;
+}
+.demo-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin: 0 0 0.6rem;
+}
+.md-typeset table.demo-table:not([class]),
+.md-typeset .demo-table {
+  display: table;
+  width: 100%;
+  font-size: 0.72rem;
+  border: none;
+  box-shadow: none;
+}
+.md-typeset .demo-table th,
+.md-typeset .demo-table td {
+  padding: 0.5rem 0.6rem;
+  vertical-align: middle;
+}
+.md-typeset .demo-table mark {
+  background: rgba(235, 104, 52, 0.18);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0;
+}
+.md-typeset .demo-table .muted {
+  color: var(--md-default-fg-color--light);
+}
+.badge {
+  display: inline-block;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  margin-right: 0.35rem;
+  white-space: nowrap;
+}
+.badge.good {
+  color: #006300;
+  background: rgba(12, 163, 12, 0.14);
+}
+.badge.bad {
+  color: #b02a2a;
+  background: rgba(208, 59, 59, 0.13);
+}
+[data-md-color-scheme="slate"] .badge.good {
+  color: #4cc44c;
+}
+[data-md-color-scheme="slate"] .badge.bad {
+  color: #ef8a8a;
+}
+.md-typeset .demo-table th {
+  text-align: left;
+}
+.md-typeset .demo-table td:not(:last-child) {
+  white-space: nowrap;
+}
+/* On phones each client becomes a card: its values, then the verdict. */
+@media screen and (max-width: 44.9375em) {
+  .md-typeset .demo-table,
+  .md-typeset .demo-table tbody,
+  .md-typeset .demo-table tr {
+    display: block;
+  }
+  .md-typeset .demo-table thead {
+    display: none;
+  }
+  .md-typeset .demo-table tr {
+    padding: 0.55rem 0;
+    border-top: 1px solid var(--md-default-fg-color--lightest);
+  }
+  .md-typeset .demo-table td {
+    display: inline;
+    padding: 0 0.35rem 0 0;
+    border: none;
+  }
+  .md-typeset .demo-table td:first-child::after {
+    content: ".";
+  }
+  .md-typeset .demo-table td:last-child {
+    display: block;
+    margin-top: 0.3rem;
+    white-space: normal;
+  }
+}
