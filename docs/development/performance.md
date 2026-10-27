@@ -481,6 +481,40 @@ Release builds, Apple M2, `main` and the change alternated.
 - **Dead ends.** Splitting words on each comparison, word arrays on the stack and lazy article lookups each left the comparison at 460–490 ns.
 - **Edit distance.** Variants are checked by a bounded edit distance instead of `edit_similarity`, whose ASCII path clears a 1 KiB table per call; a test checks that both agree.
 
+## Single-record semantic search (#55)
+
+`search` and `check_or_add` scan every vector of the partition. They now rule rows out from int8 codes first ([pruning](../design/vector-search.md#pruning)).
+
+**Spike.** One query against 100,000 synthetic names embedded with the default model, threshold 0.8, one thread, median of 500 queries; every variant returned the same matches.
+
+| Scan | 10,000 rows | 100,000 rows |
+| --- | --- | --- |
+| Full `f32` cosine (`main`) | 0.094 ms | 0.99 ms |
+| Early exit after half the dimensions, as the issue proposed | 0.050 ms | 0.95 ms |
+| Four rows at once, early exit | 0.042 ms | 1.05 ms |
+| Int8 codes, then `f32` for the rows that can reach the threshold | 0.028 ms | 0.29 ms |
+
+- **Bandwidth bound.** At 100,000 rows the scan reads 51 MB, more than the caches hold. Reading half of each row saves almost nothing, because the prefetcher streams whole rows. The int8 codes are a quarter of the bytes.
+- **Code generation.** Inlined into the search's candidate function, the loop spilled registers and took 1.1 ms in the wheel against 0.61 ms in a Rust example. `extend_within` is kept out of line, and the per-row check inlined into it.
+
+**Results.** Apple M2 on battery, release builds, `main` and the change alternated in ABBA order.
+
+| Measure | `main` | Change |
+| --- | --- | --- |
+| `check_or_add`, semantic, 100,000 records, wheel, median | 1.32–1.34 ms | **0.52 ms** |
+| `check_or_add`, semantic, 100,000 records, wheel, p95 | 1.44–1.46 ms | **0.56–0.57 ms** |
+| Exhaustive top-10, 100,000 vectors of 128 dimensions | 1.23 ms | **0.51 ms** |
+| Search budget, 10 partitions, median | 0.76–0.77 ms | **0.23 ms** |
+| Search budget, 1 partition, median (lexical lane included) | 1.86–1.87 ms | 1.62 ms |
+| Semantic all-pairs, 100,000 synthetic names, wheel | 4.57–4.70 s | 4.60–4.63 s |
+| Load a snapshot of 100,000 semantic records, median of 7 | 256–261 ms | 275–292 ms |
+| Peak memory, `check_or_add.py` | 281–285 MiB | 289 MiB |
+
+- **Same results.** The 500 decisions of `check_or_add.py` and 101 searches at 0.5 hash the same, with scores, field scores and candidate counts to the bit.
+- **Memory.** 140 bytes per distinct text at 128 dimensions: about 13 MiB for 100,000 distinct texts. The engine search budget reports its indexes at 113 MiB instead of 96 MiB.
+- **Not affected.** All-pairs reports use the blocked scan, which does not read the codes.
+- **Reproduce.** `python -I benchmarks/comparison/check_or_add.py --model-path $MODEL`, and `cargo test --release -p univo-engine --test vector_search_budget --test search_budget -- --nocapture`.
+
 ## Compiler of the published wheels
 
 The 1.0.0 wheels were built with the Rust preinstalled on each runner. On macOS arm64 that was Rust 1.98.0, which compiles the blocked dense scan 1.65 times slower than Rust 1.99. The results are the same.

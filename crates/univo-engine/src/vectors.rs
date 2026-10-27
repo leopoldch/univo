@@ -5,7 +5,10 @@
 use std::collections::HashMap;
 
 use crate::EmbeddingCache;
-use univo_core::{Error, FieldKind, FieldState, PreparedRecord, Result, Schema, TextMode};
+use crate::quantized::{QueryBound, RowBound, quantize};
+use univo_core::{
+    Error, FieldKind, FieldState, PreparedRecord, Result, Schema, TextMode, semantic_similarity,
+};
 use univo_embed::{Embedder, ModelDescriptor};
 
 /// Unit vectors of one field, by record in insertion order. Records with the
@@ -15,6 +18,10 @@ use univo_embed::{Embedder, ModelDescriptor};
 pub struct FieldVectors {
     pub(crate) dimension: usize,
     pub(crate) data: Vec<f32>,
+    /// Int8 codes of `data`, row by row, and their bounds, derived from
+    /// `data` and never stored: see [`crate::quantized`].
+    codes: Vec<i8>,
+    bounds: Vec<RowBound>,
     /// Row of each record in `data`, or `None`.
     pub(crate) rows: Vec<Option<u32>>,
 }
@@ -24,7 +31,26 @@ impl FieldVectors {
         Self {
             dimension,
             data: Vec::new(),
+            codes: Vec::new(),
+            bounds: Vec::new(),
             rows: Vec::new(),
+        }
+    }
+
+    /// Embeddings stored row after row in `data`, with the row of each
+    /// record.
+    pub(crate) fn from_rows(dimension: usize, data: Vec<f32>, rows: Vec<Option<u32>>) -> Self {
+        let mut codes = Vec::with_capacity(data.len());
+        let bounds = data
+            .chunks_exact(dimension.max(1))
+            .map(|row| quantize(row, &mut codes))
+            .collect();
+        Self {
+            dimension,
+            data,
+            codes,
+            bounds,
+            rows,
         }
     }
 
@@ -47,9 +73,37 @@ impl FieldVectors {
         Some(&self.data[row * self.dimension..(row + 1) * self.dimension])
     }
 
-    /// Bytes held by the embeddings and their row table.
+    /// The similarity of `query` to the record at `slot`, as
+    /// [`semantic_similarity`] computes it, or `None` when the record has no
+    /// embedding or its codes show that the similarity is below
+    /// `threshold`. `bound` is [`QueryBound::new`] of `query`, which has the
+    /// field's dimension.
+    #[inline]
+    pub(crate) fn similarity_reaching(
+        &self,
+        query: &[f32],
+        bound: &QueryBound,
+        slot: usize,
+        threshold: f32,
+    ) -> Option<f32> {
+        let row = self.rows.get(slot).copied().flatten()? as usize;
+        let span = row * self.dimension..(row + 1) * self.dimension;
+        // A similarity is clamped at 0: only a positive threshold can rule
+        // out a row with a negative dot product.
+        if threshold > 0.0
+            && bound.upper(&self.codes[span.clone()], self.bounds[row]) < f64::from(threshold)
+        {
+            return None;
+        }
+        Some(semantic_similarity(query, &self.data[span]))
+    }
+
+    /// Bytes held by the embeddings, their codes and their row table.
     pub fn heap_bytes(&self) -> usize {
-        self.data.capacity() * size_of::<f32>() + self.rows.capacity() * size_of::<Option<u32>>()
+        self.data.capacity() * size_of::<f32>()
+            + self.codes.capacity()
+            + self.bounds.capacity() * size_of::<RowBound>()
+            + self.rows.capacity() * size_of::<Option<u32>>()
     }
 
     /// Row remapping for active slots, without copying vector data.
@@ -92,6 +146,7 @@ impl FieldVectors {
         let row = self.data.len() / self.dimension.max(1);
         let row = u32::try_from(row).map_err(|_| Error::index_capacity(row + 1, MAX_ROWS))?;
         self.data.extend_from_slice(vector);
+        self.bounds.push(quantize(vector, &mut self.codes));
         Ok(row)
     }
 }
@@ -251,6 +306,8 @@ impl RecordVectors {
         for ((field, more), offset) in self.fields.iter_mut().zip(other.fields).zip(offsets) {
             if let (Some(field), Some(more)) = (field, more) {
                 field.data.extend_from_slice(&more.data);
+                field.codes.extend_from_slice(&more.codes);
+                field.bounds.extend_from_slice(&more.bounds);
                 field
                     .rows
                     .extend(more.rows.iter().map(|row| row.map(|row| row + offset)));

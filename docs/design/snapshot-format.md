@@ -29,6 +29,6 @@ Binary values are little-endian. Counts and string lengths are u64, strings are 
 | `records.bin` | `UNIVOR01`, record count, records in slot order |
 | `vectors.bin` | `UNIVOV01`, field count, then for each semantic field: dimension, unique rows, records, a u32 row per record (`0xffffffff` when absent), and the rows |
 
-**Records.** An ID tag (0 none, 1 integer, 2 string), the partition values, then each compared field: a state (0 absent, 1 null, 2 normalized text, 3 typed value), a mask of the normalizations applied (Unicode form, case, trailing dot, key order) and three explanation fingerprints. Typed values are tagged 0 null, 1 bool, 2 i64, 3 f64, 4 string, 5 list, 6 map; map keys are NFC and sorted. Trigrams are not stored.
+**Records.** An ID tag (0 none, 1 integer, 2 string), the partition values, then each compared field: a state (0 absent, 1 null, 2 normalized text, 3 typed value), a mask of the normalizations applied (Unicode form, case, trailing dot, key order) and three explanation fingerprints. Typed values are tagged 0 null, 1 bool, 2 i64, 3 f64, 4 string, 5 list, 6 map; map keys are NFC and sorted. Trigrams and the int8 copies of the vectors are not stored: loading recomputes them.
 
 **Manifest.** Field paths are arrays of keys. The Finder configuration keeps the Python schema, the model reference as given and as resolved, the capacity and the budgets. Changing the meaning of any of these needs a new format version; the schema fingerprint is an extra check, not the only one.

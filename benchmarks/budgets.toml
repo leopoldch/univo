@@ -82,7 +82,7 @@ max_ms = 1400.0
 # warmup. Measured at 2.5 ms with 256 dimensions (U-010) and 1.2 ms with the
 # 128 of the multilingual default, about 10 billion multiply-adds
 # per second; the budget fails if the dot product
-# stops being vectorized.
+# stops being vectorized. Int8 pruning (#55) brings it to 0.51 ms.
 records = 100000
 k = 10
 max_ms = 5.0
