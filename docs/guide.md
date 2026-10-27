@@ -155,7 +155,7 @@ print(restored.stats()["records"])
 
 - **What is saved.** IDs, partition keys, compared fields in normalized form, and vectors. Loading does not encode again. Changes made after `save` are lost unless you save again.
 - **Compatibility.** A snapshot from a release with another format or scoring version is refused with `IndexCompatibilityError`: rebuild it from your records. A semantic snapshot reloads the exact model it was built with.
-- **Safety.** Files are checksummed, not encrypted: keep them as you keep the data. One process saves at a time, and readers always see a complete snapshot.
+- **Safety.** Files are checksummed, not encrypted: keep them as you keep the data. One process saves at a time, and readers always see a complete snapshot. If `save` raises an error, load the snapshot to know whether the new generation was published.
 - **Disk space.** Each save adds a generation and keeps older ones for open readers. When no process uses the snapshot, delete the old `g-*` directories, keeping `CURRENT` and the one it names.
 
 ## Semantic fields and models
@@ -185,6 +185,7 @@ finder = Finder(schema=Schema(fields={"description": Text(mode="semantic")}))
 - **Partition.** Search cost grows with the records of a partition: `partition_by` splits it.
 - **Raise the threshold.** Fewer candidates reach 0.8 than 0.6.
 - **Raise the limits.** An index holds 100,000 records by default: pass `max_records`. Going over a limit raises `ResourceLimitError`, never a silent partial result.
+- **Semantic batches.** `find` and `group` with a semantic field first check a work budget: about n² vector comparisons for n records in one partition. The default `max_semantic_comparisons=1_000_000` covers about 1,000 records per partition; raise it for larger batches.
 - **Approximate semantic search.** Semantic search is exact by default. `Finder(retrieval="hnsw")` uses a graph for partitions of 10,000 records or more. It can be faster on very large partitions, depending on the data, and it can miss matches: compare it with the default on your data. Reports then say `search_profile == "approximate"`.
 
 ## Read a report

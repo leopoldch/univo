@@ -46,7 +46,7 @@ Consequences, to know before relying on groups:
 ## Limits and report
 
 - `max_pairs` bounds the qualifying pairs held in memory: pairs are folded into the pair graph as each search finds them, without keeping explanations, so memory stays within the budget and the error comes as soon as it is exceeded. Above it, `ResourceLimitError` (`limit.group_pairs`) is raised. Raise `min_score`, partition the records, or raise the limit.
-- The scan budgets of `find` apply before any scoring: `max_exhaustive_pairs` with `exhaustive=True`, and `max_semantic_comparisons` for semantic candidates with `retrieval="hnsw"`.
+- The scan budgets of `find` apply before any scoring: `max_exhaustive_pairs` with `exhaustive=True`, and otherwise `max_semantic_comparisons` for semantic fields, with either `retrieval`.
 - `search_profile`, `candidate_truncated` and `warnings` say whether the underlying search was exhaustive, bounded or approximate. With a bounded or approximate search, a missing pair keeps records apart, so groups are only ever *smaller*, never wrongly joined.
 - `qualifying_pairs`, `split_pairs`, `candidates` and `processed` describe the work done.
 

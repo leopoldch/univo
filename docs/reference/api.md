@@ -35,8 +35,8 @@ Finds duplicates in a batch (`find`, `group`) and keeps an index of records to s
 | `cache_dir` | `None` | Model cache. Defaults to `UNIVO_CACHE_DIR`, then the platform cache directory. |
 | `threads` | `None` | Threads for `find`, `group` and encoding. `None` uses every core. |
 | `max_records` | `100_000` | Records an index may hold, from 1 to 2³² − 1. Above it: `ResourceLimitError`. |
-| `max_exhaustive_pairs` | `1_000_000` | Pairs an exhaustive `find` or `group` may compare. |
-| `max_semantic_comparisons` | `1_000_000` | Vector comparisons a `find` or `group` may make with `retrieval="hnsw"`. |
+| `max_exhaustive_pairs` | `1_000_000` | Pairs a `find` or `group` with `exhaustive=True` may compare. |
+| `max_semantic_comparisons` | `1_000_000` | Vector comparisons a `find` or `group` with semantic fields may make, with either `retrieval`, unless `exhaustive=True`. It is checked before the work, as a conservative bound: about n² for n records in one partition with `"exact"`, so the default covers about 1,000 records per partition. Above it: `ResourceLimitError`; raise it for larger batches. |
 | `embedding_cache_bytes` | `4 << 20` | Memory for recently encoded texts, so repeated texts are encoded once. `0` disables it ([embedding cache](../design/embedding-cache.md)). |
 | `retrieval` | `"exact"` | `"exact"` compares every vector of a partition; `"hnsw"` uses an approximate graph ([approximate search](../design/approximate-search.md)). |
 | `ann_ef_search` | `512` | With `"hnsw"`: breadth of the graph search, from 1 to 8,192. Higher finds more, slower. |
@@ -122,7 +122,11 @@ Searches for `record` and adds it only if nothing reaches `min_score`, in one st
 finder.save(path, *, max_snapshot_bytes=512 << 20) -> None
 ```
 
-Writes every indexed record, its vectors and the Finder's configuration to `path`, completely or not at all. Changes made afterwards are lost unless you save again. Above `max_snapshot_bytes` of files, it raises `ResourceLimitError` and writes nothing. Refuses a concurrent writer of the same path ([snapshots](../design/snapshots.md)).
+Writes every indexed record, its vectors and the Finder's configuration to a new generation under `path`, then publishes it atomically: a reader sees the previous generation or the new one, never a mix. Changes made afterwards are lost unless you save again.
+
+- **Errors before publication** leave the previous generation current. Above `max_snapshot_bytes`, `ResourceLimitError` is raised before any file is written.
+- **Errors after publication**, such as a failed directory sync, can leave the new generation current. After an error, load the snapshot to know which generation it holds.
+- **Concurrent writers** of the same path are refused ([snapshots](../design/snapshots.md)).
 
 ### load
 
