@@ -19,29 +19,53 @@ hide:
 pip install univo
 ```
 
+<div class="demo" markdown>
+
+<p class="demo-title">Five clients named Northwind. One is a duplicate.</p>
+
+<table class="demo-table">
+<thead><tr><th>#</th><th>Tenant</th><th>Name</th><th>Activity</th><th>VAT</th><th>Compared with client 1</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>shop</td><td>Northwind Traders</td><td>online clothing store</td><td>FR401</td><td class="muted">the record we check</td></tr>
+<tr><td>2</td><td>shop</td><td>North<mark>wnd</mark> Traders</td><td><mark>shop selling clothes on the internet</mark></td><td>FR401</td><td><span class="badge good">✓ Duplicate</span> score 0.91: a typo, and the same activity in other words</td></tr>
+<tr><td>3</td><td>shop</td><td>Northwind Traders</td><td><mark>steel manufacturer</mark></td><td class="muted">none</td><td><span class="badge bad">✕ Not a duplicate</span> score 0.53: same name, another business</td></tr>
+<tr><td>4</td><td>shop</td><td>Northwind Traders</td><td>online clothing store</td><td><mark>FR999</mark></td><td><span class="badge bad">✕ Ruled out</span> another VAT number, whatever the score</td></tr>
+<tr><td>5</td><td><mark>bank</mark></td><td>Northwind Traders</td><td>online clothing store</td><td>FR401</td><td><span class="badge bad">✕ Never compared</span> another tenant</td></tr>
+</tbody>
+</table>
+
+</div>
+
+The code, and what it prints:
+
 ```python
 from univo import Exact, Finder, Schema, Text
 
 schema = Schema(
     id_field="id",
-    partition_by=["tenant"],
-    fields={"name": Text(), "address.city": Text(), "vat": Exact(conflict="reject")},
+    partition_by=["tenant"],                    # tenants are never compared
+    fields={
+        "name": Text(),                         # spelling: typos and case
+        "activity": Text(mode="semantic"),      # meaning, with a local model
+        "vat": Exact(conflict="reject"),        # a different VAT number rules a match out
+    },
 )
-records = [
-    {"id": 1, "tenant": "shop", "name": "Northwind Traders SAS", "address": {"city": "LYON"}, "vat": "FR401"},
-    {"id": 2, "tenant": "shop", "name": "Northwind Traders", "address": {"city": "Lyon"}, "vat": "FR401"},
-    {"id": 3, "tenant": "shop", "name": "Northwind Traders", "address": {"city": "Lyon"}, "vat": "FR999"},
-    {"id": 4, "tenant": "bank", "name": "Northwind Traders", "address": {"city": "Lyon"}, "vat": "FR401"},
+clients = [
+    {"id": 1, "tenant": "shop", "name": "Northwind Traders", "activity": "online clothing store", "vat": "FR401"},
+    {"id": 2, "tenant": "shop", "name": "Northwnd Traders", "activity": "shop selling clothes on the internet", "vat": "FR401"},
+    {"id": 3, "tenant": "shop", "name": "Northwind Traders", "activity": "steel manufacturer", "vat": None},
+    {"id": 4, "tenant": "shop", "name": "Northwind Traders", "activity": "online clothing store", "vat": "FR999"},
+    {"id": 5, "tenant": "bank", "name": "Northwind Traders", "activity": "online clothing store", "vat": "FR401"},
 ]
-for match in Finder(schema=schema).find(records).matches:
+for match in Finder(schema=schema).find(clients).matches:
     print(match.left_id, match.right_id, round(match.score, 2), match.reasons)
 ```
 
 ```text
-1 2 0.94 ['name: trigrams', 'address.city: edit_distance', 'vat: exact']
+1 2 0.91 ['name: edit_distance', 'activity: semantic', 'vat: exact']
 ```
 
-Records 3 and 4 look just like 1 and 2, but one has another VAT number and the other belongs to another tenant: neither is ever matched. Every match comes with its reasons.
+Spelling catches the typo, the local model reads the meaning of the activity, and the rules keep clients 4 and 5 out, even with `min_score=0.01`. The first run downloads the 15 MB model once; it then works offline.
 
 No training, no API key, no server: records never leave your machine.
 
