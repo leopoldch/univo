@@ -124,7 +124,7 @@ finder.save(path, *, max_snapshot_bytes=512 << 20) -> None
 
 Writes every indexed record, its vectors and the Finder's configuration to a new generation under `path`, then publishes it atomically: a reader sees the previous generation or the new one, never a mix. Changes made afterwards are lost unless you save again.
 
-- **Errors before publication** leave the previous generation current. Above `max_snapshot_bytes`, `ResourceLimitError` is raised before any file is written.
+- **Errors before publication** leave the previous generation current. Above `max_snapshot_bytes`, `ResourceLimitError` is raised without publishing the new generation.
 - **Errors after publication**, such as a failed directory sync, can leave the new generation current. After an error, load the snapshot to know which generation it holds.
 - **Concurrent writers** of the same path are refused ([snapshots](../design/snapshots.md)).
 
