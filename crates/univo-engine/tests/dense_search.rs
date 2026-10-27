@@ -244,6 +244,87 @@ fn top_k_and_within_agree_with_a_full_sort() {
     }
 }
 
+/// Unit vectors of the default model's dimension: texts "b v" share a base
+/// `b` and differ by a small perturbation `v`, so that similarities crowd
+/// near 1, where the int8 bound is tightest.
+struct NearEmbedder(ModelDescriptor);
+
+impl NearEmbedder {
+    const DIMENSION: usize = 128;
+
+    fn noise(seed: u64, scale: f32) -> impl Iterator<Item = f32> {
+        let mut state = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        (0..Self::DIMENSION).map(move |_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            (f32::from(u16::try_from(state % 2001).unwrap()) / 1000.0 - 1.0) * scale
+        })
+    }
+}
+
+impl Embedder for NearEmbedder {
+    fn descriptor(&self) -> &ModelDescriptor {
+        &self.0
+    }
+
+    fn encode_batch(&self, texts: &[&str]) -> univo_core::Result<Embeddings> {
+        let mut data = Vec::new();
+        for text in texts {
+            let (base, variant) = text.split_once(' ').unwrap();
+            let (base, variant): (u64, u64) = (base.parse().unwrap(), variant.parse().unwrap());
+            #[allow(clippy::cast_precision_loss)]
+            let scale = variant as f32 * 0.01;
+            let row: Vec<f32> = Self::noise(base, 1.0)
+                .zip(Self::noise(1000 + variant, scale))
+                .map(|(value, noise)| value + noise)
+                .collect();
+            let norm = row.iter().map(|value| value * value).sum::<f32>().sqrt();
+            data.extend(row.iter().map(|value| value / norm));
+        }
+        Embeddings::new("near", data, Self::DIMENSION)
+    }
+}
+
+#[test]
+fn candidates_exactly_at_the_threshold_are_kept() {
+    let corpus: Vec<String> = (0..6)
+        .flat_map(|base| (0..40).map(move |variant| format!("{base} {variant}")))
+        .collect();
+    let refs: Vec<&str> = corpus.iter().map(String::as_str).collect();
+    let embedder = NearEmbedder(ModelDescriptor {
+        source: ModelSource::Local {
+            path: "near".into(),
+            files: Vec::new(),
+        },
+        dimension: NearEmbedder::DIMENSION,
+        backend: "near",
+    });
+    let vectors = embed_records(&semantic_schema(), &records(&refs), &embedder).unwrap();
+    let field = vectors.field(0).unwrap();
+    let candidates: Vec<usize> = (0..corpus.len()).collect();
+
+    for query_slot in [0, 39, 85, 200] {
+        let query = field.get(query_slot).unwrap();
+        let expected = naive(&vectors, query, &candidates, |slot| slot);
+        assert!(expected.iter().filter(|n| n.similarity > 0.9).count() > 20);
+        // Every similarity of the query, as a threshold, keeps its candidate.
+        for threshold in expected.iter().map(|neighbor| neighbor.similarity) {
+            let found = within(field, query, 0..corpus.len(), threshold, |slot| slot);
+            let filtered: Vec<Neighbor> = expected
+                .iter()
+                .copied()
+                .filter(|neighbor| neighbor.similarity >= threshold)
+                .collect();
+            assert_eq!(found, filtered, "threshold={threshold}");
+        }
+        for k in [1, 10, 40, 41, 100] {
+            let found = top_k(field, query, 0..corpus.len(), k, |slot| slot);
+            assert_eq!(found, expected[..k], "k={k}");
+        }
+    }
+}
+
 #[test]
 fn results_do_not_depend_on_candidate_order() {
     let vectors = embedded(&texts(300, 11));

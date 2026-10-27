@@ -550,9 +550,5 @@ fn read_vector_field(input: &mut CheckedReader, manifest: &Manifest) -> Result<F
             return Err(invalid("non-finite or non-unit vector"));
         }
     }
-    Ok(FieldVectors {
-        dimension,
-        data,
-        rows: slots,
-    })
+    Ok(FieldVectors::from_rows(dimension, data, slots))
 }

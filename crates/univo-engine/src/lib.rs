@@ -19,6 +19,7 @@ pub mod embedding_cache;
 pub mod exact;
 pub mod groups;
 pub mod lexical;
+mod quantized;
 pub mod search;
 pub mod store;
 mod values;

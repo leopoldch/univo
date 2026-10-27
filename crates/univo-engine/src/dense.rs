@@ -3,13 +3,14 @@
 //! Each query scans its candidates once, with `O(k)` memory: no pairwise
 //! matrix is ever built. It is the oracle against which any approximate
 //! index is measured, and a supported mode within its cost, `O(n·d)` per
-//! query.
+//! query. Candidates are first bounded from their int8 codes, and only
+//! those that can reach the threshold read their `f32` row: results are
+//! those of the full scan.
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
-use univo_core::semantic_similarity;
-
+use crate::quantized::QueryBound;
 use crate::vectors::FieldVectors;
 
 /// A record close to the query.
@@ -67,16 +68,20 @@ pub fn top_k<K: Ord>(
     if k == 0 || query.len() != vectors.dimension() {
         return Vec::new();
     }
+    let bound = QueryBound::new(query);
     let mut kept: BinaryHeap<Entry<K>> = BinaryHeap::with_capacity(k + 1);
     for slot in candidates {
-        let Some(row) = vectors.get(slot) else {
+        // Once `k` are kept, a candidate below the worst of them is out.
+        let worst = if kept.len() == k {
+            kept.peek()
+                .map_or(f32::NEG_INFINITY, |entry| entry.similarity)
+        } else {
+            f32::NEG_INFINITY
+        };
+        let Some(similarity) = vectors.similarity_reaching(query, &bound, slot, worst) else {
             continue;
         };
-        let similarity = semantic_similarity(query, row);
         if kept.len() == k {
-            let worst = kept
-                .peek()
-                .map_or(f32::NEG_INFINITY, |entry| entry.similarity);
             // Cheap rejection before building the tie-break key.
             if similarity < worst {
                 continue;
@@ -120,10 +125,11 @@ pub fn within<K: Ord>(
     if query.len() != vectors.dimension() {
         return Vec::new();
     }
+    let bound = QueryBound::new(query);
     let mut found: Vec<(Neighbor, K)> = candidates
         .into_iter()
         .filter_map(|slot| {
-            let similarity = semantic_similarity(query, vectors.get(slot)?);
+            let similarity = vectors.similarity_reaching(query, &bound, slot, threshold)?;
             (similarity >= threshold).then(|| (Neighbor { slot, similarity }, key(slot)))
         })
         .collect();
@@ -138,6 +144,10 @@ pub fn within<K: Ord>(
 
 /// The slots of [`within`], unsorted, appended to `found`; returns their
 /// number. Candidate lanes sort and deduplicate all their slots anyway.
+///
+/// Kept out of line: inlined into the candidate lanes, the loop spilled
+/// registers and ran twice as slow.
+#[inline(never)]
 pub(crate) fn extend_within(
     vectors: &FieldVectors,
     query: &[f32],
@@ -148,11 +158,12 @@ pub(crate) fn extend_within(
     if query.len() != vectors.dimension() {
         return 0;
     }
+    let bound = QueryBound::new(query);
     let before = found.len();
     found.extend(candidates.into_iter().filter(|&slot| {
         vectors
-            .get(slot)
-            .is_some_and(|row| semantic_similarity(query, row) >= threshold)
+            .similarity_reaching(query, &bound, slot, threshold)
+            .is_some_and(|similarity| similarity >= threshold)
     }));
     found.len() - before
 }
@@ -165,11 +176,11 @@ mod tests {
     fn extend_within_appends_the_slots_within_finds() {
         // Slot 3 has no embedding; rows 0 to 4 are unit vectors at angles.
         let angles = [0.0f32, 0.3, 0.6, 0.9, 1.2];
-        let vectors = FieldVectors {
-            dimension: 2,
-            data: angles.iter().flat_map(|a| [a.cos(), a.sin()]).collect(),
-            rows: vec![Some(4), Some(0), Some(2), None, Some(1), Some(3)],
-        };
+        let vectors = FieldVectors::from_rows(
+            2,
+            angles.iter().flat_map(|a| [a.cos(), a.sin()]).collect(),
+            vec![Some(4), Some(0), Some(2), None, Some(1), Some(3)],
+        );
         let query = [1.0, 0.0];
         for threshold in [0.0, 0.5, 0.8, 0.96, 1.0] {
             let mut expected: Vec<usize> = within(&vectors, &query, 0..6, threshold, |slot| slot)
