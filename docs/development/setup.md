@@ -28,6 +28,8 @@ python tools/fixtures/build_critical_corpus.py --check
 uv run pytest tests/tools
 ```
 
+The `quality` job rebuilds the ROR corpus, evaluates the Linux x86-64 wheel in lexical and default-model modes, and fails if validation recall at 98% precision falls below [the baselines](../../benchmarks/quality/ror-alias-v2). `tools/quality/check_quality_gate.py` compares the number of duplicates found. A pull request that lowers recall on purpose updates the baseline from the job's `quality-results` artifact.
+
 Linux wheels can be checked without CI, with Docker: `just linux aarch64 target/default-model` builds the manylinux wheel of the committed HEAD and runs the installed-wheel suite in Python 3.11 and 3.14, without Rust and as a non-root user. `just linux x86_64` does the same under emulation on Apple silicon, where timing budgets may need a rerun.
 
 Wheel checks:
