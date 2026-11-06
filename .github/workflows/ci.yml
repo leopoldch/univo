@@ -190,6 +190,69 @@ jobs:
           -c "$GITHUB_WORKSPACE/pyproject.toml" --rootdir "$GITHUB_WORKSPACE"
           "$GITHUB_WORKSPACE/tests/python"
 
+  quality:
+    needs: wheels
+    runs-on: ubuntu-24.04
+    env:
+      BASELINES: benchmarks/quality/ror-alias-v2
+      MODEL_DIR: ${{ github.workspace }}/.models/default
+      MODEL_URL: https://huggingface.co/univo-models/static-similarity-mrl-multilingual-int8-128/resolve/ee7c2cb71e6948246b2bf45ef47083d215d69f2a
+      ROR_ARCHIVE: ${{ github.workspace }}/.quality/ror.zip
+      # build_quality_corpus.py verifies the checksum of this archive.
+      ROR_URL: https://zenodo.org/records/23187250/files/v2.14-2026-10-06-ror-data.zip?download=1
+    steps:
+      - uses: actions/checkout@v7
+      - id: model-cache
+        uses: actions/cache@v6
+        with:
+          path: .models/default
+          key: model-default-ee7c2cb71e6948246b2bf45ef47083d215d69f2a
+      - if: steps.model-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$MODEL_DIR"
+          for file in config.json model.safetensors tokenizer.json; do
+            curl --fail --silent --show-error --location --retry 3 \
+              --output "$MODEL_DIR/$file" "$MODEL_URL/$file"
+          done
+      - id: ror-cache
+        uses: actions/cache@v6
+        with:
+          path: .quality/ror.zip
+          key: ror-v2.14-2026-10-06
+      - if: steps.ror-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$(dirname "$ROR_ARCHIVE")"
+          curl --fail --silent --show-error --location --retry 3 \
+            --output "$ROR_ARCHIVE" "$ROR_URL"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - uses: actions/download-artifact@v8
+        with:
+          name: wheel-linux-x86_64
+          path: wheelhouse
+      - name: Install the wheel without compiling
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --no-index --only-binary :all: wheelhouse/*.whl
+      - name: Evaluate
+        run: |
+          python tools/quality/build_quality_corpus.py "$ROR_ARCHIVE" --output "$RUNNER_TEMP/pairs.jsonl"
+          mkdir quality-results
+          "$RUNNER_TEMP/venv/bin/python" tools/quality/evaluate_quality.py "$RUNNER_TEMP/pairs.jsonl" \
+            --mode lexical --output quality-results/lexical.json
+          "$RUNNER_TEMP/venv/bin/python" tools/quality/evaluate_quality.py "$RUNNER_TEMP/pairs.jsonl" \
+            --mode semantic --model-path "$MODEL_DIR" --output quality-results/default-model.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: quality-results
+          path: quality-results
+          if-no-files-found: error
+      - name: Recall at 98% precision must not fall
+        run: |
+          python tools/quality/check_quality_gate.py quality-results/lexical.json "$BASELINES/lexical.json"
+          python tools/quality/check_quality_gate.py quality-results/default-model.json "$BASELINES/default-model.json"
+
   wheel-test-no-rust:
     name: wheel-test-no-rust (${{ matrix.platform }}, ${{ matrix.python }})
     needs: wheels

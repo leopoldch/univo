@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from build_quality_corpus import build, split
+from check_quality_gate import regressions
 from evaluate_quality import load_pairs
 from quality_metrics import ScoredPair, auc, choose_threshold, metrics, wilson_lower
 
@@ -30,6 +31,33 @@ def test_threshold_uses_whole_ties_and_abstains_when_precision_is_unreachable() 
     assert choose_threshold(pairs, minimum_precision=0.95) == 0.8
     assert choose_threshold([ScoredPair(True, 1)] * 19) is None
     assert choose_threshold([ScoredPair(True, 1), ScoredPair(False, 1)], minimum_tp=1) is None
+
+
+def gate_report(tp: int, threshold: float | None = 0.5, dataset: str = "a") -> dict[str, Any]:
+    return {
+        "dataset_sha256": dataset,
+        "threshold": threshold,
+        "minimum_validation_precision": 0.98,
+        "minimum_validation_tp": 20,
+        "validation": {"tp": tp, "positives": 100},
+    }
+
+
+def test_gate_accepts_equal_or_better_recall_at_any_threshold() -> None:
+    assert regressions(gate_report(40), gate_report(40)) == []
+    assert regressions(gate_report(41, threshold=0.7), gate_report(40)) == []
+
+
+def test_gate_rejects_one_lost_duplicate() -> None:
+    assert "39/100" in regressions(gate_report(39), gate_report(40))[0]
+
+
+def test_gate_rejects_abstention_even_if_the_counts_hold() -> None:
+    assert "no threshold" in regressions(gate_report(40, threshold=None), gate_report(40))[0]
+
+
+def test_gate_refuses_to_compare_different_corpora() -> None:
+    assert "not comparable" in regressions(gate_report(99, dataset="b"), gate_report(40))[0]
 
 
 def test_report_counts_missing_evidence_as_a_missed_duplicate() -> None:
