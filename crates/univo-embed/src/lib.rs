@@ -4,7 +4,8 @@
 //! - [`registry`]: models pinned by this release.
 //! - [`hub`]: download plans for the Hugging Face hub and its mirrors.
 //! - [`cache`]: the verified local cache.
-//! - [`model`]: static `Model2Vec` inference behind the [`Embedder`] trait.
+//! - [`model`]: static `Model2Vec` inference behind the [`Embedder`] trait,
+//!   native for the BERT `WordPiece` pipeline of most models.
 //! - [`resolve`]: from a reference to a model on disk, through the cache or
 //!   a binding's [`Transport`].
 //!
@@ -15,6 +16,7 @@ pub mod cache;
 pub mod files;
 pub mod hub;
 pub mod model;
+mod native;
 pub mod registry;
 pub mod resolve;
 pub mod spec;

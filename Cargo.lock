@@ -1400,11 +1400,15 @@ version = "1.0.1"
 dependencies = [
  "model2vec-rs",
  "rayon",
+ "rustc-hash",
  "serde",
  "serde_json",
  "sha1",
  "sha2",
+ "tokenizers",
  "toml",
+ "unicode-normalization-alignments",
+ "unicode_categories",
  "univo-core",
  "univo-testkit",
 ]
