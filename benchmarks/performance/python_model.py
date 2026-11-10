@@ -20,6 +20,19 @@ import time
 from univo import _univo
 
 
+class Offline:
+    """A transport that is never called: the model loads offline."""
+
+    def fetch(self, url: str, destination: os.PathLike[str], max_bytes: int) -> None:
+        raise RuntimeError("offline")
+
+    def fetch_text(self, url: str, max_bytes: int) -> str:
+        raise RuntimeError("offline")
+
+    def keep_waiting(self) -> bool:
+        return False
+
+
 def rss_mib() -> float:
     return int(subprocess.check_output(["ps", "-o", "rss=", "-p", str(os.getpid())])) / 1024
 
@@ -30,7 +43,7 @@ def main() -> None:
         texts = json.load(file)
     before = rss_mib()
     start = time.perf_counter()
-    model = _univo.load_model(model_dir, transport=None, offline=True)
+    model = _univo.load_model(model_dir, transport=Offline(), offline=True)
     load_ms = 1e3 * (time.perf_counter() - start)
     model_rss = rss_mib() - before
     model.encode(texts[:2000])

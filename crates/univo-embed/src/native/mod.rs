@@ -42,8 +42,9 @@ pub(crate) struct NativeModel {
 /// Texts per parallel task, and the smallest batch worth splitting.
 const TASK_TEXTS: usize = 256;
 
-/// Tokens whose int8 sum is exact in `f32` at every step: 127 · n ≤ 2^24.
-const EXACT_INT8_TOKENS: usize = (1 << 24) / 127;
+/// Tokens whose int8 sum is exact in `f32` at every step: an int8 value
+/// can be -128, and 128 · n ≤ 2^24 keeps every partial sum representable.
+const EXACT_INT8_TOKENS: usize = (1 << 24) / 128;
 
 impl NativeModel {
     /// The model in `weights`, tokenized by `tokenizer`.

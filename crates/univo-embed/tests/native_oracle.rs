@@ -195,10 +195,17 @@ fn write_model(label: &str, tokenizer: &[u8], tensors: &[TensorSpec<'_>]) -> Tem
 
 /// Both backends on `directory`; panics on the first differing vector.
 fn assert_same_vectors(directory: &Path, texts: &[String], what: &str) {
+    assert_same_vectors_on(directory, texts, what, true);
+}
+
+/// Univo against `model2vec-rs`, with Univo expected to run natively or
+/// to hand the model to `model2vec-rs`.
+fn assert_same_vectors_on(directory: &Path, texts: &[String], what: &str, natively: bool) {
     let native = StaticEmbedder::load_directory(directory).unwrap();
-    assert!(
+    assert_eq!(
         native.runs_natively(),
-        "{what}: the native encoder was not used"
+        natively,
+        "{what}: unexpected backend"
     );
     let read = |file: &str| std::fs::read(directory.join(file)).unwrap();
     // As Univo's `model2vec-rs` path: truncation and padding removed.
@@ -389,7 +396,7 @@ fn every_table_layout_matches() {
 
 #[test]
 fn a_token_without_a_row_is_refused_at_load() {
-    let tokenizer = br#"{"added_tokens":[],"normalizer":{"type":"BertNormalizer","clean_text":true,"handle_chinese_chars":true,"strip_accents":null,"lowercase":true},"pre_tokenizer":{"type":"BertPreTokenizer"},"model":{"type":"WordPiece","unk_token":"[UNK]","vocab":{"[UNK]":0,"a":1,"b":2}}}"#;
+    let tokenizer = br###"{"added_tokens":[],"normalizer":{"type":"BertNormalizer","clean_text":true,"handle_chinese_chars":true,"strip_accents":null,"lowercase":true},"pre_tokenizer":{"type":"BertPreTokenizer"},"model":{"type":"WordPiece","unk_token":"[UNK]","continuing_subword_prefix":"##","max_input_chars_per_word":100,"vocab":{"[UNK]":0,"a":1,"b":2}}}"###;
     let model = write_model(
         "rows",
         tokenizer,
@@ -417,4 +424,110 @@ fn a_token_without_a_row_is_refused_at_load() {
     assert_eq!(vectors.row(0), [0.0, 1.0]);
     assert_eq!(vectors.row(1), [0.6, 0.8]);
     assert_eq!(vectors.absent(), [2, 3]);
+}
+
+/// A BERT tokenizer over a few words, with `post_processor`.
+fn small_bert(post_processor: &str) -> Vec<u8> {
+    format!(
+        r###"{{"added_tokens":[{{"id":0,"content":"[UNK]","single_word":false,"lstrip":false,"rstrip":false,"normalized":false,"special":true}},{{"id":3,"content":"[CLS]","single_word":false,"lstrip":false,"rstrip":false,"normalized":false,"special":true}}],
+        "normalizer":{{"type":"BertNormalizer","clean_text":true,"handle_chinese_chars":true,"strip_accents":null,"lowercase":true}},
+        "pre_tokenizer":{{"type":"BertPreTokenizer"}},"post_processor":{post_processor},
+        "decoder":{{"type":"WordPiece","prefix":"##","cleanup":true}},
+        "model":{{"type":"WordPiece","unk_token":"[UNK]","continuing_subword_prefix":"##","max_input_chars_per_word":100,"vocab":{{"[UNK]":0,"a":1,"b":2,"[CLS]":3}}}}}}"###
+    )
+    .into_bytes()
+}
+
+fn rows(values: &[[i8; 2]]) -> Vec<u8> {
+    values.iter().flatten().map(|v| v.cast_unsigned()).collect()
+}
+
+#[test]
+fn post_processors_keep_their_meaning() {
+    let table = rows(&[[0, 0], [3, 4], [-4, 3], [1, 1]]);
+    let cls = r#"{"SpecialToken":{"id":"[CLS]","type_id":0}}"#;
+    let a = r#"{"Sequence":{"id":"A","type_id":0}}"#;
+    let b = r#"{"Sequence":{"id":"B","type_id":1}}"#;
+    let special = r#"{"[CLS]":{"id":"[CLS]","ids":[3],"tokens":["[CLS]"]}}"#;
+    let template = |single: &str| {
+        format!(
+            r#"{{"type":"TemplateProcessing","single":[{single}],"pair":[{cls},{a},{b}],"special_tokens":{special}}}"#
+        )
+    };
+    let texts: Vec<String> = ["a", "b a", "a [CLS] b", "", "zz"]
+        .map(str::to_owned)
+        .to_vec();
+    for (processor, natively) in [
+        ("null".to_owned(), true),
+        (
+            r#"{"type":"BertProcessing","sep":["[CLS]",3],"cls":["[CLS]",3]}"#.to_owned(),
+            true,
+        ),
+        (template(&format!("{cls},{a},{cls}")), true),
+        // Drops the text: every vector is absent with `tokenizers`.
+        (template(cls), false),
+        // Repeats the text.
+        (template(&format!("{a},{a}")), false),
+    ] {
+        let model = write_model(
+            "processor",
+            &small_bert(&processor),
+            &[("embeddings", "I8", vec![4, 2], table.clone())],
+        );
+        assert_same_vectors_on(model.path(), &texts, &processor, natively);
+    }
+    let model = write_model(
+        "processor",
+        &small_bert(&template(cls)),
+        &[("embeddings", "I8", vec![4, 2], table)],
+    );
+    let vectors = StaticEmbedder::load_directory(model.path())
+        .unwrap()
+        .encode_batch(&["a"])
+        .unwrap();
+    assert_eq!(vectors.absent(), [0]);
+}
+
+#[test]
+fn int8_sums_round_as_f32_beyond_the_exact_bound() {
+    // -128 · 131,072 = -2^24 is the last exact partial sum.
+    let table = rows(&[[0, 0], [-128, 1], [-1, 1], [0, 0]]);
+    let model = write_model(
+        "bound",
+        &small_bert("null"),
+        &[("embeddings", "I8", vec![4, 2], table)],
+    );
+    let exact = 1 << 17;
+    let texts: Vec<String> = [exact - 1, exact, exact + 1, exact + 2]
+        .iter()
+        .flat_map(|&n| {
+            [
+                format!("{}b b", "a ".repeat(n)),
+                format!("{}b", "a ".repeat(n)),
+                "a ".repeat(n),
+            ]
+        })
+        .collect();
+    assert_same_vectors(model.path(), &texts, "int8 bound");
+}
+
+#[test]
+fn a_shape_too_large_to_address_is_refused_at_load() {
+    for shape in [
+        vec![2, 1 << 63],
+        vec![1 << 32, 1 << 32],
+        vec![4, (1 << 62) + 1],
+    ] {
+        let model = write_model(
+            "shape",
+            &small_bert("null"),
+            &[("embeddings", "I8", shape.clone(), Vec::new())],
+        );
+        let error = StaticEmbedder::load_directory(model.path()).unwrap_err();
+        assert_eq!(
+            error.code(),
+            univo_core::ErrorCode::CorruptModel,
+            "{shape:?}"
+        );
+    }
 }

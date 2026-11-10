@@ -54,7 +54,11 @@ impl Tokenizer {
     pub(crate) fn parse(json: &[u8]) -> Option<Self> {
         let file: File = serde_json::from_slice(json).ok()?;
         let normalizer = file.normalizer?.into_bert()?;
-        if !file.pre_tokenizer?.is_bert() {
+        if file.version.is_some_and(|version| version != "1.0")
+            || !file.pre_tokenizer?.is_bert()
+            || !keeps_text_unchanged(file.post_processor.as_ref())
+            || !is_wordpiece_decoder(file.decoder.as_ref())
+        {
             return None;
         }
         let Model {
@@ -269,6 +273,91 @@ impl Tokenizer {
     }
 }
 
+/// Whether the post-processor returns the tokens of a single text as they
+/// are when special tokens are not added, as `model2vec-rs` encodes. In
+/// `tokenizers` 0.21, `BertProcessing` does; `TemplateProcessing` keeps
+/// one copy of the text per `Sequence` piece of its single template and
+/// drops special pieces, so it does when that template holds sequence A
+/// exactly once and the processor is valid. Any other processor is left
+/// to `tokenizers`.
+fn keeps_text_unchanged(processor: Option<&serde_json::Value>) -> bool {
+    let Some(processor) = processor.filter(|p| !p.is_null()) else {
+        return true;
+    };
+    match processor.get("type").and_then(serde_json::Value::as_str) {
+        Some("BertProcessing") => ["sep", "cls"].iter().all(|field| {
+            processor
+                .get(field)
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|pair| pair.len() == 2 && pair[0].is_string() && is_id(&pair[1]))
+        }),
+        Some("TemplateProcessing") => {
+            let pieces = |template: &str| {
+                processor
+                    .get(template)
+                    .and_then(serde_json::Value::as_array)
+                    .cloned()
+            };
+            let (Some(single), Some(pair)) = (pieces("single"), pieces("pair")) else {
+                return false;
+            };
+            let Some(special) = processor
+                .get("special_tokens")
+                .and_then(serde_json::Value::as_object)
+            else {
+                return false;
+            };
+            let well_formed = special.iter().all(|(key, token)| {
+                let ids = token.get("ids").and_then(serde_json::Value::as_array);
+                let tokens = token.get("tokens").and_then(serde_json::Value::as_array);
+                token.get("id").and_then(serde_json::Value::as_str) == Some(key.as_str())
+                    && ids.zip(tokens).is_some_and(|(ids, tokens)| {
+                        ids.len() == tokens.len()
+                            && ids.iter().all(is_id)
+                            && tokens.iter().all(serde_json::Value::is_string)
+                    })
+            });
+            // `tokenizers` refuses a template naming an undefined special
+            // token; such a model must keep failing to load.
+            let defined = single.iter().chain(&pair).all(|piece| {
+                match piece.get("SpecialToken").map(|token| token.get("id")) {
+                    None => piece.get("Sequence").is_some(),
+                    Some(id) => id
+                        .and_then(serde_json::Value::as_str)
+                        .is_some_and(|id| special.contains_key(id)),
+                }
+            });
+            let sequences: Vec<_> = single
+                .iter()
+                .filter_map(|piece| piece.get("Sequence"))
+                .collect();
+            well_formed
+                && defined
+                && sequences.len() == 1
+                && sequences[0].get("id").and_then(serde_json::Value::as_str) == Some("A")
+        }
+        _ => false,
+    }
+}
+
+fn is_id(value: &serde_json::Value) -> bool {
+    value.as_u64().is_some_and(|id| u32::try_from(id).is_ok())
+}
+
+/// Whether the decoder, unused for encoding, is absent or the BERT one; any
+/// other is left to `tokenizers`, which validates it.
+fn is_wordpiece_decoder(decoder: Option<&serde_json::Value>) -> bool {
+    decoder.filter(|d| !d.is_null()).is_none_or(|decoder| {
+        decoder.get("type").and_then(serde_json::Value::as_str) == Some("WordPiece")
+            && decoder
+                .get("prefix")
+                .is_some_and(serde_json::Value::is_string)
+            && decoder
+                .get("cleanup")
+                .is_some_and(serde_json::Value::is_boolean)
+    })
+}
+
 /// BERT whitespace: tab, newline and carriage return, which Unicode counts
 /// as controls, and every `White_Space` character.
 fn is_whitespace(c: char) -> bool {
@@ -298,27 +387,35 @@ fn is_bert_punctuation(c: char) -> bool {
     c.is_ascii_punctuation() || c.is_punctuation()
 }
 
+/// The sections the native pipeline reads. Fields `tokenizers` requires
+/// are required here too, so that a file it refuses never runs natively.
 #[derive(Deserialize)]
 struct File {
+    #[serde(default)]
+    version: Option<String>,
     #[serde(default)]
     added_tokens: Vec<AddedToken>,
     normalizer: Option<NormalizerConfig>,
     pre_tokenizer: Option<PreTokenizerConfig>,
+    #[serde(default)]
+    post_processor: Option<serde_json::Value>,
+    #[serde(default)]
+    decoder: Option<serde_json::Value>,
     model: Model,
 }
 
 #[derive(Deserialize)]
 #[allow(clippy::struct_excessive_bools)]
 struct AddedToken {
+    #[serde(rename = "id")]
+    _id: u32,
     content: String,
-    #[serde(default)]
     single_word: bool,
-    #[serde(default)]
     lstrip: bool,
-    #[serde(default)]
     rstrip: bool,
-    #[serde(default)]
     normalized: bool,
+    #[serde(rename = "special")]
+    _special: bool,
 }
 
 #[derive(Deserialize)]
@@ -374,24 +471,9 @@ struct Model {
     #[serde(rename = "type")]
     kind: String,
     vocab: VocabField,
-    #[serde(default = "default_unk")]
     unk_token: String,
-    #[serde(default = "default_prefix")]
     continuing_subword_prefix: String,
-    #[serde(default = "default_max_chars")]
     max_input_chars_per_word: usize,
-}
-
-fn default_unk() -> String {
-    "[UNK]".to_owned()
-}
-
-fn default_prefix() -> String {
-    "##".to_owned()
-}
-
-fn default_max_chars() -> usize {
-    100
 }
 
 /// A `WordPiece` vocabulary read straight into a [`Vocab`], with no string
@@ -488,6 +570,53 @@ mod tests {
     }
 
     #[test]
+    fn post_processors_that_keep_the_text_are_claimed() {
+        let base = String::from_utf8(bert(true, "")).unwrap();
+        let special = r#""special_tokens":{"[CLS]":{"id":"[CLS]","ids":[1],"tokens":["[CLS]"]}}"#;
+        let cls = r#"{"SpecialToken":{"id":"[CLS]","type_id":0}}"#;
+        let a = r#"{"Sequence":{"id":"A","type_id":0}}"#;
+        let b = r#"{"Sequence":{"id":"B","type_id":1}}"#;
+        let template = |single: &str| {
+            format!(
+                r#""post_processor":{{"type":"TemplateProcessing","single":[{single}],"pair":[{cls},{a},{b}],{special}}}"#
+            )
+        };
+        let with = |processor: &str| base.replace(r#""post_processor":null"#, processor);
+        for (processor, claimed) in [
+            (r#""post_processor":null"#.to_owned(), true),
+            (
+                r#""post_processor":{"type":"BertProcessing","sep":["[SEP]",1],"cls":["[CLS]",1]}"#
+                    .to_owned(),
+                true,
+            ),
+            (template(&format!("{cls},{a},{cls}")), true),
+            (template(a), true),
+            // Without its sequence, or with it twice, a template changes the text.
+            (template(cls), false),
+            (template(&format!("{a},{a}")), false),
+            (template(b), false),
+            (
+                template(&format!("{cls},{a}")).replace(special, r#""special_tokens":{}"#),
+                false,
+            ),
+            (
+                r#""post_processor":{"type":"RobertaProcessing"}"#.to_owned(),
+                false,
+            ),
+            (
+                r#""post_processor":{"type":"Sequence","processors":[]}"#.to_owned(),
+                false,
+            ),
+        ] {
+            assert_eq!(
+                Tokenizer::parse(with(&processor).as_bytes()).is_some(),
+                claimed,
+                "{processor}"
+            );
+        }
+    }
+
+    #[test]
     fn other_pipelines_are_not_claimed() {
         let base = String::from_utf8(bert(true, "")).unwrap();
         for (from, to) in [
@@ -496,6 +625,12 @@ mod tests {
             (r#""type":"WordPiece""#, r#""type":"WordLevel""#),
             (r#""normalized":false"#, r#""normalized":true"#),
             (r#""content":"[UNK]""#, r#""content":"[NEW]""#),
+            // Required by `tokenizers`, so required here.
+            (r#","max_input_chars_per_word":100"#, ""),
+            (r###""continuing_subword_prefix":"##","###, ""),
+            (r#""special":true"#, r#""other":true"#),
+            (r#""version":"1.0""#, r#""version":"2.0""#),
+            (r#""decoder":null"#, r#""decoder":{"type":"Strip"}"#),
         ] {
             assert!(
                 Tokenizer::parse(base.replace(from, to).as_bytes()).is_none(),

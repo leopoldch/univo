@@ -90,14 +90,15 @@ pub(crate) fn parse(bytes: &[u8]) -> Result<BTreeMap<String, Tensor>, String> {
             .map_err(|error| format!("invalid header entry {name}: {error}"))?;
         let dtype = Dtype::parse(&entry.dtype);
         let (start, end) = entry.data_offsets;
-        let elements = entry
+        // A shape whose size overflows is refused, never left unchecked: an
+        // empty tensor of shape [2, 2^63] must not pass.
+        let bytes = entry
             .shape
             .iter()
-            .try_fold(1usize, |count, &extent| count.checked_mul(extent));
-        let expected = dtype
-            .size()
-            .and_then(|size| elements.and_then(|count| count.checked_mul(size)));
-        if end < start || expected.is_some_and(|bytes| bytes != end - start) {
+            .try_fold(1usize, |count, &extent| count.checked_mul(extent))
+            .and_then(|count| count.checked_mul(dtype.size().unwrap_or(1)))
+            .ok_or_else(|| format!("tensor {name} has a shape too large to address"))?;
+        if end < start || (dtype.size().is_some() && bytes != end - start) {
             return Err(format!("tensor {name} does not match its shape"));
         }
         tensors.insert(
@@ -192,6 +193,23 @@ mod tests {
         ] {
             assert!(parse(&file(header, &vec![0; data])).is_err(), "{header}");
         }
+        // The product of the dimensions overflows: refused, whatever the
+        // byte range.
+        let huge = format!(
+            r#"{{"e":{{"dtype":"I8","shape":[2,{}],"data_offsets":[0,0]}}}}"#,
+            1u64 << 63
+        );
+        assert!(parse(&file(&huge, &[])).is_err());
+        let huge = format!(
+            r#"{{"e":{{"dtype":"F32","shape":[{}],"data_offsets":[0,0]}}}}"#,
+            1u64 << 62
+        );
+        assert!(parse(&file(&huge, &[])).is_err());
+        let huge = format!(
+            r#"{{"e":{{"dtype":"BF16","shape":[{0},{0}],"data_offsets":[0,0]}}}}"#,
+            1u64 << 40
+        );
+        assert!(parse(&file(&huge, &[])).is_err());
         assert!(parse(&[1, 0]).is_err());
         assert!(parse(&u64::MAX.to_le_bytes()).is_err());
     }
