@@ -319,7 +319,7 @@ python -m univo.models download default
 
 ## Version
 
-`univo.__version__` is the installed version, such as `"1.0.1"`.
+`univo.__version__` is the installed version, such as `"1.0.2"`.
 
 ## Stability
 
