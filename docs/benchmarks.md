@@ -18,6 +18,21 @@ Univo against [SemHash](https://github.com/MinishLab/semhash) 0.5.0, the closest
 - **Different thresholds.** They remove different numbers of records (6,305 and 4,122 at 100,000), so this compares cost, not quality.
 - **Raw results.** [scale-1.0.1.jsonl](../benchmarks/comparison/results/scale-1.0.1.jsonl), two runs of each tool at each size. Every change and its measurement is in [performance](development/performance.md).
 
+### Next release
+
+[#63](https://github.com/leopoldch/univo/pull/63), not yet on PyPI, runs the default model's tokenizer in Univo and keeps its int8 table as stored. Vectors and results are identical. Same machine and script, on mains power. Each size alternates `main` before the change, the change, and SemHash in A B B A order:
+
+| Records | Next release | `main` before #63 | SemHash |
+| --- | --- | --- | --- |
+| 10,000 | **0.09 s**, 66 MiB | 0.19 s, 155 MiB | 1.01–1.03 s, 156 MiB |
+| 30,000 | **0.45–0.48 s**, 101 MiB | 0.61–0.63 s, 183 MiB | 2.04–2.15 s, 227 MiB |
+| 100,000 | **4.4–4.6 s**, 197 MiB | 4.9–5.0 s, 263 MiB | 7.8–8.3 s, 489 MiB |
+
+- **Model.** Loading and verifying it takes 9–12 ms instead of 75–94 ms and adds 20 MiB instead of 111 MiB. One name encodes in 0.92 µs instead of 7.3 µs on one thread.
+- **Where it helps.** Loading and encoding cost less. At 100,000 names the all-pairs scan dominates, so the total moves less.
+- **One record at a time.** Adding 100,000 semantic names takes 0.19 s instead of 0.55–0.58 s. A semantic `check_or_add` takes 0.51 ms at the median, against 1.31–1.33 ms in 1.0.1; that gain comes from [#58](https://github.com/leopoldch/univo/pull/58), already on `main`. Lexical runs do not change.
+- **Raw results.** [scale-next.jsonl](../benchmarks/comparison/results/scale-next.jsonl), [native-embedder-macos-arm64.jsonl](../benchmarks/performance/native-embedder-macos-arm64.jsonl) with [python_model.py](../benchmarks/performance/python_model.py).
+
 Univo also deduplicates lexically, with no model: 100,000 names take **1.9 s** for synthetic names (same runs) and **2.2 s** for real ROR names. SemHash has no lexical mode.
 
 ## One record at a time

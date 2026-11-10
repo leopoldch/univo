@@ -135,6 +135,8 @@ Against SemHash 0.5.0, with the same model, on an Apple M2 on mains power:
 
 Univo's search is exact; SemHash's index is approximate. On names alone, neither tool is precise enough to merge automatically, so Univo returns scored candidates, not decisions. Method and every result: [benchmarks](https://github.com/leopoldch/univo/blob/main/docs/benchmarks.md).
 
+**Next release** ([#63](https://github.com/leopoldch/univo/pull/63), not yet on PyPI): Univo runs the default model's tokenizer itself. The model loads in about 10 ms instead of 75–94 ms and adds 20 MiB of memory instead of 111 MiB. 10,000 names take 0.09 s and 100,000 take 4.4–4.6 s at 197 MiB, with the same results ([details](https://github.com/leopoldch/univo/blob/main/docs/benchmarks.md#next-release)).
+
 ## Documentation
 
 [Website](https://leopoldch.github.io/univo/) · [Guide](https://github.com/leopoldch/univo/blob/main/docs/guide.md) · [API](https://github.com/leopoldch/univo/blob/main/docs/reference/api.md) · [Benchmarks](https://github.com/leopoldch/univo/blob/main/docs/benchmarks.md) · [Architecture](https://github.com/leopoldch/univo/tree/main/docs/design) · [All docs](https://github.com/leopoldch/univo/tree/main/docs)
