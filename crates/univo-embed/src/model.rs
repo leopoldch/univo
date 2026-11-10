@@ -8,9 +8,13 @@ use univo_core::{Error, Result};
 
 use crate::cache::CachedModel;
 use crate::files::{FileExpectation, MODEL_FILES, sha256, verify_content};
+use crate::native::{NativeModel, Tokenizer};
 use crate::spec::Repository;
 
-/// Identifies the backend in descriptors; part of vector compatibility.
+/// Identifies the vector function in descriptors; part of vector
+/// compatibility. The native encoder computes the vectors of
+/// `model2vec-rs` 0.3.0 bit for bit, so both keep this identity and
+/// existing snapshots stay valid.
 pub const BACKEND: &str = "model2vec-rs 0.3.0";
 
 /// Where the loaded model came from.
@@ -142,8 +146,16 @@ pub trait Embedder: Send + Sync {
 
 /// A static embedding model: token vectors averaged, then normalized.
 pub struct StaticEmbedder {
-    model: model2vec_rs::model::StaticModel,
+    backend: Backend,
     descriptor: ModelDescriptor,
+}
+
+enum Backend {
+    /// The BERT `WordPiece` pipeline of most `Model2Vec` models, run by
+    /// Univo on the stored table.
+    Native(Box<NativeModel>),
+    /// Any other tokenizer, through `model2vec-rs` and `tokenizers`.
+    Model2Vec(model2vec_rs::model::StaticModel),
 }
 
 impl std::fmt::Debug for StaticEmbedder {
@@ -176,6 +188,12 @@ impl StaticEmbedder {
     /// `model.corrupt` when the files cannot be read as a model.
     pub fn load_directory(directory: &Path) -> Result<Self> {
         Self::load(directory, None)
+    }
+
+    /// Whether Univo's native encoder runs this model, rather than
+    /// `model2vec-rs`; both produce the same vectors.
+    pub fn runs_natively(&self) -> bool {
+        matches!(self.backend, Backend::Native(_))
     }
 
     fn load(directory: &Path, cached: Option<&CachedModel>) -> Result<Self> {
@@ -215,41 +233,46 @@ impl StaticEmbedder {
             read(MODEL_FILES[1])?,
             read(MODEL_FILES[2])?,
         ];
-        let [config, weights, tokenizer] = &contents;
 
-        // Hashing the files takes about as long as building the model:
+        // Hashing the files takes about as long as reading the tokenizer:
         // both run at once, the model is discarded unless the files verify,
         // and an integrity error takes precedence over a parsing error.
-        let (source, model) = std::thread::scope(|scope| {
+        let (source, native) = std::thread::scope(|scope| {
             let identify = scope.spawn(|| identify(&name, directory, cached, &contents));
-            let model = without_length_settings(&name, tokenizer).and_then(|tokenizer| {
-                guarded(&name, || {
-                    model2vec_rs::model::StaticModel::from_bytes(
-                        &*tokenizer,
-                        weights,
-                        config,
-                        Some(true),
-                    )
-                })?
-                .map_err(|error| Error::corrupt_model(&name, &format!("{error:#}")))
-            });
+            let [config, _, tokenizer] = &contents;
+            let native = serde_json::from_slice::<serde::de::IgnoredAny>(config)
+                .map_err(|error| {
+                    Error::corrupt_model(&name, &format!("failed to parse config.json: {error}"))
+                })
+                .map(|_| guarded(&name, || Tokenizer::parse(tokenizer)));
             let source = identify
                 .join()
                 .unwrap_or_else(|_| Err(Error::corrupt_model(&name, "verification failed")));
-            (source, model)
+            (source, native)
         });
         let source = source?;
-        let model = model?;
-
-        let probe = guarded(&name, || {
-            model.encode_with_args(&["probe".to_owned()], None, 1)
-        })?;
-        let dimension = probe.first().map_or(0, Vec::len);
+        let [config, weights, tokenizer] = contents;
+        let backend = match native?? {
+            Some(tokenizer) => Backend::Native(Box::new(
+                NativeModel::new(tokenizer, weights)
+                    .map_err(|error| Error::corrupt_model(&name, &error))?,
+            )),
+            None => Backend::Model2Vec(model2vec(&name, &config, &weights, &tokenizer)?),
+        };
+        let dimension = match &backend {
+            Backend::Native(model) => model.dimension(),
+            Backend::Model2Vec(model) => {
+                let probe = guarded(&name, || {
+                    model.encode_with_args(&["probe".to_owned()], None, 1)
+                })?;
+                probe.first().map_or(0, Vec::len)
+            }
+        };
         if dimension == 0 {
             return Err(Error::corrupt_model(&name, "the model has no dimension"));
         }
         Ok(Self {
-            model,
+            backend,
             descriptor: ModelDescriptor {
                 source,
                 dimension,
@@ -257,6 +280,20 @@ impl StaticEmbedder {
             },
         })
     }
+}
+
+/// A model whose tokenizer only `tokenizers` runs.
+fn model2vec(
+    name: &str,
+    config: &[u8],
+    weights: &[u8],
+    tokenizer: &[u8],
+) -> Result<model2vec_rs::model::StaticModel> {
+    let tokenizer = without_length_settings(name, tokenizer)?;
+    guarded(name, || {
+        model2vec_rs::model::StaticModel::from_bytes(&*tokenizer, weights, config, Some(true))
+    })?
+    .map_err(|error| Error::corrupt_model(name, &format!("{error:#}")))
 }
 
 /// Verifies cached files against their recorded digests, or identifies a
@@ -348,6 +385,14 @@ impl Embedder for StaticEmbedder {
     fn encode_batch(&self, texts: &[&str]) -> Result<Embeddings> {
         let name = self.descriptor.name();
         let dimension = self.descriptor.dimension;
+        let model = match &self.backend {
+            Backend::Native(model) => {
+                let mut data = vec![0.0; texts.len() * dimension];
+                guarded(&name, || model.encode_into(texts, &mut data))?;
+                return Embeddings::new(&name, data, dimension);
+            }
+            Backend::Model2Vec(model) => model,
+        };
         let mut data = Vec::with_capacity(texts.len() * dimension);
         // The backend returns one allocation per text: encoding by chunks
         // keeps only one chunk of them alive next to the result.
@@ -355,7 +400,7 @@ impl Embedder for StaticEmbedder {
             let owned: Vec<String> = chunk.iter().map(|text| (*text).to_owned()).collect();
             // Static models average token vectors, so no length limit
             // applies: nothing is truncated.
-            let vectors = guarded(&name, || self.model.encode_with_args(&owned, None, 1024))?;
+            let vectors = guarded(&name, || model.encode_with_args(&owned, None, 1024))?;
             if vectors.len() != chunk.len() {
                 return Err(Error::corrupt_model(&name, "a text has no vector"));
             }

@@ -17,6 +17,14 @@ The default model is a reduced copy of `sentence-transformers/static-similarity-
 
 `org/name` is never read as a relative path: prefix local directories with `./`. Only Model2Vec models run; another format, such as a sentence-transformers repository, is refused with `model.unsupported_format`, and no downloaded code is ever executed.
 
+## Inference
+
+A text's vector is the mean of its token vectors, normalized to unit length. Most Model2Vec models, the default included, tokenize with the BERT `WordPiece` pipeline: Univo runs it natively and averages rows straight from the stored table, without the `f32` copy and tokenizer structures of `model2vec-rs`. Other tokenizers, such as the Unigram tokenizer of `minishlab/potion-multilingual-128M`, added tokens with `lstrip`, `rstrip`, `single_word` or `normalized`, and post-processors other than `BertProcessing` or a template holding the text once, run through `model2vec-rs` 0.3.0 and `tokenizers` 0.21. A file is only run natively when it holds every field `tokenizers` requires, so both paths accept the same files.
+
+- **Same vectors.** Both paths produce the same vectors, bit for bit: the native tokenizer uses the Unicode tables of `tokenizers`, and token rows are summed in the same order. `crates/univo-embed/tests/native_oracle.rs` checks every Unicode code point, random texts, the repository's corpora, every normalizer option, post-processors and every table layout against `model2vec-rs`, including int8 sums just beyond 2^24, where `f32` starts rounding. The descriptor's backend stays `model2vec-rs 0.3.0`, so existing snapshots and caches stay valid.
+- **Checked at load.** A model whose vocabulary names a row its table does not have, or whose tensor shape is too large to address, fails to load with `model.corrupt`, instead of failing on the first text that contains such a token.
+- **Threads.** The native path encodes large batches on the current thread pool, so a Finder's `threads` bound it.
+
 ## Preparing a machine
 
 ```sh

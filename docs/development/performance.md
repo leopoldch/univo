@@ -526,3 +526,31 @@ The 1.0.0 wheels were built with the Rust preinstalled on each runner. On macOS 
 | Same code, built locally with Rust 1.99.0 or 1.99.1 | 4.5–4.8 s |
 
 Apple M2 on mains power, CPython 3.14, the U-003 script with `--retrieval exact`, runs alternated. The wheel build now pins Rust 1.99.1; a new version is adopted with this measurement. The 1.0.1 wheel from PyPI, built that way, takes 4.41–4.43 s.
+
+## Native encoder
+
+The default model's BERT `WordPiece` tokenizer and mean pooling now run in Univo ([inference](../design/models.md#inference)), on the int8 table as stored. `model2vec-rs` expanded the table to `f32` and built the `tokenizers` structures; it still runs other tokenizers.
+
+**Model.** [python_model.py](../../benchmarks/performance/python_model.py), the `_univo` model directly, one fresh process per measurement, files in the OS cache. Wheels of `main` and of the change built the same way, installed outside the source tree; three rounds in A B B A order; Apple M2 on battery, CPython 3.14.7. Ranges over the rounds; [raw results](../../benchmarks/performance/native-embedder-macos-arm64.jsonl).
+
+| Measure | `main` | Change |
+| --- | --- | --- |
+| Load and verify the default model | 71–90 ms | **8.5–13 ms** |
+| Memory added by the loaded model | 111–113 MiB | **20 MiB** |
+| Encode 100,000 synthetic names, 1 thread / 8 threads | 7.06–7.11 / 2.80–2.88 µs per name | **0.91 / 0.27–0.29 µs** |
+| Encode 11,972 ROR names (50 languages), 1 thread / 8 threads | 8.05–8.13 / 3.23–3.60 µs | **1.10–1.14 / 0.32–0.35 µs** |
+| Encode one name | 7.7–8.0 µs | **1.2–1.3 µs** |
+
+**End to end.** The [U-003 script](../../benchmarks/comparison/scale.py) (`--retrieval exact`, model load included) and [check_or_add.py](../../benchmarks/comparison/check_or_add.py), two rounds in A B B A order, same wheels and conditions.
+
+| Measure | `main` | Change |
+| --- | --- | --- |
+| Semantic dedupe, 10,000 names, total | 0.177–0.185 s, 155 MiB | **0.083–0.086 s, 66 MiB** |
+| Semantic dedupe, 100,000 names, total | 4.61–4.71 s, 263–264 MiB | **4.28–4.49 s, 196–198 MiB** |
+| `add` 100,000 semantic records | 0.50–0.51 s | **0.17–0.18 s** |
+| `check_or_add` at 100,000 records, median / p95 | 0.52 / 0.54–0.55 ms | 0.51 / 0.53–0.54 ms |
+
+- **Same results.** Both wheels remove the same records; semantic and hybrid `find`, `group` and `search` over 4,000 ROR and 4,000 synthetic names hash the same, scores included; a snapshot saved by either wheel loads in the other, and their generations are byte for byte identical.
+- **Where the time goes.** At 100,000 records the all-pairs scan dominates, so encoding saves 0.3 s of 4.5 s; `check_or_add` scans the partition and encodes one name.
+- **Budgets.** `embed.first_encoding` measures 66 ms on `main` and 8.9 ms with the change, now budgeted at 40 ms instead of 200 ms; `embed.encode`, 20,000 descriptions on one thread, 828 ms and 193 ms (41 ms on 8 threads), now budgeted at 400 ms instead of 1,400 ms.
+- **Wheel.** Unchanged at 2.0 MiB: `model2vec-rs` and `tokenizers` remain linked for the other tokenizers.
