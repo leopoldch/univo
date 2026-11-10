@@ -224,6 +224,8 @@ Nine public lists of Chicago's early childhood sites, the dataset of the [Dedupe
 
 Synthetic company names, one partition. Univo's search is exhaustive; SemHash's index is approximate. Results depend on your data: measure on a sample of yours. Method and every result: [benchmarks](benchmarks.md).
 
+In the next release, the default model loads in about 10 ms and adds 20 MiB of memory instead of 111 MiB: 10,000 names take 0.09 s and 100,000 peak at 197 MiB ([measured](benchmarks.md#next-release)).
+
 ## Next
 
 - [Guide](guide.md): everything you need, on one page.
