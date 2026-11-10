@@ -219,12 +219,12 @@ Nine public lists of Chicago's early childhood sites, the dataset of the [Dedupe
 
 ## Measured, not promised
 
-<div class="viz-root" data-chart="bars"><script type="application/json">{"title": "Deduplicate 100,000 names, semantic", "subtitle": "Wall time with the same model, Apple M2, every core. Lower is better.", "format": "s", "valueName": "Time", "labelWidth": 110, "items": [{"label": "Univo 1.0.1", "value": 4.5, "color": 1, "note": "exact search, 262 MiB"}, {"label": "SemHash 0.5.0", "value": 7.6, "color": "ref", "note": "approximate index, 488 MiB"}]}</script></div>
-<div class="viz-root" data-chart="bars"><script type="application/json">{"title": "Peak memory, same run", "subtitle": "Lower is better.", "format": "MiB", "valueName": "Peak memory", "labelWidth": 110, "items": [{"label": "Univo 1.0.1", "value": 262, "color": 1}, {"label": "SemHash 0.5.0", "value": 488, "color": "ref"}]}</script></div>
+<div class="viz-root" data-chart="bars"><script type="application/json">{"title": "Deduplicate 100,000 names, semantic", "subtitle": "Wall time with the same model, Apple M2, every core. Lower is better.", "format": "s", "valueName": "Time", "labelWidth": 110, "items": [{"label": "Univo 1.0.2", "value": 4.5, "color": 1, "note": "exact search, 197 MiB"}, {"label": "SemHash 0.5.0", "value": 8.0, "color": "ref", "note": "approximate index, 489 MiB"}]}</script></div>
+<div class="viz-root" data-chart="bars"><script type="application/json">{"title": "Peak memory, same run", "subtitle": "Lower is better.", "format": "MiB", "valueName": "Peak memory", "labelWidth": 110, "items": [{"label": "Univo 1.0.2", "value": 197, "color": 1}, {"label": "SemHash 0.5.0", "value": 489, "color": "ref"}]}</script></div>
 
 Synthetic company names, one partition. Univo's search is exhaustive; SemHash's index is approximate. Results depend on your data: measure on a sample of yours. Method and every result: [benchmarks](benchmarks.md).
 
-In the next release, the default model loads in about 10 ms and adds 20 MiB of memory instead of 111 MiB: 10,000 names take 0.09 s and 100,000 peak at 197 MiB ([measured](benchmarks.md#next-release)).
+The default model loads in about 10 ms and adds 20 MiB of memory ([measured](benchmarks.md#speed)).
 
 ## Next
 

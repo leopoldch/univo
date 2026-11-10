@@ -106,12 +106,12 @@ finder.check_or_add({"id": 4, "name": "Northwind Traders", "vat": "FR401"}).stat
 
 `review` means a similar record exists and nothing was inserted: your application decides.
 
-Checking one new record against 100,000 synthetic company names, in one partition, at the default threshold of 0.8, with the model already loaded (Apple M2, PyPI wheel 1.0.1, [script](https://github.com/leopoldch/univo/blob/main/benchmarks/comparison/check_or_add.py)):
+Checking one new record against 100,000 synthetic company names, in one partition, at the default threshold of 0.8, with the model already loaded (Apple M2, Univo 1.0.2, [script](https://github.com/leopoldch/univo/blob/main/benchmarks/comparison/check_or_add.py)):
 
 | Name field | Median | p95 |
 | --- | --- | --- |
-| Lexical | 0.15 ms | 0.4 ms |
-| With embeddings | 1.3 ms | 1.4 ms |
+| Lexical | 0.16 ms | 0.4 ms |
+| With embeddings | 0.51 ms | 0.56 ms |
 
 Times depend on your data: they grow with the records of a partition and with the number of close candidates. Indexes can be updated, saved and loaded ([mutations](https://github.com/leopoldch/univo/blob/main/docs/design/mutations.md), [snapshots](https://github.com/leopoldch/univo/blob/main/docs/design/snapshots.md)).
 
@@ -128,14 +128,14 @@ Against SemHash 0.5.0, with the same model, on an Apple M2 on mains power:
 
 | | Univo | SemHash |
 | --- | --- | --- |
-| Deduplicate 100,000 names, semantic | **4.5 s**, 262 MiB | 7.6 s, 488 MiB |
+| Deduplicate 100,000 names, semantic | **4.4–4.6 s**, 197 MiB | 7.8–8.3 s, 489 MiB |
 | Organization aliases (ROR), test precision / recall | **62.5% / 32.1%** | 48.0% / 30.1% |
 | Structured records: forbidden matches, of 44 | **0** | 35 |
 | Installed size | **4 MiB**, 1 package | 64 MiB, 30 packages |
 
 Univo's search is exact; SemHash's index is approximate. On names alone, neither tool is precise enough to merge automatically, so Univo returns scored candidates, not decisions. Method and every result: [benchmarks](https://github.com/leopoldch/univo/blob/main/docs/benchmarks.md).
 
-**Next release** ([#63](https://github.com/leopoldch/univo/pull/63), not yet on PyPI): Univo runs the default model's tokenizer itself. The model loads in about 10 ms instead of 75–94 ms and adds 20 MiB of memory instead of 111 MiB. 10,000 names take 0.09 s and 100,000 take 4.4–4.6 s at 197 MiB, with the same results ([details](https://github.com/leopoldch/univo/blob/main/docs/benchmarks.md#next-release)).
+The default model loads in about 10 ms and adds 20 MiB of memory, a fifth of 1.0.1's 111 MiB.
 
 ## Documentation
 

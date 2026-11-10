@@ -2,47 +2,35 @@
 
 Univo against [SemHash](https://github.com/MinishLab/semhash) 0.5.0, the closest existing tool: local deduplication with the same family of static models. Both tools run offline with the same model files. Raw results and scripts are in [benchmarks/](../benchmarks).
 
-**Machine.** Apple M2 (4 performance and 4 efficiency cores), 16 GiB, macOS 27.0, CPython 3.14.7 for Univo and 3.12.14 for SemHash, release wheels installed outside the source tree. Timings are from Univo 1.0.1 as published on PyPI, on mains power, with each tool run in alternation (A B B A).
+**Machine.** Apple M2 (4 performance and 4 efficiency cores), 16 GiB, macOS 27.0, CPython 3.14.7 for Univo and 3.12.14 for SemHash, release wheels installed outside the source tree. Timings are from the code of Univo 1.0.2, on mains power, with each tool run in alternation (A B B A).
 
 ## Speed
 
 [scale.py](../benchmarks/comparison/scale.py) deduplicates synthetic company names in one partition. One record in ten repeats an earlier name with a typo. Each tool runs at its default threshold, on every core, and turns pairs into removals with SemHash's rule inside the timed section. Wall time includes importing the tool and loading the model.
 
-| Records | Univo, semantic | SemHash |
-| --- | --- | --- |
-| 10,000 | **0.17–0.19 s**, 150 MiB | 0.79–1.05 s, 156 MiB |
-| 30,000 | **0.58–0.59 s**, 175 MiB | 1.90–1.91 s, 228 MiB |
-| 100,000 | **4.5 s**, 262 MiB | 7.6 s, 488 MiB |
-
-- **Exact against approximate.** Univo's search is exhaustive and returns every pair above the threshold. SemHash uses an approximate usearch index.
-- **Different thresholds.** They remove different numbers of records (6,305 and 4,122 at 100,000), so this compares cost, not quality.
-- **Raw results.** [scale-1.0.1.jsonl](../benchmarks/comparison/results/scale-1.0.1.jsonl), two runs of each tool at each size. Every change and its measurement is in [performance](development/performance.md).
-
-### Next release
-
-[#63](https://github.com/leopoldch/univo/pull/63), not yet on PyPI, runs the default model's tokenizer in Univo and keeps its int8 table as stored. Vectors and results are identical. Same machine and script, on mains power. Each size alternates `main` before the change, the change, and SemHash in A B B A order:
-
-| Records | Next release | `main` before #63 | SemHash |
+| Records | Univo 1.0.2, semantic | Univo 1.0.1 | SemHash |
 | --- | --- | --- | --- |
 | 10,000 | **0.09 s**, 66 MiB | 0.19 s, 155 MiB | 1.01–1.03 s, 156 MiB |
 | 30,000 | **0.45–0.48 s**, 101 MiB | 0.61–0.63 s, 183 MiB | 2.04–2.15 s, 227 MiB |
 | 100,000 | **4.4–4.6 s**, 197 MiB | 4.9–5.0 s, 263 MiB | 7.8–8.3 s, 489 MiB |
 
-- **Model.** Loading and verifying it takes 9–12 ms instead of 75–94 ms and adds 20 MiB instead of 111 MiB. One name encodes in 0.92 µs instead of 7.3 µs on one thread.
-- **Where it helps.** Loading and encoding cost less. At 100,000 names the all-pairs scan dominates, so the total moves less.
-- **One record at a time.** Adding 100,000 semantic names takes 0.19 s instead of 0.55–0.58 s. A semantic `check_or_add` takes 0.51 ms at the median, against 1.31–1.33 ms in 1.0.1; that gain comes from [#58](https://github.com/leopoldch/univo/pull/58), already on `main`. Lexical runs do not change.
-- **Raw results.** [scale-next.jsonl](../benchmarks/comparison/results/scale-next.jsonl), [native-embedder-macos-arm64.jsonl](../benchmarks/performance/native-embedder-macos-arm64.jsonl) with [python_model.py](../benchmarks/performance/python_model.py).
+- **Exact against approximate.** Univo's search is exhaustive and returns every pair above the threshold. SemHash uses an approximate usearch index.
+- **Different thresholds.** They remove different numbers of records (6,305 and 4,122 at 100,000), so this compares cost, not quality.
+- **What 1.0.2 changes.** Univo runs the default model's tokenizer itself and keeps its int8 table as stored, with the same vectors and results. The model loads and is verified in 9–12 ms instead of 75–94 ms, adds 20 MiB instead of 111 MiB, and encodes one name in 0.92 µs instead of 7.3 µs on one thread. At 100,000 names the all-pairs scan dominates, so the total moves less.
+- **Raw results.** [scale-1.0.2.jsonl](../benchmarks/comparison/results/scale-1.0.2.jsonl), two runs of each at each size; the 1.0.1 column is `main` just before 1.0.2's encoder (e70e202), whose all-pairs search is that of 1.0.1. Model cost: [native-embedder-macos-arm64.jsonl](../benchmarks/performance/native-embedder-macos-arm64.jsonl) with [python_model.py](../benchmarks/performance/python_model.py). Earlier: [scale-1.0.1.jsonl](../benchmarks/comparison/results/scale-1.0.1.jsonl), with the 1.0.1 wheel from PyPI. Every change and its measurement is in [performance](development/performance.md).
 
-Univo also deduplicates lexically, with no model: 100,000 names take **1.9 s** for synthetic names (same runs) and **2.2 s** for real ROR names. SemHash has no lexical mode.
+Univo also deduplicates lexically, with no model: 100,000 names take **2.0–2.6 s** for synthetic names (same runs) and **2.2 s** for real ROR names. SemHash has no lexical mode.
 
 ## One record at a time
 
-[check_or_add.py](../benchmarks/comparison/check_or_add.py) adds 100,000 of the same synthetic names to one partition, then checks 500 new ones with `check_or_add` at the default threshold of 0.8, timing each call. The model is loaded while adding, so the checks do not include it. Univo 1.0.1 from PyPI, Python 3.14, one thread, on mains power; two runs.
+[check_or_add.py](../benchmarks/comparison/check_or_add.py) adds 100,000 of the same synthetic names to one partition, then checks 500 new ones with `check_or_add` at the default threshold of 0.8, timing each call. The model is loaded while adding, so the checks do not include it. Univo 1.0.2 code, Python 3.14, one thread, on mains power; two runs.
 
 | Name field | Add 100,000 | Check one, median | Check one, p95 |
 | --- | --- | --- | --- |
-| Lexical | 0.14 s | 0.15 ms | 0.35–0.36 ms |
-| Semantic, default model | 0.49 s | 1.31–1.33 ms | 1.36–1.38 ms |
+| Lexical | 0.15 s | 0.16 ms | 0.38–0.39 ms |
+| Semantic, default model | 0.19 s | 0.51 ms | 0.55–0.56 ms |
+
+In 1.0.1, a semantic check took 1.31–1.33 ms and adding the 100,000 names 0.49 s. 1.0.2 skips the vectors that cannot reach the threshold ([#58](https://github.com/leopoldch/univo/pull/58)) and encodes faster.
 
 A semantic check scans every vector of the partition, so it grows with the partition. A lexical check grows with the number of candidates that share trigrams with the new record.
 
