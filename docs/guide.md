@@ -182,7 +182,7 @@ finder = Finder(schema=Schema(fields={"description": Text(mode="semantic")}))
 
 ## Large datasets
 
-- **Partition.** Search cost grows with the records of a partition: `partition_by` splits it.
+- **Partition.** Search cost grows with the records of a partition: `partition_by` splits it. One million names take minutes in a single partition and about 5 s in 100 partitions of 10,000, in either mode ([measurements](development/performance.md#large-partitions)).
 - **Raise the threshold.** Fewer candidates reach 0.8 than 0.6.
 - **Raise the limits.** An index holds 100,000 records by default: pass `max_records`. Going over a limit raises `ResourceLimitError`, never a silent partial result.
 - **Semantic batches.** `find` and `group` with a semantic field first check a work budget: about n² vector comparisons for n records in one partition. The default `max_semantic_comparisons=1_000_000` covers about 1,000 records per partition; raise it for larger batches.

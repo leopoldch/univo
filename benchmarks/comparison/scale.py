@@ -57,8 +57,8 @@ SYLLABLES = [
 ]
 
 
-def names(count: int) -> list[str]:
-    rng = random.Random(7)
+def names(count: int, seed: int = 7) -> list[str]:
+    rng = random.Random(seed)
     out: list[str] = []
     for _ in range(count):
         if out and rng.random() < 0.1:

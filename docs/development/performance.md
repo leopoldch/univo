@@ -554,3 +554,49 @@ The default model's BERT `WordPiece` tokenizer and mean pooling now run in Univo
 - **Where the time goes.** At 100,000 records the all-pairs scan dominates, so encoding saves 0.3 s of 4.5 s; `check_or_add` scans the partition and encodes one name.
 - **Budgets.** `embed.first_encoding` measures 66 ms on `main` and 8.9 ms with the change, now budgeted at 40 ms instead of 200 ms; `embed.encode`, 20,000 descriptions on one thread, 828 ms and 193 ms (41 ms on 8 threads), now budgeted at 400 ms instead of 1,400 ms.
 - **Wheel.** Unchanged at 2.0 MiB: `model2vec-rs` and `tokenizers` remain linked for the other tokenizers.
+
+## Large partitions
+
+Three changes to all-pairs reports, `find` and `group`, on partitions of 100,000 records and more. None changes a result.
+
+**Lexical: what a candidate costs.** One search over the synthetic names reads the same share of the index at every size, 13.7% of it at 0.8, so its work grows with the index as expected. Its time grew faster: each entry read took 10.8 ns at 100,000 names and 28 ns at 800,000. Of 13,700 entries read at 100,000 names, 1,800 are records already seen, 4,300 are rejected on their sizes, 7,200 on their signature and 400 on their character counts; about one is scored. Each of these decisions read up to four tables, the partition keys, the sizes, the 48-byte summaries and the records, which no longer fit in the cache beyond 100,000 records.
+
+- **One read per candidate.** The sizes and the signature of a record now sit together in 32 bytes, which decide for 97% of the candidates. The character counts are stored apart, the record is read only for a candidate the bounds admit, and the partition key is not read at all: posting lists are keyed by it.
+- **Reads in batches.** These 32 bytes are fetched for 32 candidates before the first is decided, so the fetches of a batch wait for memory together. Batches of 8, 16 and 64 measured 16.7, 13.6 and 11.9 ns per entry at 800,000 names, against 11.8 ns for 32.
+
+One search at 0.8 on one thread, `main` and the change alternated in A B B A order:
+
+| Names in the index | `main`, per entry read | Change, per entry read | `main`, per search | Change, per search |
+| --- | --- | --- | --- | --- |
+| 100,000 | 10.8 ns | **8.2–8.4 ns** | 148 µs | **112–115 µs** |
+| 200,000 | 17.6 ns | **8.1–8.2 ns** | 483 µs | **222–226 µs** |
+| 400,000 | 24.4 ns | **8.9 ns** | 1.34 ms | **0.49 ms** |
+| 800,000 | 28.2–28.3 ns | **11.7–11.9 ns** | 3.10 ms | **1.29–1.31 ms** |
+
+**Semantic: what a pair costs.** The blocked scan compared half of each row, 64 dimensions, with every query of a block, then skipped the other half for eight queries at a time when none could reach the threshold. Each field is now sketched first ([all pairs](../design/vector-search.md#all-pairs)): 32 coordinates on directions fitted to the data rule out a pair on their own, and only the pairs they admit read the rows. Sketches of 16, 24 and 48 coordinates took 5.0, 2.6 and 3.0 s at 100,000 names, against 2.4 s for 32: fewer coordinates admit too many pairs.
+
+**End to end.** [scale.py](../../benchmarks/comparison/scale.py) with `--retrieval exact`, time of the deduplication alone, one partition, every core. Wheels of 1.0.2 and of the change built the same way, installed outside the source tree; A B B A order, CPython 3.14.7, Apple M2 on battery, from 93% to 70% of charge: the 1.0.2 times are those measured on mains the same day and the day before. [Raw results](../../benchmarks/performance/large-partitions-macos-arm64.jsonl).
+
+| Names | Lexical, 1.0.2 | Lexical, change | Semantic, 1.0.2 | Semantic, change |
+| --- | --- | --- | --- | --- |
+| 10,000 | 0.05 s | 0.05–0.06 s | 0.067 s | **0.055–0.059 s** |
+| 30,000 | 0.22–0.23 s | **0.20 s** | 0.42–0.43 s | **0.27 s** |
+| 100,000 | 1.93 s, 13 s CPU | **1.39–1.40 s**, 9.1 s CPU | 4.21–4.25 s, 30 s CPU | **2.37 s**, 16.5 s CPU |
+| 300,000 | 31.1–31.5 s, 219 s CPU | **11.9 s**, 84 s CPU | 38.8–39.1 s, 292 s CPU | **21.7–21.9 s**, 160 s CPU |
+
+**One million names.** [partitions.py](../../benchmarks/comparison/partitions.py) splits them into equal partitions, each with its own names; the time includes loading the model. Two runs of each, one for a single partition.
+
+| Partitions | Lexical, 1.0.2 | Lexical, change | Semantic, 1.0.2 | Semantic, change |
+| --- | --- | --- | --- | --- |
+| 100 of 10,000 | 6.5 s | **5.5 s** | 6.4–6.6 s | **4.8 s** |
+| 10 of 100,000 | 54–56 s | **16–18 s** | 47–49 s | **27–29 s** |
+| 1 of 1,000,000 | 833 s | **194 s** | 519 s | **278 s** |
+
+- **Same results.** Every pair of runs removes the same records and finds the same number of pairs. The native engine's whole lexical report hashes the same at 100,000 and 300,000 names. In the tests, sketched and unsketched blocks find the same candidates in the same order, and reports equal the exhaustive oracle.
+- **Memory.** A sketch takes 132 bytes per distinct text for the duration of the call: peak memory grows by 11 MiB at 100,000 names and 38 MiB at 300,000. The lexical index keeps its 64 bytes per record. At one million records the peak varies by 150 MiB from run to run with either wheel.
+- **Small reports.** Sketching costs the fit of its directions and 32 projections per row. With 6,000 names in one partition a report takes 22.6 ms with sketches and 22.2 ms without; with 8,000, 33.4 ms against 38.5 ms. Sketches are used from about 8,000 records in a partition.
+- **One record at a time.** A lexical `check_or_add` at 100,000 records takes 0.11–0.12 ms at the median and 0.29–0.30 ms at p95, against 0.15 and 0.35–0.36 ms. A semantic one is unchanged at 0.51 ms: it does not use sketches.
+- **Native engine, one thread.** Lexical all-pairs takes 6.0 s against 7.7 s at 100,000 names, and 52.7 s against 111.5 s at 300,000.
+- **Budgets.** `engine.lexical_search` measures 104 µs at the median and 0.25 ms at p95 at 0.8, against 141–146 µs and 0.30–0.33 ms; the index still builds in 35 ms. No budget changes.
+- **What remains.** Both reports stay quadratic in the records of a partition. Lexical time is now bounded by the entries read, a constant share of the partition for these names; semantic time by 32 multiplications per pair.
+- **Reproduce.** `cargo run --release -p univo-engine --example lexical_all_pairs -- names.txt 300000 8`, with the names of `scale.py`, one per line; `python -I benchmarks/comparison/partitions.py --mode semantic --records 1000000 --partitions 10 --model-path $MODEL`.
