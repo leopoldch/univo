@@ -7,13 +7,22 @@
 //! once and compares it with every query of the block, with the arithmetic
 //! of [`univo_core::dot`]: the candidates are the ones the per-query scan
 //! finds, bit for bit.
+//!
+//! In a large report, each field is first sketched ([`crate::sketch`]): a
+//! row's sketch, a quarter of the row or less, rules out most queries of
+//! the block, and only the pairs it admits are compared on the rows.
 
 use std::collections::HashMap;
 
-use univo_core::{Result, dot, dots_reaching, partition_fingerprint, rest_norm};
+use univo_core::{
+    Result, SKETCH_GROUP, SketchGroup, dot, dots_reaching, partition_fingerprint, rest_norm,
+    rounding_margin,
+};
 
 use crate::SearchIndex;
 use crate::search::lane_threshold;
+use crate::sketch::DenseSketch;
+use crate::vectors::FieldVectors;
 
 /// Queries per block: their vectors, 1 KiB each at 256 dimensions, stay in
 /// a core's cache while the partition streams past them.
@@ -43,10 +52,34 @@ pub(crate) enum Dense {
 struct Member<'a> {
     index: usize,
     slot: usize,
+    /// Row of the vector in its field.
+    row: usize,
     vector: &'a [f32],
     /// Norm of the dimensions after the prefix [`dots_reaching`] reads
     /// first, 0 without a prefix: the kernel then reads no norm.
     rest: f32,
+}
+
+/// The queries of `block` with an embedding in `vectors`, in order.
+fn members<'a>(block: &[usize], vectors: &'a FieldVectors, prefix: usize) -> Vec<Member<'a>> {
+    block
+        .iter()
+        .enumerate()
+        .filter_map(|(index, &slot)| {
+            let vector = vectors.get(slot)?;
+            Some(Member {
+                index,
+                slot,
+                row: vectors.rows[slot]? as usize,
+                vector,
+                rest: if prefix == 0 {
+                    0.0
+                } else {
+                    rest_norm(vector, prefix)
+                },
+            })
+        })
+        .collect()
 }
 
 /// Chunks of eight dimensions read before deciding whether a row can reach
@@ -79,6 +112,30 @@ impl SearchIndex {
             .collect()
     }
 
+    /// The sketch of each semantic field, for the blocks of one report over
+    /// `queries`; none when the dense lane does not apply or when the
+    /// report compares too few pairs to pay for them.
+    pub(crate) fn dense_sketches(&self, queries: usize, exhaustive: bool) -> DenseSketches {
+        let Some(vectors) = self.vectors.as_ref() else {
+            return Vec::new();
+        };
+        if exhaustive || self.ann_options.is_some() {
+            return Vec::new();
+        }
+        let pairs: usize = self
+            .partitions
+            .values()
+            .map(|slots| slots.len().saturating_mul(slots.len()) / 2)
+            .fold(0, usize::saturating_add);
+        if pairs < self.dense_sketch_pairs.saturating_mul(queries.max(1)) {
+            return Vec::new();
+        }
+        self.semantic
+            .iter()
+            .map(|&field| vectors.field(field).and_then(DenseSketch::new))
+            .collect()
+    }
+
     /// Hands each query of `block` to `visit` with its dense candidates,
     /// or `None` for the dense lane's own scan, in slot order. Blocks over
     /// [`DENSE_BLOCK_BUDGET`] are split in two, so a block holds at most the
@@ -88,6 +145,7 @@ impl SearchIndex {
         block: &[usize],
         min_score: f32,
         exhaustive: bool,
+        sketches: &DenseSketches,
         visit: &mut dyn FnMut(usize, Option<&DenseCandidates>) -> Result<()>,
     ) -> Result<()> {
         let budget = if block.len() > 1 {
@@ -95,7 +153,7 @@ impl SearchIndex {
         } else {
             usize::MAX
         };
-        match self.dense_block(block, min_score, exhaustive, budget) {
+        match self.dense_block(block, min_score, exhaustive, budget, sketches) {
             Dense::NotApplicable => block.iter().try_for_each(|&slot| visit(slot, None)),
             Dense::Found(found) => block
                 .iter()
@@ -103,8 +161,8 @@ impl SearchIndex {
                 .try_for_each(|(&slot, dense)| visit(slot, Some(dense))),
             Dense::OverBudget => {
                 let (first, second) = block.split_at(block.len() / 2);
-                self.for_each_in_block(first, min_score, exhaustive, visit)?;
-                self.for_each_in_block(second, min_score, exhaustive, visit)
+                self.for_each_in_block(first, min_score, exhaustive, sketches, visit)?;
+                self.for_each_in_block(second, min_score, exhaustive, sketches, visit)
             }
         }
     }
@@ -119,6 +177,7 @@ impl SearchIndex {
         min_score: f32,
         exhaustive: bool,
         budget: usize,
+        sketches: &DenseSketches,
     ) -> Dense {
         let Some(vectors) = self.vectors.as_ref() else {
             return Dense::NotApplicable;
@@ -135,29 +194,27 @@ impl SearchIndex {
                 continue;
             };
             let prefix = prefix_chunks(field_vectors.dimension());
-            let members: Vec<Member<'_>> = block
-                .iter()
-                .enumerate()
-                .filter_map(|(index, &slot)| {
-                    let vector = field_vectors.get(slot)?;
-                    Some(Member {
-                        index,
-                        slot,
-                        vector,
-                        rest: if prefix == 0 {
-                            0.0
-                        } else {
-                            rest_norm(vector, prefix)
-                        },
-                    })
-                })
-                .collect();
+            let members = members(block, field_vectors, prefix);
             let Some(first) = members.first() else {
                 continue;
             };
+            let start = partition.partition_point(|&slot| (slot as usize) <= first.slot);
+            if let Some(sketch) = sketches.get(position).and_then(Option::as_ref) {
+                let scan = Sketched {
+                    vectors: field_vectors,
+                    sketch,
+                    members: &members,
+                    threshold,
+                };
+                let rows = &partition[start..];
+                let mut keep = |member: usize, slot| found[member][position].push(slot);
+                if !self.sketched_rows(&scan, rows, budget, &mut held, &mut keep) {
+                    return Dense::OverBudget;
+                }
+                continue;
+            }
             // Members before `ready` precede the current row: they scan it.
             let mut ready = 0;
-            let start = partition.partition_point(|&slot| (slot as usize) <= first.slot);
             for &row_slot in &partition[start..] {
                 let slot = row_slot as usize;
                 if !self.store().is_active(slot) {
@@ -211,6 +268,84 @@ impl SearchIndex {
         }
         Dense::Found(found)
     }
+
+    /// The scan of [`Self::dense_block`] for one sketched field: hands
+    /// `keep` each member and later row whose similarity reaches the
+    /// threshold, in the same order, counting them in `held`, and stops
+    /// with `false` at the row that finds `held` above `budget`.
+    fn sketched_rows(
+        &self,
+        scan: &Sketched<'_>,
+        rows: &[u32],
+        budget: usize,
+        held: &mut usize,
+        keep: &mut dyn FnMut(usize, u32),
+    ) -> bool {
+        let Sketched {
+            vectors,
+            sketch,
+            members,
+            threshold,
+        } = *scan;
+        let dimension = vectors.dimension();
+        let margin = rounding_margin(dimension);
+        let groups: Vec<SketchGroup> = members
+            .chunks(SKETCH_GROUP)
+            .map(|group| {
+                let sketches: Vec<_> = group.iter().map(|member| sketch.row(member.row)).collect();
+                SketchGroup::new(&sketches)
+            })
+            .collect();
+        let mut ready = 0;
+        for &row_slot in rows {
+            let slot = row_slot as usize;
+            if !self.store().is_active(slot) {
+                continue;
+            }
+            let Some(row) = vectors.rows[slot] else {
+                continue;
+            };
+            let row = row as usize;
+            while ready < members.len() && members[ready].slot < slot {
+                ready += 1;
+            }
+            if *held > budget {
+                return false;
+            }
+            let (coordinates, rest) = sketch.row(row);
+            for (group, first) in groups[..ready.div_ceil(SKETCH_GROUP)]
+                .iter()
+                .zip((0..).step_by(SKETCH_GROUP))
+            {
+                // The members of the group that precede the row.
+                let ahead = u8::MAX >> (SKETCH_GROUP - (ready - first).min(SKETCH_GROUP));
+                let mut reaching = group.reaching(coordinates, rest, threshold, margin) & ahead;
+                while reaching != 0 {
+                    let member = &members[first + reaching.trailing_zeros() as usize];
+                    reaching &= reaching - 1;
+                    let vector = &vectors.data[row * dimension..(row + 1) * dimension];
+                    if dot(member.vector, vector).clamp(0.0, 1.0) >= threshold {
+                        keep(member.index, row_slot);
+                        *held += 1;
+                    }
+                }
+            }
+        }
+        true
+    }
+}
+
+/// The sketch of each semantic field, in the order of the fields; `None`
+/// for a field without one, and empty when no field is sketched.
+pub(crate) type DenseSketches = Vec<Option<DenseSketch>>;
+
+/// One sketched field of a block: its rows, their sketches and the queries.
+#[derive(Clone, Copy)]
+struct Sketched<'a> {
+    vectors: &'a FieldVectors,
+    sketch: &'a DenseSketch,
+    members: &'a [Member<'a>],
+    threshold: f32,
 }
 
 #[cfg(test)]
@@ -277,14 +412,14 @@ mod tests {
         let block: Vec<usize> = (0..QUERY_BLOCK).collect();
         // Every query matches every later record on every field.
         let all: usize = block.iter().map(|&slot| (499 - slot) * FIELDS).sum();
-        let Dense::Found(found) = index.dense_block(&block, 0.8, false, all) else {
+        let Dense::Found(found) = index.dense_block(&block, 0.8, false, all, &Vec::new()) else {
             panic!("the exact budget suffices");
         };
         let held: usize = found.iter().flatten().map(Vec::len).sum();
         assert_eq!(held, all);
         for budget in [0, 100, all - 1] {
             assert!(matches!(
-                index.dense_block(&block, 0.8, false, budget),
+                index.dense_block(&block, 0.8, false, budget, &Vec::new()),
                 Dense::OverBudget
             ));
         }
@@ -296,7 +431,7 @@ mod tests {
         let block: Vec<usize> = (0..QUERY_BLOCK).collect();
         let mut visited = Vec::new();
         index
-            .for_each_in_block(&block, 0.8, false, &mut |slot, dense| {
+            .for_each_in_block(&block, 0.8, false, &Vec::new(), &mut |slot, dense| {
                 let dense = dense.expect("dense candidates");
                 // Down to one query, which holds all its candidates.
                 assert_eq!(
@@ -308,5 +443,133 @@ mod tests {
             })
             .unwrap();
         assert_eq!(visited, block);
+    }
+
+    const WIDE: usize = 96;
+
+    /// Unit vectors of [`WIDE`] values: the first word of a text draws a
+    /// direction, the whole text a deviation from it, so that texts sharing
+    /// their first word are close.
+    struct Clustered(ModelDescriptor);
+
+    impl Embedder for Clustered {
+        fn descriptor(&self) -> &ModelDescriptor {
+            &self.0
+        }
+
+        fn encode_batch(&self, texts: &[&str]) -> univo_core::Result<Embeddings> {
+            let draw = |text: &str| {
+                let mut state = text.bytes().fold(0xcbf2_9ce4_8422_2325u64, |hash, byte| {
+                    (hash ^ u64::from(byte)).wrapping_mul(0x100_0000_01b3)
+                }) | 1;
+                move || {
+                    state ^= state << 13;
+                    state ^= state >> 7;
+                    state ^= state << 17;
+                    f32::from(u16::try_from(state % 2001).unwrap()) / 1000.0 - 1.0
+                }
+            };
+            let mut data = Vec::with_capacity(texts.len() * WIDE);
+            for text in texts {
+                let (mut center, mut deviation) =
+                    (draw(text.split(' ').next().unwrap()), draw(text));
+                let vector: Vec<f32> = (0..WIDE).map(|_| center() + 0.45 * deviation()).collect();
+                let norm = univo_core::dot(&vector, &vector).sqrt();
+                data.extend(vector.iter().map(|value| value / norm));
+            }
+            Embeddings::new("clustered", data, WIDE)
+        }
+    }
+
+    /// Two partitions of unequal sizes, repeated texts, records without a
+    /// text and removed records.
+    fn clustered(records: i64) -> SearchIndex {
+        let schema = Schema::builder()
+            .id_field(FieldPath::parse("id").unwrap())
+            .partition_by(FieldPath::parse("part").unwrap())
+            .text(
+                FieldPath::parse("text").unwrap(),
+                Text {
+                    mode: TextMode::Semantic,
+                    ..Text::default()
+                },
+            )
+            .build()
+            .unwrap();
+        let prepared = (0..records)
+            .map(|id| {
+                let mut entries = vec![
+                    ("id".to_owned(), Value::Int(id)),
+                    ("part".to_owned(), Value::Int(i64::from(id % 5 == 0))),
+                ];
+                if id % 13 != 0 {
+                    let text = format!("w{} v{}", id % 37, id % 301);
+                    entries.push(("text".to_owned(), Value::Str(text)));
+                }
+                prepare(&schema, &Value::Map(Map::new(entries).unwrap())).unwrap()
+            })
+            .collect();
+        let model: Arc<dyn Embedder> = Arc::new(Clustered(ModelDescriptor {
+            source: ModelSource::Local {
+                path: "clustered".into(),
+                files: Vec::new(),
+            },
+            dimension: WIDE,
+            backend: "clustered",
+        }));
+        let mut index = SearchIndex::new(schema, 10_000, Some(model)).unwrap();
+        index.add(prepared).unwrap();
+        let removed: Vec<_> = (0..records)
+            .step_by(17)
+            .map(univo_core::RecordId::Int)
+            .collect();
+        index.remove(&removed).unwrap();
+        index
+    }
+
+    #[test]
+    fn sketched_blocks_find_what_unsketched_blocks_find() {
+        let index = clustered(1500).with_dense_sketch_pairs(0);
+        let queries: Vec<usize> = index.store().active_slots().collect();
+        let sketches = index.dense_sketches(queries.len(), false);
+        assert!(matches!(sketches.as_slice(), [Some(_)]));
+        let (mut candidates, mut sizes) = (0, std::collections::HashSet::new());
+        for min_score in [0.3, 0.6, 0.8, 0.95, 1.0] {
+            for block in index.query_blocks(&queries) {
+                // Blocks cut short leave a group of fewer than eight.
+                for block in [&block[..], &block[..block.len().min(11)], &block[..1]] {
+                    sizes.insert(block.len());
+                    let plain = index.dense_block(block, min_score, false, usize::MAX, &Vec::new());
+                    let with = index.dense_block(block, min_score, false, usize::MAX, &sketches);
+                    let (Dense::Found(plain), Dense::Found(with)) = (plain, with) else {
+                        panic!("the dense lane applies");
+                    };
+                    candidates += plain.iter().flatten().map(Vec::len).sum::<usize>();
+                    assert_eq!(with, plain, "{min_score}");
+                    for budget in [0, 10] {
+                        let over = |sketches| {
+                            matches!(
+                                index.dense_block(block, min_score, false, budget, sketches),
+                                Dense::OverBudget
+                            )
+                        };
+                        assert_eq!(over(&sketches), over(&Vec::new()), "{min_score} {budget}");
+                    }
+                }
+            }
+        }
+        assert!(candidates > 20_000, "{candidates}");
+        assert!(sizes.contains(&QUERY_BLOCK) && sizes.contains(&11) && sizes.contains(&1));
+    }
+
+    #[test]
+    fn small_reports_and_other_searches_are_not_sketched() {
+        let index = clustered(1500);
+        let queries = index.store().active_slots().count();
+        // 1,500 records compare far fewer pairs than a sketch is worth.
+        assert!(index.dense_sketches(queries, false).is_empty());
+        let index = index.with_dense_sketch_pairs(0);
+        assert!(index.dense_sketches(queries, true).is_empty());
+        assert_eq!(index.dense_sketches(queries, false).len(), 1);
     }
 }

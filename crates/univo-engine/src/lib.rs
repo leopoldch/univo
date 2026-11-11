@@ -21,6 +21,7 @@ pub mod groups;
 pub mod lexical;
 mod quantized;
 pub mod search;
+mod sketch;
 pub mod store;
 mod values;
 pub mod vectors;

@@ -245,6 +245,7 @@ impl SearchIndex {
         };
         let mut nodes: Vec<usize> = exact.sizes.keys().copied().collect();
         nodes.sort_unstable();
+        let sketches = self.dense_sketches(nodes.len(), options.exhaustive);
         let counts = crate::fold_queries(
             self.query_blocks(&nodes),
             || (0usize, false, false),
@@ -257,6 +258,7 @@ impl SearchIndex {
                     &block,
                     options.min_score,
                     options.exhaustive,
+                    &sketches,
                     &mut |from, dense| {
                         let result = self.visit_pairs(
                             from,

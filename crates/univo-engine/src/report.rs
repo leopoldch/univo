@@ -44,6 +44,7 @@ impl SearchIndex {
         }
         self.check_scan(exhaustive, max_pairs, max_semantic_comparisons)?;
         let queries: Vec<usize> = self.store().active_slots().collect();
+        let sketches = self.dense_sketches(queries.len(), exhaustive);
         let found = crate::fold_queries(
             self.query_blocks(&queries),
             || Found::new(options.limit),
@@ -52,6 +53,7 @@ impl SearchIndex {
                     &block,
                     options.min_score,
                     exhaustive,
+                    &sketches,
                     &mut |left, dense| {
                         let result = self.visit_pairs(
                             left,
