@@ -28,6 +28,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--partitions", type=int, required=True)
     parser.add_argument("--model-path")
     arguments = parser.parse_args(argv)
+    if arguments.partitions < 1 or arguments.records % arguments.partitions:
+        parser.error("--records must be a positive multiple of --partitions")
 
     from univo import Finder, Schema, Text
 

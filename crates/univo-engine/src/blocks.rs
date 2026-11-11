@@ -113,8 +113,10 @@ impl SearchIndex {
     }
 
     /// The sketch of each semantic field, for the blocks of one report over
-    /// `queries`; none when the dense lane does not apply or when the
-    /// report compares too few pairs to pay for them.
+    /// `queries` records; none when the dense lane does not apply. A field
+    /// is sketched when the pairs the report compares, among the active
+    /// records of each partition, pay for projecting its rows, those of
+    /// removed records included.
     pub(crate) fn dense_sketches(&self, queries: usize, exhaustive: bool) -> DenseSketches {
         let Some(vectors) = self.vectors.as_ref() else {
             return Vec::new();
@@ -122,17 +124,38 @@ impl SearchIndex {
         if exhaustive || self.ann_options.is_some() {
             return Vec::new();
         }
-        let pairs: usize = self
-            .partitions
-            .values()
-            .map(|slots| slots.len().saturating_mul(slots.len()) / 2)
-            .fold(0, usize::saturating_add);
-        if pairs < self.dense_sketch_pairs.saturating_mul(queries.max(1)) {
+        let enough = |pairs: usize, rows: usize| {
+            pairs
+                >= self
+                    .dense_sketch_pairs
+                    .saturating_mul(queries.max(rows).max(1))
+        };
+        // All the active records in one partition bound the pairs from
+        // above: a small report over a large index stops here.
+        let active = self.store().active_len();
+        if !enough(active.saturating_mul(active) / 2, 0) {
             return Vec::new();
         }
+        let pairs = self
+            .partitions
+            .values()
+            .map(|slots| {
+                let active = slots
+                    .iter()
+                    .filter(|&&slot| self.store().is_active(slot as usize))
+                    .count();
+                active.saturating_mul(active) / 2
+            })
+            .fold(0, usize::saturating_add);
         self.semantic
             .iter()
-            .map(|&field| vectors.field(field).and_then(DenseSketch::new))
+            .map(|&field| {
+                let vectors = vectors.field(field)?;
+                let rows = vectors.data.len() / vectors.dimension().max(1);
+                enough(pairs, rows)
+                    .then(|| DenseSketch::new(vectors))
+                    .flatten()
+            })
             .collect()
     }
 
@@ -560,6 +583,34 @@ mod tests {
         }
         assert!(candidates > 20_000, "{candidates}");
         assert!(sizes.contains(&QUERY_BLOCK) && sizes.contains(&11) && sizes.contains(&1));
+    }
+
+    #[test]
+    fn removed_records_do_not_count_towards_a_sketch() {
+        // About 680,000 pairs among 1,400 active records and as many rows.
+        let mut index = clustered(1500).with_dense_sketch_pairs(200);
+        let active = |index: &SearchIndex| index.store().active_slots().count();
+        let sketched = |index: &SearchIndex| {
+            let sketches = index.dense_sketches(active(index), false);
+            sketches.iter().any(Option::is_some)
+        };
+        assert!(sketched(&index));
+        // Half of the records: their pairs no longer pay for every row.
+        let half: Vec<_> = (0..1500)
+            .filter(|id| id % 2 == 0 && id % 17 != 0)
+            .map(univo_core::RecordId::Int)
+            .collect();
+        index.remove(&half).unwrap();
+        assert!(active(&index) > 600);
+        assert!(!sketched(&index));
+        // A small report over what was a large index.
+        let most: Vec<_> = (0..1400)
+            .filter(|id| id % 2 == 1 && id % 17 != 0)
+            .map(univo_core::RecordId::Int)
+            .collect();
+        index.remove(&most).unwrap();
+        assert!((40..100).contains(&active(&index)));
+        assert!(index.dense_sketches(active(&index), false).is_empty());
     }
 
     #[test]

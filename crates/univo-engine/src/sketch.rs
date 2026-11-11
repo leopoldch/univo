@@ -24,17 +24,18 @@ use crate::vectors::FieldVectors;
 /// Directions of a sketch: 128 bytes per row.
 pub(crate) const SKETCH_WIDTH: usize = 32;
 
-/// Pairs of an all-pairs report per query from which sketching a field
-/// pays for fitting the directions and projecting every row: a partition
-/// of about 8,000 records. The sketch breaks even near 6,000.
+/// Pairs of an all-pairs report, per query and per row of a field, from
+/// which sketching the field pays for fitting the directions and
+/// projecting every row: a partition of about 8,000 records. The sketch
+/// breaks even near 6,000.
 pub(crate) const SKETCH_PAIRS_PER_ROW: usize = 4096;
 
 /// Rows the directions are fitted to, evenly spread over the field.
-const SAMPLE: usize = 1024;
+const SAMPLE: usize = 512;
 
 /// Rounds of orthogonal iteration: the directions need not have converged,
 /// only to be orthonormal.
-const ROUNDS: usize = 8;
+const ROUNDS: usize = 5;
 
 /// The sketch of each row of a field.
 #[derive(Debug)]
@@ -103,21 +104,18 @@ impl DenseSketch {
 /// to the principal directions of the rows of `data`: those along which a
 /// sample of rows has the largest second moments. `None` when the sample
 /// spans fewer directions.
+///
+/// Orthogonal iteration on the sample itself: the image of a direction by
+/// the second moments is the sum of the sampled rows weighted by their
+/// coordinate along it, so the moments are never formed. Time and memory
+/// grow with the dimension, not with its square.
 fn directions(data: &[f32], dimension: usize) -> Option<Vec<f64>> {
     let rows = data.len() / dimension;
-    let mut moments = vec![0.0f64; dimension * dimension];
-    for row in data
+    let sample: Vec<&[f32]> = data
         .chunks_exact(dimension)
         .step_by(rows.div_ceil(SAMPLE).max(1))
-    {
-        for (line, &value) in moments.chunks_exact_mut(dimension).zip(row) {
-            let value = f64::from(value);
-            for (moment, &other) in line.iter_mut().zip(row) {
-                *moment += value * f64::from(other);
-            }
-        }
-    }
-    // Orthogonal iteration from fixed pseudo-random directions.
+        .collect();
+    // Fixed pseudo-random directions to start from.
     let mut state = 0x9E37_79B9_7F4A_7C15_u64;
     let mut directions: Vec<f64> = (0..SKETCH_WIDTH * dimension)
         .map(|_| {
@@ -128,17 +126,21 @@ fn directions(data: &[f32], dimension: usize) -> Option<Vec<f64>> {
         })
         .collect();
     orthonormalize(&mut directions, dimension)?;
-    let mut next = vec![0.0f64; directions.len()];
+    let mut images = vec![0.0f64; directions.len()];
     for _ in 0..ROUNDS {
-        for (direction, image) in directions
-            .chunks_exact(dimension)
-            .zip(next.chunks_exact_mut(dimension))
-        {
-            for (value, line) in image.iter_mut().zip(moments.chunks_exact(dimension)) {
-                *value = line.iter().zip(direction).map(|(a, b)| a * b).sum();
+        images.fill(0.0);
+        for row in &sample {
+            for (direction, image) in directions
+                .chunks_exact(dimension)
+                .zip(images.chunks_exact_mut(dimension))
+            {
+                let along = dot(direction, row);
+                for (value, &other) in image.iter_mut().zip(*row) {
+                    *value += along * f64::from(other);
+                }
             }
         }
-        std::mem::swap(&mut directions, &mut next);
+        std::mem::swap(&mut directions, &mut images);
         orthonormalize(&mut directions, dimension)?;
     }
     Some(directions)
