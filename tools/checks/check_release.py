@@ -17,10 +17,13 @@ import tomllib
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SEMVER = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?")
 PRERELEASE = {"alpha": "a", "beta": "b", "rc": "rc"}
-# One wheel per advertised platform, built by ci.yml.
+# One wheel per advertised platform, built by ci.yml. A wheel's platform tag
+# may be a compressed set such as `manylinux_2_17_x86_64.manylinux2014_x86_64`,
+# in any order (PEP 425; maturin 1.16 puts the legacy alias first): every tag
+# of the set must name the platform.
 PLATFORMS = {
-    "linux-x86_64": re.compile(r"manylinux_2_17_x86_64(\.manylinux2014_x86_64)?"),
-    "linux-aarch64": re.compile(r"manylinux_2_17_aarch64(\.manylinux2014_aarch64)?"),
+    "linux-x86_64": re.compile(r"manylinux_2_17_x86_64|manylinux2014_x86_64"),
+    "linux-aarch64": re.compile(r"manylinux_2_17_aarch64|manylinux2014_aarch64"),
     "macos-x86_64": re.compile(r"macosx_\d+_\d+_x86_64"),
     "macos-arm64": re.compile(r"macosx_\d+_\d+_arm64"),
     "windows-x86_64": re.compile(r"win_amd64"),
@@ -71,7 +74,10 @@ def check_dist(version: str, directory: pathlib.Path) -> list[str]:
         parts = name[: -len(".whl")].split("-")
         if len(parts) != 5 or parts[:2] != ["univo", version] or parts[2:4] != ["cp311", "abi3"]:
             raise ValueError(f"wheel {name} is not univo {version} for the cp311 stable ABI")
-        platform = next((key for key, tag in PLATFORMS.items() if tag.fullmatch(parts[4])), None)
+        tags = parts[4].split(".")
+        platform = next(
+            (key for key, tag in PLATFORMS.items() if all(tag.fullmatch(t) for t in tags)), None
+        )
         if platform is None:
             raise ValueError(f"wheel {name} is for an unsupported platform")
         if platform in found:

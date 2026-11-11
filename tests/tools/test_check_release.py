@@ -84,6 +84,14 @@ def test_a_complete_release_is_accepted(tmp_path: pathlib.Path) -> None:
     assert len(check_dist("0.1.0rc1", tmp_path)) == 7
 
 
+def test_compressed_platform_tags_are_accepted_in_any_order(tmp_path: pathlib.Path) -> None:
+    # maturin 1.16 writes the legacy alias first, as in the 1.0.2 release run.
+    tags = tuple(".".join(reversed(tag.split("."))) for tag in WHEEL_TAGS)
+    assert tags[0] == "manylinux2014_x86_64.manylinux_2_17_x86_64"
+    release(tmp_path, "1.0.2", tags)
+    assert len(check_dist("1.0.2", tmp_path)) == 7
+
+
 @pytest.mark.parametrize(
     ("change", "message"),
     [
@@ -103,6 +111,12 @@ def test_a_complete_release_is_accepted(tmp_path: pathlib.Path) -> None:
         ),
         (
             lambda d: (d / "univo-0.1.0-cp311-abi3-macosx_11_0_universal2.whl").write_bytes(b""),
+            "unsupported",
+        ),
+        (
+            lambda d: (
+                d / "univo-0.1.0-cp311-abi3-manylinux_2_17_x86_64.manylinux_2_17_aarch64.whl"
+            ).write_bytes(b""),
             "unsupported",
         ),
         (
