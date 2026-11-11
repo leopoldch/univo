@@ -1,6 +1,6 @@
 //! Semantic similarity of embeddings, as defined in `docs/reference/scoring.md`.
 
-use wide::f32x4;
+use wide::{CmpGe, f32x4};
 
 /// Lanes summed independently, so that the compiler vectorizes the loop
 /// with the instructions every supported CPU has (SSE2, NEON) and no
@@ -76,8 +76,7 @@ pub fn dots_reaching<const N: usize>(
     let prefix = prefix.min(blocked.chunks());
     if prefix > 0 {
         blocked.accumulate(prefix);
-        #[allow(clippy::cast_precision_loss)]
-        let margin = 4.0 * row.len() as f32 * f32::EPSILON;
+        let margin = rounding_margin(row.len());
         let reachable = blocked
             .sums
             .iter()
@@ -94,6 +93,107 @@ pub fn dots_reaching<const N: usize>(
     }
     blocked.accumulate(blocked.chunks());
     Some(blocked.totals())
+}
+
+/// What the bounds on a dot product of unit vectors of `dimension` values
+/// allow for rounding: `4 · n · ε`, several times the error of an `n`-term
+/// float sum.
+#[allow(clippy::cast_precision_loss)]
+pub fn rounding_margin(dimension: usize) -> f32 {
+    4.0 * dimension as f32 * f32::EPSILON
+}
+
+/// Vectors a [`SketchGroup`] holds.
+pub const SKETCH_GROUP: usize = 8;
+
+/// The sketches of up to eight unit vectors, stored dimension by dimension
+/// so that one pass over a row's sketch bounds its dot product with all of
+/// them, without a horizontal sum.
+///
+/// A sketch of a vector `v` is its coordinates `Q·v` on a few orthonormal
+/// directions `Q`, with the norm of what they leave out, `rest`. For two
+/// vectors, `a·b = (Q·a)·(Q·b) + a⊥·b⊥ ≤ (Q·a)·(Q·b) + rest(a)·rest(b)`
+/// (Cauchy–Schwarz), whatever the directions: they only decide how tight
+/// the bound is.
+#[derive(Debug, Clone)]
+pub struct SketchGroup {
+    /// For each direction, the coordinate of each vector; zero for the
+    /// vectors the group lacks.
+    columns: Vec<[f32x4; 2]>,
+    rests: [f32x4; 2],
+}
+
+impl SketchGroup {
+    /// The group of `sketches`, at most [`SKETCH_GROUP`] of them, each the
+    /// coordinates of a vector and its rest norm.
+    ///
+    /// # Panics
+    ///
+    /// With more than [`SKETCH_GROUP`] sketches, or coordinates of
+    /// different lengths.
+    pub fn new(sketches: &[(&[f32], f32)]) -> Self {
+        assert!(sketches.len() <= SKETCH_GROUP, "too many sketches");
+        let width = sketches
+            .first()
+            .map_or(0, |(coordinates, _)| coordinates.len());
+        let lanes = |value: &dyn Fn(usize) -> f32| -> [f32x4; 2] {
+            let values: [f32; SKETCH_GROUP] = std::array::from_fn(value);
+            let [v0, v1, v2, v3, v4, v5, v6, v7] = values;
+            [f32x4::from([v0, v1, v2, v3]), f32x4::from([v4, v5, v6, v7])]
+        };
+        for (coordinates, _) in sketches {
+            assert_eq!(coordinates.len(), width, "sketches of different lengths");
+        }
+        Self {
+            columns: (0..width)
+                .map(|direction| {
+                    lanes(&|vector| sketches.get(vector).map_or(0.0, |(c, _)| c[direction]))
+                })
+                .collect(),
+            rests: lanes(&|vector| sketches.get(vector).map_or(0.0, |(_, rest)| *rest)),
+        }
+    }
+
+    /// Bit `i` is clear only when the dot product of vector `i` with the
+    /// row cannot reach `threshold`: its bound, from the row's coordinates
+    /// and rest norm, is below it even with `margin` added for rounding.
+    /// The bits of the vectors the group lacks mean nothing.
+    ///
+    /// # Panics
+    ///
+    /// When the row's coordinates are shorter than the group's.
+    #[inline]
+    pub fn reaching(&self, row: &[f32], row_rest: f32, threshold: f32, margin: f32) -> u8 {
+        let row = &row[..self.columns.len()];
+        // Two sums per half: the additions of one sum wait for each other.
+        let mut sums = [f32x4::ZERO; 4];
+        let (pairs, last) = self.columns.as_chunks::<2>();
+        let (row_pairs, row_last) = row.as_chunks::<2>();
+        for ([first, second], [a, b]) in pairs.iter().zip(row_pairs) {
+            let (a, b) = (f32x4::splat(*a), f32x4::splat(*b));
+            sums[0] += first[0] * a;
+            sums[1] += first[1] * a;
+            sums[2] += second[0] * b;
+            sums[3] += second[1] * b;
+        }
+        for (column, value) in last.iter().zip(row_last) {
+            let value = f32x4::splat(*value);
+            sums[0] += column[0] * value;
+            sums[1] += column[1] * value;
+        }
+        let (rest, slack, threshold) = (
+            f32x4::splat(row_rest),
+            f32x4::splat(margin),
+            f32x4::splat(threshold),
+        );
+        let reaches =
+            |sum: f32x4, rests: f32x4| (sum + rests * rest + slack).cmp_ge(threshold).move_mask();
+        let low = reaches(sums[0] + sums[2], self.rests[0]);
+        let high = reaches(sums[1] + sums[3], self.rests[1]);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let mask = (low | high << 4) as u8;
+        mask
+    }
 }
 
 /// The norm of `vector` after its first `prefix` lanes chunks, the part
@@ -266,6 +366,57 @@ mod tests {
             }
         }
         assert!(skipped > 1000, "the bound must also skip: {skipped}");
+    }
+
+    #[test]
+    fn a_sketch_group_bounds_each_of_its_vectors() {
+        let (mut clear, mut set) = (0, 0);
+        for width in [0, 1, 2, 5, 32, 33] {
+            for count in 0..=8u8 {
+                for seed in 0..40u8 {
+                    let coordinates: Vec<Vec<f32>> = (0..count)
+                        .map(|i| unit(width, u64::from(seed) * 16 + u64::from(i), 0))
+                        .collect();
+                    let rests: Vec<f32> = (0..count).map(|i| 0.1 * f32::from(i)).collect();
+                    let sketches: Vec<(&[f32], f32)> = coordinates
+                        .iter()
+                        .zip(&rests)
+                        .map(|(coordinates, rest)| (coordinates.as_slice(), *rest))
+                        .collect();
+                    let group = SketchGroup::new(&sketches);
+                    // A row longer than the sketches: only their width is read.
+                    let row = match seed % 3 {
+                        0 if count > 0 => {
+                            let mut row = coordinates[usize::from(seed % count)].clone();
+                            row.push(9.0);
+                            row
+                        }
+                        _ => unit(width + 1, u64::from(seed) + 5_000, 0),
+                    };
+                    let row_rest = 0.05 * f32::from(seed % 7);
+                    for threshold in [0.2, 0.5, 0.8, 1.0] {
+                        let reaching = group.reaching(&row, row_rest, threshold, 1e-5);
+                        for (index, (coordinates, rest)) in sketches.iter().enumerate() {
+                            let bound = dot(coordinates, &row[..width]) + rest * row_rest;
+                            let bit = reaching >> index & 1 == 1;
+                            // Sums in another order differ by rounding only.
+                            if (bound - threshold).abs() > 1e-4 {
+                                assert_eq!(bit, bound >= threshold, "{width} {count} {seed}");
+                            }
+                            clear += usize::from(!bit);
+                            set += usize::from(bit);
+                        }
+                    }
+                }
+            }
+        }
+        assert!(clear > 1000 && set > 1000, "{clear} {set}");
+    }
+
+    #[test]
+    #[should_panic(expected = "too many sketches")]
+    fn a_sketch_group_refuses_a_ninth_vector() {
+        let _ = SketchGroup::new(&[(&[][..], 0.0); 9]);
     }
 
     #[test]

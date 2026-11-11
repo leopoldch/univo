@@ -75,15 +75,13 @@ pub struct LexicalSearch {
 pub struct LexicalIndex {
     store: u64,
     field: usize,
-    /// Partition key of each record, by slot.
-    partitions: Vec<u64>,
     /// Indexed records of each partition.
     partition_sizes: HashMap<u64, usize>,
-    /// Characters and distinct trigrams of each record's text, by slot;
-    /// zero trigrams when the record has no indexed text.
-    sizes: Vec<(u32, u32)>,
-    /// [`Summary`] of each record's text, by slot; empty without text.
-    summaries: Vec<Summary>,
+    /// What a search reads first of each record, by slot.
+    entries: Vec<Entry>,
+    /// Character counts of each record's text, by slot ([`Summary`]); read
+    /// only for the candidates their [`Entry`] does not reject.
+    characters: Vec<[u8; BUCKETS]>,
     postings: HashMap<(u64, u64), Vec<u32>>,
     /// Records of each partition by character count, for texts short
     /// enough to be compared by edit distance.
@@ -118,10 +116,9 @@ impl LexicalIndex {
         let mut index = Self {
             store: store.id(),
             field,
-            partitions: Vec::new(),
             partition_sizes: HashMap::new(),
-            sizes: Vec::new(),
-            summaries: Vec::new(),
+            entries: Vec::new(),
+            characters: Vec::new(),
             postings: HashMap::new(),
             lengths: HashMap::new(),
         };
@@ -131,11 +128,11 @@ impl LexicalIndex {
 
     /// Number of records, indexed or not.
     pub fn len(&self) -> usize {
-        self.partitions.len()
+        self.entries.len()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.partitions.is_empty()
+        self.entries.is_empty()
     }
 
     /// Estimated heap bytes: posting entries, hash-map entries, the
@@ -156,9 +153,8 @@ impl LexicalIndex {
         lists(&self.postings)
             + lengths
             + self.partition_sizes.capacity() * (size_of::<(u64, usize)>() + 1)
-            + self.partitions.capacity() * size_of::<u64>()
-            + self.sizes.capacity() * size_of::<(u32, u32)>()
-            + self.summaries.capacity() * size_of::<Summary>()
+            + self.entries.capacity() * size_of::<Entry>()
+            + self.characters.capacity() * BUCKETS
     }
 
     /// Indexes the records appended to `store` since the last update.
@@ -172,14 +168,15 @@ impl LexicalIndex {
             return Err(Error::index_out_of_sync(self.len(), store.len(), false));
         }
         slot_number(store.len())?;
-        let records = &store.records()[self.partitions.len()..];
+        let records = &store.records()[self.entries.len()..];
         for record in records {
-            let slot = slot_number(self.partitions.len())?;
+            let slot = slot_number(self.entries.len())?;
             let partition = partition_fingerprint(record);
-            let mut size = (0, 0);
-            let mut summary = Summary::default();
+            let mut entry = Entry::default();
+            let mut characters = [0; BUCKETS];
             if let Some((text, trigrams)) = indexed_text(record, self.field) {
-                summary = Summary::new(text, trigrams);
+                let summary = Summary::new(text, trigrams);
+                (entry.signature, characters) = (summary.signature, summary.characters);
                 for trigram in trigrams {
                     self.postings
                         .entry((partition, *trigram))
@@ -196,15 +193,12 @@ impl LexicalIndex {
                         .or_default()
                         .push(slot);
                 }
-                size = (
-                    u32::try_from(chars).unwrap_or(u32::MAX),
-                    u32::try_from(trigrams.len()).unwrap_or(u32::MAX),
-                );
+                entry.chars = u32::try_from(chars).unwrap_or(u32::MAX);
+                entry.trigrams = u32::try_from(trigrams.len()).unwrap_or(u32::MAX);
             }
-            self.partitions.push(partition);
             *self.partition_sizes.entry(partition).or_default() += 1;
-            self.sizes.push(size);
-            self.summaries.push(summary);
+            self.entries.push(entry);
+            self.characters.push(characters);
         }
         Ok(())
     }
@@ -275,10 +269,11 @@ impl LexicalIndex {
         let sketch = Sketch {
             chars,
             trigrams: trigrams.len(),
-            summary: &summary,
+            signature: summary.signature,
+            characters: &summary.characters,
         };
         let mut seen = Seen::new(
-            self.partitions.len(),
+            self.entries.len(),
             self.partition_sizes.get(&partition).copied().unwrap_or(0),
         );
         'lists: for slots in lists {
@@ -290,51 +285,62 @@ impl LexicalIndex {
                 break;
             }
             result.entries_read += skipped;
-            for &slot in &slots[skipped..] {
-                if result.entries_read == max_entries {
-                    result.truncated = true;
-                    break 'lists;
+            let slots = &slots[skipped..];
+            let allowed = slots.len().min(max_entries - result.entries_read);
+            result.entries_read += allowed;
+            // Lists are keyed by partition fingerprint: every slot read here
+            // has the query's. The entry decides for most candidates, so
+            // the record itself is read last. Entries are fetched a batch
+            // ahead of the decisions, which depend on one another: in a
+            // large index each fetch waits for memory, and the fetches of
+            // a batch wait together.
+            for batch in slots[..allowed].chunks(BATCH) {
+                let mut entries = [Entry::default(); BATCH];
+                for (entry, &slot) in entries.iter_mut().zip(batch) {
+                    *entry = self.entries[slot as usize];
                 }
-                result.entries_read += 1;
-                if !seen.insert(slot) {
-                    continue;
-                }
-                let slot = slot as usize;
-                if self.partitions[slot] != partition || !filter.admits(self.sizes[slot]) {
-                    continue;
-                }
-                if !store.is_active(slot) {
-                    continue;
-                }
-                let candidate = &records[slot];
-                if candidate.partition() != query.partition() {
-                    continue;
-                }
-                let (other_chars, other_trigrams) = self.sizes[slot];
-                let other = Sketch {
-                    chars: other_chars as usize,
-                    trigrams: other_trigrams as usize,
-                    summary: &self.summaries[slot],
-                };
-                // The size filter admits indexed texts only: a rejected
-                // candidate counts as verified, as it would have been.
-                if !sketch.may_reach(&other, threshold) {
+                for (entry, &slot) in entries.iter().zip(batch) {
+                    if !seen.insert(slot) {
+                        continue;
+                    }
+                    let slot = slot as usize;
+                    if !filter.admits((entry.chars, entry.trigrams)) || !store.is_active(slot) {
+                        continue;
+                    }
+                    let other = Sketch {
+                        chars: entry.chars as usize,
+                        trigrams: entry.trigrams as usize,
+                        signature: entry.signature,
+                        characters: &self.characters[slot],
+                    };
+                    // The size filter admits indexed texts only: a rejected
+                    // candidate counts as verified, as it would have been.
+                    if !sketch.may_reach(&other, threshold) {
+                        result.candidates_verified += 1;
+                        continue;
+                    }
+                    let candidate = &records[slot];
+                    if candidate.partition() != query.partition() {
+                        continue;
+                    }
+                    let Some((other, other_trigrams)) = indexed_text(candidate, self.field) else {
+                        continue;
+                    };
                     result.candidates_verified += 1;
-                    continue;
+                    let (similarity, signal) =
+                        lexical_similarity(text, trigrams, other, other_trigrams);
+                    if similarity >= threshold {
+                        result.matches.push(LexicalMatch {
+                            slot,
+                            similarity,
+                            signal,
+                        });
+                    }
                 }
-                let Some((other, other_trigrams)) = indexed_text(candidate, self.field) else {
-                    continue;
-                };
-                result.candidates_verified += 1;
-                let (similarity, signal) =
-                    lexical_similarity(text, trigrams, other, other_trigrams);
-                if similarity >= threshold {
-                    result.matches.push(LexicalMatch {
-                        slot,
-                        similarity,
-                        signal,
-                    });
-                }
+            }
+            if allowed < slots.len() {
+                result.truncated = true;
+                break 'lists;
             }
         }
         Ok(result)
@@ -489,6 +495,22 @@ impl SizeFilter {
     }
 }
 
+/// What a search reads first of a record, 32 bytes that never straddle a
+/// cache line: the signature of its text's trigrams ([`Summary`]), and the
+/// characters and distinct trigrams of the text. Zero trigrams, and an
+/// empty signature, when the record has no indexed text. Most candidates
+/// are rejected on these alone.
+#[derive(Debug, Clone, Copy, Default)]
+#[repr(align(32))]
+struct Entry {
+    signature: u128,
+    chars: u32,
+    trigrams: u32,
+}
+
+/// Entries fetched together by a search.
+const BATCH: usize = 32;
+
 /// Buckets of the character counts a [`Summary`] keeps.
 const BUCKETS: usize = 32;
 
@@ -519,25 +541,27 @@ impl Summary {
             characters,
         }
     }
+}
 
-    /// Edits needed at least between the texts: the larger of the
-    /// characters each has in excess, bucket by bucket.
-    fn bag_distance(&self, other: &Self) -> usize {
-        let (mut excess, mut missing) = (0u32, 0u32);
-        for (&a, &b) in self.characters.iter().zip(&other.characters) {
-            excess += u32::from(a.saturating_sub(b));
-            missing += u32::from(b.saturating_sub(a));
-        }
-        excess.max(missing) as usize
+/// Edits needed at least between two texts, from their character counts:
+/// the larger of the characters each has in excess, bucket by bucket.
+fn bag_distance(characters: &[u8; BUCKETS], other: &[u8; BUCKETS]) -> usize {
+    let (mut excess, mut missing) = (0u32, 0u32);
+    for (&a, &b) in characters.iter().zip(other) {
+        excess += u32::from(a.saturating_sub(b));
+        missing += u32::from(b.saturating_sub(a));
     }
+    excess.max(missing) as usize
 }
 
 /// A text as the bounds see it: its characters, distinct trigrams and
-/// [`Summary`].
+/// [`Summary`]. The character counts are behind a reference, so that a
+/// candidate rejected without them does not read them.
 struct Sketch<'a> {
     chars: usize,
     trigrams: usize,
-    summary: &'a Summary,
+    signature: u128,
+    characters: &'a [u8; BUCKETS],
 }
 
 impl Sketch<'_> {
@@ -546,7 +570,7 @@ impl Sketch<'_> {
     /// below it (see the module documentation). The bounds use the
     /// comparator's own arithmetic, so a score at the threshold passes.
     fn may_reach(&self, other: &Self, threshold: f32) -> bool {
-        let (signature, other_signature) = (self.summary.signature, other.summary.signature);
+        let (signature, other_signature) = (self.signature, other.signature);
         let missing = (signature & !other_signature).count_ones() as usize;
         let other_missing = (other_signature & !signature).count_ones() as usize;
         let shared = self
@@ -566,8 +590,8 @@ impl Sketch<'_> {
             .max(other_missing)
             .div_ceil(3)
             .max(self.chars.abs_diff(other.chars));
-        // The bag distance reads two cache lines more: only when needed.
-        reaches(edits) && reaches(edits.max(self.summary.bag_distance(other.summary)))
+        // The character counts are another cache line: only when needed.
+        reaches(edits) && reaches(edits.max(bag_distance(self.characters, other.characters)))
     }
 }
 
@@ -599,7 +623,7 @@ fn floor_count(value: f64) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use univo_core::{FieldPath, Map, Schema, Text, Value, prepare, trigrams};
+    use univo_core::{FieldPath, Map, RecordId, Schema, Text, Value, prepare, trigrams};
 
     fn summary(text: &str) -> (Summary, Box<[u64]>) {
         let grams = trigrams(text);
@@ -610,7 +634,8 @@ mod tests {
         Sketch {
             chars: text.chars().count(),
             trigrams: grams.len(),
-            summary,
+            signature: summary.signature,
+            characters: &summary.characters,
         }
     }
 
@@ -778,5 +803,46 @@ mod tests {
             }
         }
         assert!(truncations > 100);
+    }
+
+    #[test]
+    fn removed_records_are_neither_matched_nor_verified() {
+        let schema = Schema::builder()
+            .id_field(FieldPath::parse("row").unwrap())
+            .text(FieldPath::parse("name").unwrap(), Text::default())
+            .build()
+            .unwrap();
+        let record = |row: i64, name: &str| {
+            let value = Map::new(vec![
+                ("row".into(), Value::Int(row)),
+                ("name".into(), Value::Str(name.into())),
+            ])
+            .unwrap();
+            prepare(&schema, &Value::Map(value)).unwrap()
+        };
+        // The second name passes the size filter, then fails the bounds.
+        let names = ["acme corp", "acme xyzw", "acme corp"];
+        let mut store = RecordStore::new(schema.clone(), usize::MAX);
+        store
+            .append(
+                names
+                    .iter()
+                    .zip(0..)
+                    .map(|(name, row)| record(row, name))
+                    .collect(),
+            )
+            .unwrap();
+        let index = LexicalIndex::new(&store, 0).unwrap();
+        let query = record(9, "acme corp");
+        let search = |store: &RecordStore| {
+            let found = index.search(store, &query, 0.7, usize::MAX).unwrap();
+            let slots: Vec<_> = found.matches.iter().map(|found| found.slot).collect();
+            (slots, found.candidates_verified)
+        };
+        assert_eq!(search(&store), (vec![0, 2], 3));
+        store.remove(&[RecordId::Int(0)]).unwrap();
+        assert_eq!(search(&store), (vec![2], 2));
+        store.remove(&[RecordId::Int(1)]).unwrap();
+        assert_eq!(search(&store), (vec![2], 1));
     }
 }

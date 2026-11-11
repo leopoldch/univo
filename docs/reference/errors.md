@@ -104,13 +104,13 @@ code: limit.snapshot_bytes (https://github.com/leopoldch/univo/blob/main/docs/re
 A semantic candidate report exceeds its scan budget.
 
 - Kind: `ResourceLimit` (Python: `univo.ResourceLimitError`)
-- Fix: Partition the records or explicitly raise max_semantic_comparisons.
+- Fix: Raise max_semantic_comparisons to the count the message gives, or partition the records.
 
 Example:
 
 ```text
-semantic candidate report requires at most 1000001 vector entries, above the limit of 1000000
-hint: Partition the records or explicitly raise max_semantic_comparisons.
+a semantic report over these records needs up to 1000001 vector comparisons, above max_semantic_comparisons = 1000000
+hint: Raise max_semantic_comparisons to the count the message gives, or partition the records.
 code: limit.semantic_comparisons (https://github.com/leopoldch/univo/blob/main/docs/reference/errors.md#limitsemantic_comparisons)
 ```
 
@@ -494,13 +494,13 @@ code: record.duplicate_id (https://github.com/leopoldch/univo/blob/main/docs/ref
 The index record limit would be exceeded.
 
 - Kind: `ResourceLimit` (Python: `univo.ResourceLimitError`)
-- Fix: Use a smaller index or raise its explicit record limit before adding this batch.
+- Fix: Raise max_records, up to 2^32 - 1, or use a smaller index.
 
 Example:
 
 ```text
-the batch would bring the index to 3 records, above its limit of 2
-hint: Use a smaller index or raise its explicit record limit before adding this batch.
+the batch would bring the index to 3 records, above max_records = 2
+hint: Raise max_records, up to 2^32 - 1, or use a smaller index.
 code: limit.index_capacity (https://github.com/leopoldch/univo/blob/main/docs/reference/errors.md#limitindex_capacity)
 ```
 

@@ -116,7 +116,7 @@ error_codes! {
         "Use a smaller index or explicitly raise max_snapshot_bytes.";
     SemanticComparisonLimit => "limit.semantic_comparisons", ResourceLimit,
         "A semantic candidate report exceeds its scan budget",
-        "Partition the records or explicitly raise max_semantic_comparisons.";
+        "Raise max_semantic_comparisons to the count the message gives, or partition the records.";
     GroupPairLimit => "limit.group_pairs", ResourceLimit,
         "Grouping found more qualifying pairs than allowed",
         "Raise max_pairs if the memory is available, raise min_score, or partition the records into smaller groups of comparison.";
@@ -194,7 +194,7 @@ error_codes! {
         "Give each record a distinct identifier; replacing an existing record requires upsert, when available.";
     IndexCapacity => "limit.index_capacity", ResourceLimit,
         "The index record limit would be exceeded",
-        "Use a smaller index or raise its explicit record limit before adding this batch.";
+        "Raise max_records, up to 2^32 - 1, or use a smaller index.";
     InvalidModelSpec => "model.invalid_spec", ModelUnavailable,
         "The model string is not a valid model reference",
         "Pass \"default\", a Hugging Face repository such as \"org/name\" or \"org/name@revision\", or a local path starting with /, ./, ../, ~ or file://.";
@@ -338,7 +338,7 @@ impl Error {
     }
     pub fn semantic_comparison_limit(requested: usize, limit: usize) -> Self {
         Self::new(ErrorCode::SemanticComparisonLimit,
-            format!("semantic candidate report requires at most {requested} vector entries, above the limit of {limit}"))
+            format!("a semantic report over these records needs up to {requested} vector comparisons, above max_semantic_comparisons = {limit}"))
             .count("requested",requested).count("limit",limit)
     }
 
@@ -807,7 +807,7 @@ impl Error {
         Self::new(
             ErrorCode::IndexCapacity,
             format!(
-                "the batch would bring the index to {requested} records, above its limit of {limit}"
+                "the batch would bring the index to {requested} records, above max_records = {limit}"
             ),
         )
         .count("requested", requested)

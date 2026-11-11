@@ -14,9 +14,9 @@ The search returns every record of the query's partition whose lexical similarit
 - **Similarity** is the scoring rule itself (`lexical_similarity`, see [scoring](../reference/scoring.md)): the larger of the edit similarity, for texts of at most 64 characters, and the trigram Jaccard index.
 - **Completeness:** without a work limit, the result is exactly what comparing the query with every record would give.
 - **Work limit:** `max_entries` caps the index entries read. When it stops the search, `truncated` is set and matches may be missing; the matches returned are still correct.
-- **Counters:** `entries_read` and `candidates_verified` report the work done. A candidate rejected by its signature counts as verified, as it was before the signature existed.
+- **Counters:** `entries_read` and `candidates_verified` report the work done. A candidate rejected by its summary counts as verified, as it was before summaries existed.
 - **Missing text:** blank, missing and null texts are neither indexed nor matched, as in scoring.
-- **Partitions:** postings are keyed by partition, and every candidate's partition is compared by value, so a fingerprint collision cannot cross a partition.
+- **Partitions:** postings are keyed by partition fingerprint, and the partition of every candidate is compared by value before it is scored, so a fingerprint collision cannot cross a partition. A candidate its summary rejects is not compared: a collision could only add it to `candidates_verified`.
 - **Schema:** records prepared with another schema are refused by the store, and queries by the search, with `state.schema_mismatch`.
 
 ## How the search stays complete
@@ -27,7 +27,7 @@ Every candidate is verified with the scoring function, so the index only has to 
 - **Edit filter.** An edit similarity of at least `t` bounds both the candidate's length (`t·m ≤ n ≤ m/t`) and the edit distance (`d ≤ (1−t)·max(m, n)`). The search cuts the padded query into `d + 1` disjoint segments of at least three characters. Each edit destroys at most one segment, so one segment survives intact in the match, with all its trigrams. Reading the rarest trigram of each segment is therefore enough.
 - **Length scan.** When the query is too short for `d + 1` segments of three characters, the records of the lengths concerned are scanned instead.
 - **Size filter.** Before a candidate's text is read, its length and trigram count, stored per record, must allow at least one of the two similarities to reach `t`.
-- **Summary filter.** Each record also stores a 48-byte summary: a 128-bit signature, the bit of each of its trigrams' hash, and for texts of at most 64 characters its character counts in 32 hashed buckets. With `B` the candidate's set:
+- **Summary filter.** Each record also stores a 48-byte summary: a 128-bit signature, the bit of each of its trigrams' hash, and for texts of at most 64 characters its character counts in 32 hashed buckets. The signature is stored with the two sizes, in 32 bytes that are read for every candidate and reject most of them; the character counts are stored apart, and the record itself is read last. These 32 bytes are fetched for 32 candidates at a time, ahead of the decisions: in an index larger than the cache, the fetches then wait for memory together. With `B` the candidate's set:
   - **Missing trigrams.** A bit of `A` absent from `B`'s signature stands for at least one trigram of `A` missing from `B`. Collisions can only hide missing trigrams, never invent them. The shared trigrams are therefore at most `min(|A| − m_A, |B| − m_B)`, with `m_A` and `m_B` the bits each side lacks, which bounds the Jaccard index from above.
   - **Edits.** One edit destroys at most three trigram positions, so `max(m_A, m_B)` missing trigrams need at least `⌈max(m_A, m_B) / 3⌉` edits (the q-gram bound, [Ukkonen, 1992](https://www.cs.helsinki.fi/u/ukkonen/TCS92.pdf)), and at least `|m − n|`.
   - **Characters.** One edit removes at most one character and adds at most one, so the edits are at least the larger of the characters each side has in excess (the bag distance). Counting by bucket can only merge differences, never create them. It is read only when the trigram bound has not already rejected the candidate. With the edits above, it bounds the edit similarity from above.
@@ -40,14 +40,16 @@ Synthetic company names of about 20 characters (two or three words of syllables 
 
 | Threshold | Median | p95 | Records verified per query | Signatures only: median, p95 | No summary: median, p95 |
 | --- | --- | --- | --- | --- | --- |
-| 0.7 | 1.21 ms | 2.2–2.3 ms | 38,800 | 11.3–11.5 ms, 18.6 ms | 13.6–14.1 ms, 20.8 ms |
-| 0.8 | 0.14 ms | 0.30 ms (budget 15 ms) | 8,000 | 0.23 ms, 0.75–0.77 ms | 2.9 ms, 6.3–6.5 ms |
-| 0.9 | 18–21 µs | 38–45 µs | 620 | 18 µs, 37 µs | 0.23–0.27 ms, 0.58–0.66 ms |
+| 0.7 | 1.11 ms | 2.1 ms | 38,800 | 11.3–11.5 ms, 18.6 ms | 13.6–14.1 ms, 20.8 ms |
+| 0.8 | 0.10 ms | 0.25 ms (budget 15 ms) | 8,000 | 0.23 ms, 0.75–0.77 ms | 2.9 ms, 6.3–6.5 ms |
+| 0.9 | 15 µs | 33 µs | 620 | 18 µs, 37 µs | 0.23–0.27 ms, 0.58–0.66 ms |
 
 - **Verified records.** They include those the summaries reject without scoring.
+- **Without summaries.** The four columns on the right were measured before a record's sizes and signature shared 32 bytes, when the first two columns read 1.21 and 2.2–2.3 ms, 0.14 and 0.30 ms, and 18–21 and 38–45 µs.
+- **Larger indexes.** A search reads the same share of the index at every size, and one entry read costs 8 ns up to 200,000 names, 9 ns at 400,000 and 12 ns at 800,000, where the entries no longer fit in the cache ([measurements](../development/performance.md#large-partitions)).
 - **Thresholds.** At 0.7, an edit similarity allows many missing trigrams, so the trigram bounds alone reject little. The character counts reject most of what remains.
 
-- **Build:** the index of 100,000 names builds in 35 ms, 27–30 ms without summaries (budget 50 ms), and takes about 14 MiB: 4 bytes per distinct trigram occurrence, one hash-map entry per distinct trigram and partition, and 16 bytes per record. The summaries add 48 bytes per record: the index reported grows from 14.4 to 20.4 MiB, with the vector's spare capacity.
+- **Build:** the index of 100,000 names builds in 35 ms, 27–30 ms without summaries (budget 50 ms), and takes about 20 MiB: 4 bytes per distinct trigram occurrence, one hash-map entry per distinct trigram and partition, and 64 bytes per record, 48 of them for the summary. Without summaries the index reported was 14.4 MiB instead of 20.4, with the vectors' spare capacity.
 - **Low thresholds are expensive by construction.** An edit similarity of 0.7 allows up to eight edits on 20 to 28 characters, so a complete search must examine a large part of the partition.
 - **Small vocabularies cost more.** With names drawn from only twenty words, every trigram inside a word is frequent: 0.8 then takes 10 ms at p95.
 - **Operating point:** U-010c chooses the threshold and the work limit by measuring the recall of duplicates against the exhaustive oracle.

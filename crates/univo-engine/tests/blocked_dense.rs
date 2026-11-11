@@ -90,6 +90,20 @@ fn record(schema: &Schema, id: i64, tenant: &str, name: &str, description: &str)
 /// smaller than one group of four; copies share rows; some descriptions are
 /// missing and some records are removed.
 fn index(seed: u64) -> SearchIndex {
+    index_with(
+        seed,
+        Arc::new(BigramEmbedder(ModelDescriptor {
+            source: ModelSource::Local {
+                path: "bigram".into(),
+                files: Vec::new(),
+            },
+            dimension: DIMENSION,
+            backend: "bigram",
+        })),
+    )
+}
+
+fn index_with(seed: u64, model: Arc<dyn Embedder>) -> SearchIndex {
     let schema = schema();
     let mut rng = Rng(seed);
     let mut records = Vec::new();
@@ -109,19 +123,65 @@ fn index(seed: u64) -> SearchIndex {
         let description = DESCRIPTIONS[rng.below(DESCRIPTIONS.len())];
         records.push(record(&schema, id, tenant, &name, description));
     }
-    let model: Arc<dyn Embedder> = Arc::new(BigramEmbedder(ModelDescriptor {
-        source: ModelSource::Local {
-            path: "bigram".into(),
-            files: Vec::new(),
-        },
-        dimension: DIMENSION,
-        backend: "bigram",
-    }));
     let mut index = SearchIndex::new(schema, 10_000, Some(model)).unwrap();
     index.add(records).unwrap();
     let removed: Vec<RecordId> = (0..450).step_by(11).map(RecordId::Int).collect();
     index.remove(&removed).unwrap();
     index
+}
+
+const WIDE: usize = 96;
+
+/// Unit vectors of [`WIDE`] values: hashed character bigrams, and a small
+/// deviation drawn from the text, so that many texts span many directions.
+struct WideEmbedder(ModelDescriptor);
+
+impl Embedder for WideEmbedder {
+    fn descriptor(&self) -> &ModelDescriptor {
+        &self.0
+    }
+
+    fn encode_batch(&self, texts: &[&str]) -> univo_core::Result<Embeddings> {
+        let mut data = Vec::with_capacity(texts.len() * WIDE);
+        for text in texts {
+            let mut vector = [0.0f32; WIDE];
+            for pair in text.as_bytes().windows(2) {
+                vector[(usize::from(pair[0]) * 31 + usize::from(pair[1])) % WIDE] += 1.0;
+            }
+            let mut rng = Rng(text.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+                (hash ^ u64::from(byte)).wrapping_mul(0x100_0000_01b3)
+            }) | 1);
+            if !text.is_empty() {
+                for value in &mut vector {
+                    *value += 0.1 * f32::from(u8::try_from(rng.below(21)).unwrap()) - 1.0;
+                }
+            }
+            let norm = vector.iter().map(|x| x * x).sum::<f32>().sqrt();
+            data.extend(
+                vector
+                    .iter()
+                    .map(|x| if norm > 0.0 { x / norm } else { 0.0 }),
+            );
+        }
+        Embeddings::new("wide", data, WIDE)
+    }
+}
+
+/// [`index`] with vectors wide enough for sketches, which every report
+/// then uses for the names; the few descriptions span too few directions.
+fn sketched_index(seed: u64) -> SearchIndex {
+    index_with(
+        seed,
+        Arc::new(WideEmbedder(ModelDescriptor {
+            source: ModelSource::Local {
+                path: "wide".into(),
+                files: Vec::new(),
+            },
+            dimension: WIDE,
+            backend: "wide",
+        })),
+    )
+    .with_dense_sketch_pairs(0)
 }
 
 fn on<T: Send>(threads: usize, work: impl FnOnce() -> T + Send) -> T {
@@ -161,8 +221,41 @@ fn blocked_find_equals_the_oracle() {
 }
 
 #[test]
+fn sketched_find_equals_the_oracle() {
+    for seed in [3, 19] {
+        let index = sketched_index(seed);
+        for min_score in [0.5, 0.7, 0.9, 1.0] {
+            let options = SearchOptions {
+                min_score,
+                limit: usize::MAX,
+                max_entries: usize::MAX,
+            };
+            let oracle = index.find(options, true, usize::MAX, usize::MAX).unwrap();
+            assert!(oracle.total_matches > 50, "{seed} {min_score}");
+            for threads in [None, Some(4)] {
+                let run = || index.find(options, false, usize::MAX, usize::MAX).unwrap();
+                let report = match threads {
+                    None => run(),
+                    Some(threads) => on(threads, run),
+                };
+                assert_eq!(
+                    report.matches, oracle.matches,
+                    "{seed} {min_score} {threads:?}"
+                );
+                assert_eq!(report.total_matches, oracle.total_matches);
+            }
+        }
+    }
+}
+
+#[test]
 fn blocked_groups_equal_exhaustive_groups() {
-    let index = index(5);
+    for index in [index(5), sketched_index(5)] {
+        groups_equal_exhaustive_groups(&index);
+    }
+}
+
+fn groups_equal_exhaustive_groups(index: &SearchIndex) {
     for min_score in [0.6, 0.85] {
         let options = GroupOptions {
             min_score,

@@ -100,6 +100,8 @@ pub struct SearchIndex {
     pub(crate) ann_options: Option<crate::AnnOptions>,
     /// Candidates one all-pairs block may hold ([`crate::blocks`]).
     pub(crate) dense_block_budget: usize,
+    /// Pairs per query from which an all-pairs report sketches its fields.
+    pub(crate) dense_sketch_pairs: usize,
     ann: crate::ann::AnnIndex,
     lexical: Vec<LexicalIndex>,
     values: Vec<ValueIndex>,
@@ -110,7 +112,7 @@ pub struct SearchIndex {
     pub(crate) vectors: Option<RecordVectors>,
     cache: Option<Arc<EmbeddingCache>>,
     /// Slots of each partition, in order.
-    partitions: HashMap<u64, Vec<u32>>,
+    pub(crate) partitions: HashMap<u64, Vec<u32>>,
 }
 
 impl std::fmt::Debug for SearchIndex {
@@ -203,6 +205,7 @@ impl SearchIndex {
             exact,
             ann_options: None,
             dense_block_budget: crate::blocks::DENSE_BLOCK_BUDGET,
+            dense_sketch_pairs: crate::sketch::SKETCH_PAIRS_PER_ROW,
             ann: crate::ann::AnnIndex::default(),
             lexical,
             values,
@@ -250,6 +253,16 @@ impl SearchIndex {
     #[must_use]
     pub fn with_dense_block_budget(mut self, candidates: usize) -> Self {
         self.dense_block_budget = candidates;
+        self
+    }
+
+    /// Sets the pairs per query from which all-pairs reports sketch their
+    /// semantic fields: 0 always, `usize::MAX` never. For tests and
+    /// measurements; results do not depend on it.
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_dense_sketch_pairs(mut self, pairs: usize) -> Self {
+        self.dense_sketch_pairs = pairs;
         self
     }
 
@@ -412,6 +425,7 @@ impl SearchIndex {
         fresh.cache.clone_from(&self.cache);
         fresh.ann_options = self.ann_options;
         fresh.dense_block_budget = self.dense_block_budget;
+        fresh.dense_sketch_pairs = self.dense_sketch_pairs;
         fresh.add_preembedded(records, vectors)?;
         *self = fresh;
         Ok(())

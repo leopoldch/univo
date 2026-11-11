@@ -36,9 +36,20 @@ A scan of a large field is bound by memory bandwidth, so candidates are first ru
 - **Use.** Only a candidate whose bound reaches the threshold reads its `f32` row and gets its exact similarity. The threshold is that of `within`, and for `top_k` the worst similarity kept once `k` are kept. Results are those of the full scan, bit for bit.
 - **Tightness.** With unit vectors of 128 dimensions, the bound exceeds the dot product by less than 0.02. On synthetic names at 0.8, fewer than 0.01% of the rows are read in `f32`.
 
+## All pairs
+
+`find` and `group` compare each record with the later ones of its partition, 64 queries at a time, so that each row is read once for the 64. A row is skipped for eight queries when its first half shows that none of them can reach the threshold.
+
+In a large report, each field is first sketched, and the sketches rule out most pairs before any row is read.
+
+- **Sketch.** The rows are projected on 32 orthonormal directions `Q`, fitted to 512 rows spread over the field as their principal directions, in time and memory that grow with the dimension, not with its square. A row's sketch is its 32 coordinates `Q·r` and the norm of what they leave out, `‖r⊥‖`: 132 bytes, held for the duration of the call.
+- **Bound.** `q·r = (Q·q)·(Q·r) + q⊥·r⊥ ≤ (Q·q)·(Q·r) + ‖q⊥‖·‖r⊥‖` for any orthonormal directions: they only decide how tight the bound is. The directions are orthonormalized in `f64`, the rest norms are rounded up, and a margin of `4·n·ε` covers the rounding of the two dot products.
+- **Use.** A row's sketch is compared with eight queries in one pass. Only the pairs whose bound reaches the threshold read their `f32` rows, and they get the similarity scoring computes. Reports are those of the scan without sketches, bit for bit.
+- **When.** When the report compares at least 4,096 pairs for each of its records and for each row of the field, a partition of about 8,000 records; the sketch breaks even near 6,000. Only active records count as pairs, and the rows of removed records count as rows: a small report over a large index is not sketched. Fields of fewer than 64 dimensions, and fields whose sample spans fewer than 32 directions, are scanned without one, as are exhaustive and approximate reports.
+
 ## Cost
 
-A query reads every candidate's codes once, and the `f32` row of those that can reach the threshold: `O(n·d)` operations. All pairs of a set of `n` records take `O(n²·d)`, with the blocked scan of [search](search.md).
+A query reads every candidate's codes once, and the `f32` row of those that can reach the threshold: `O(n·d)` operations. All pairs of a set of `n` records take `O(n²)` sketch comparisons of 32 dimensions, or `O(n²·d)` operations without sketches.
 
 The dot product sums eight independent lanes:
 - the compiler vectorizes it with the instructions every supported CPU has (SSE2, NEON), with no runtime feature detection;
