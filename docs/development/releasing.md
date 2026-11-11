@@ -49,6 +49,6 @@ Before tagging a release, and 1.0 first of all:
    - To publish to TestPyPI first, tick *Set as a pre-release*.
 3. **Publish it** and follow the *Release* workflow in the *Actions* tab. If you configured a required reviewer, approve the `pypi` environment when asked.
 
-A version cannot be uploaded twice to PyPI, even after deletion. If the workflow fails after uploading, fix the problem and release the next version.
+A version cannot be uploaded twice to PyPI, even after deletion. If the workflow fails after uploading, fix the problem and release the next version. If it fails before uploading, nothing is published: merge the fix, delete the GitHub release and its tag, then create them again on `main`.
 
 The default model is downloaded from Hugging Face, not from PyPI. Its repository must be published at the commit the release pins ([models](../design/models.md)).
