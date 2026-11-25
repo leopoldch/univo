@@ -53,7 +53,7 @@ Equal values are then adjusted by the frequency of the value.
 ## Reading
 
 - **The combination was the cause.** With the same candidates and the same field similarities, learned weights raise the entities F1 on `historical_50k` from 0.002 to 0.926. With Univo's score, the threshold chosen on validation lets one group swallow 11,707 records of the test half; with the weights the largest group holds 40.
-- **Univo's candidates are an asset.** They hold 85.5% of the true pairs of that half, against 66.6% for the pairs Splink scores at −10 bits or more. With weights on top, the result passes Splink's on pairs and on entities.
+- **More true pairs reach the ranking.** The pairs written here, those scoring at least 0.6, hold 85.5% of the true pairs of that half; the pairs Splink wrote, at −10 bits or more, hold 66.6%. These are pairs written after two different floors: the recall of the two candidate searches themselves was not measured. With weights on top, the result passes Splink's on pairs and on entities.
 - **No loss on clean records**, and a gain on `dblp_acm` with the same schema. The best schema of the record benchmark, without the venue, reaches 0.980 there with Univo's score: weights make the choice of fields matter less, they do not beat a well chosen schema on easy data.
 - **No help on free text.** On `abt_buy`, two semantic fields and a price carry too little that levels can separate; the weights lose to the score, and both lose to the name alone (0.546).
 
