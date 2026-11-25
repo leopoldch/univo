@@ -1,7 +1,7 @@
 import os
 from collections.abc import Iterable
 from pathlib import Path
-from typing import Literal, Protocol, TypedDict
+from typing import Literal, NotRequired, Protocol, TypedDict
 
 __version__: str
 ERROR_KINDS: list[str]
@@ -69,8 +69,16 @@ class RawMatch(TypedDict):
     reasons: list[str]
     conflicts: list[str]
     coverage: float
+    probability: NotRequired[float]
+    weight: NotRequired[float]
+    field_weights: NotRequired[dict[str, float | None]]
+
+class RawWeights(TypedDict):
+    prior: float
+    fields: dict[str, dict[str, float]]
 
 class RawReport(TypedDict):
+    weights: NotRequired[RawWeights]
     matches: list[RawMatch]
     processed: int
     total_matches: int
@@ -119,6 +127,14 @@ class Index:
     def find(
         self,
         min_score: float,
+        limit: int,
+        max_entries: int,
+        exhaustive: bool,
+        budgets: tuple[int, int],
+    ) -> RawReport: ...
+    def find_weighted(
+        self,
+        min_probability: float,
         limit: int,
         max_entries: int,
         exhaustive: bool,

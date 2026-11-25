@@ -120,9 +120,6 @@ error_codes! {
     GroupPairLimit => "limit.group_pairs", ResourceLimit,
         "Grouping found more qualifying pairs than allowed",
         "Raise max_pairs if the memory is available, raise min_score, or partition the records into smaller groups of comparison.";
-    WeightedPairLimit => "limit.weighted_pairs", ResourceLimit,
-        "A report by probability holds more candidate pairs than allowed",
-        "Raise max_pairs if the memory is available, or partition the records.";
     PairLimit => "limit.pair_count", ResourceLimit,
         "An exhaustive report exceeds its pair budget",
         "Use candidate search, partition the records, or explicitly raise max_exhaustive_pairs.";
@@ -351,17 +348,6 @@ impl Error {
         Self::new(
             ErrorCode::GroupPairLimit,
             format!("grouping found at least {found} qualifying pairs, above the limit of {limit}"),
-        )
-        .count("found", found)
-        .count("limit", limit)
-    }
-
-    /// Collecting candidates stops once more than `limit` are held; `found`
-    /// is the count when it stopped, a lower bound.
-    pub fn weighted_pair_limit(found: usize, limit: usize) -> Self {
-        Self::new(
-            ErrorCode::WeightedPairLimit,
-            format!("the report holds at least {found} candidate pairs, above max_pairs = {limit}"),
         )
         .count("found", found)
         .count("limit", limit)

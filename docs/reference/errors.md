@@ -129,21 +129,6 @@ hint: Raise max_pairs if the memory is available, raise min_score, or partition 
 code: limit.group_pairs (https://github.com/leopoldch/univo/blob/main/docs/reference/errors.md#limitgroup_pairs)
 ```
 
-### limit.weighted_pairs
-
-A report by probability holds more candidate pairs than allowed.
-
-- Kind: `ResourceLimit` (Python: `univo.ResourceLimitError`)
-- Fix: Raise max_pairs if the memory is available, or partition the records.
-
-Example:
-
-```text
-the report holds at least 10000001 candidate pairs, above max_pairs = 10000000
-hint: Raise max_pairs if the memory is available, or partition the records.
-code: limit.weighted_pairs (https://github.com/leopoldch/univo/blob/main/docs/reference/errors.md#limitweighted_pairs)
-```
-
 ### limit.pair_count
 
 An exhaustive report exceeds its pair budget.

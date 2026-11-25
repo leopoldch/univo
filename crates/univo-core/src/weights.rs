@@ -30,8 +30,9 @@ pub const LEVELS: usize = 4;
 const EQUAL: f32 = 0.9999;
 /// Similarity from which two values are [`Level::Close`].
 const CLOSE: f32 = 0.88;
-/// Similarity from which two values are [`Level::Partial`].
-const PARTIAL: f32 = 0.7;
+/// Similarity from which two values are [`Level::Partial`]: below it, a
+/// field counts as different.
+pub const PARTIAL_SIMILARITY: f32 = 0.7;
 
 /// Lowest probability of a level: a level never seen is not impossible.
 const FLOOR: f64 = 1e-4;
@@ -60,7 +61,7 @@ impl Level {
             Self::Equal
         } else if similarity >= CLOSE {
             Self::Close
-        } else if similarity >= PARTIAL {
+        } else if similarity >= PARTIAL_SIMILARITY {
             Self::Partial
         } else {
             Self::Different

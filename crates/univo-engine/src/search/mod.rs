@@ -40,6 +40,7 @@ mod check;
 mod lanes;
 mod scoring;
 pub use check::{CheckOrAdd, Decision, QueryEncoder};
+pub(crate) use scoring::Candidates;
 
 /// Relative margin by which lanes lower the minimum score, so that rounding
 /// in the weighted mean never drops a record that reaches it. Relative, so
@@ -140,6 +141,8 @@ struct Query<'a> {
     /// The dense candidates of each semantic field, when an all-pairs
     /// report computed them for a block of queries ([`crate::blocks`]).
     dense: Option<&'a [Vec<u32>]>,
+    /// Whether the lanes of exact values propose candidates.
+    values: bool,
 }
 
 impl SearchIndex {
@@ -533,6 +536,7 @@ impl SearchIndex {
             slot: None,
             min_slot: 0,
             dense: None,
+            values: true,
         };
         self.search_candidates(&query, options)
     }
@@ -573,6 +577,7 @@ impl SearchIndex {
             slot: None,
             min_slot: 0,
             dense: None,
+            values: true,
         };
         let slots = self
             .partition(query.record)
@@ -658,6 +663,7 @@ impl SearchIndex {
             slot: Some(slot),
             min_slot: 0,
             dense: None,
+            values: true,
         })
     }
 
@@ -680,6 +686,11 @@ impl SearchIndex {
             ));
         }
         Ok(Some(embedded))
+    }
+
+    /// The fields whose equal values propose candidates, in schema order.
+    pub(crate) fn value_fields(&self) -> impl Iterator<Item = usize> + '_ {
+        self.values.iter().map(crate::values::ValueIndex::field)
     }
 
     pub(crate) fn partition(&self, record: &PreparedRecord) -> &[u32] {

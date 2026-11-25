@@ -6,7 +6,10 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use univo_core::{Comparison, Error, PreparedRecord, RecordId, Schema, exact_match};
-use univo_engine::{Decision, GroupOptions, QueryEncoder, SearchIndex, SearchOptions};
+use univo_core::{Level, Weights};
+use univo_engine::{
+    Decision, GroupOptions, QueryEncoder, SearchIndex, SearchOptions, WeightedOptions,
+};
 
 use crate::cache::PyEmbeddingCache;
 use crate::errors::to_py_err;
@@ -147,6 +150,26 @@ fn match_dict<'py>(py: Python<'py>, found: &MatchData) -> PyResult<Bound<'py, Py
     out.set_item("field_scores", fields)?;
     out.set_item("reasons", &found.reasons)?;
     out.set_item("conflicts", &found.conflicts)?;
+    Ok(out)
+}
+
+/// Learned weights: the prior and, for each field, the bits of each level.
+fn weights_dict<'py>(
+    py: Python<'py>,
+    paths: &[String],
+    weights: &Weights,
+) -> PyResult<Bound<'py, PyDict>> {
+    let fields = PyDict::new(py);
+    for (path, learned) in paths.iter().zip(&weights.fields) {
+        let levels = PyDict::new(py);
+        for level in Level::ALL {
+            levels.set_item(level.name(), learned.bits[level as usize])?;
+        }
+        fields.set_item(path, levels)?;
+    }
+    let out = PyDict::new(py);
+    out.set_item("prior", weights.prior)?;
+    out.set_item("fields", fields)?;
     Ok(out)
 }
 
@@ -495,6 +518,86 @@ impl NativeIndex {
             })
             .map_err(|e: Error| to_py_err(py, &e))?;
         report_dict(py, &report)
+    }
+
+    /// Pairs of the indexed records by probability, with weights learned
+    /// from the index.
+    fn find_weighted<'py>(
+        &self,
+        py: Python<'py>,
+        min_probability: f64,
+        limit: usize,
+        max_entries: usize,
+        exhaustive: bool,
+        budgets: (usize, usize),
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let options = WeightedOptions {
+            min_probability,
+            limit,
+            max_entries,
+        };
+        let (report, weighed, paths, weights) = py
+            .detach(|| {
+                let state = self.read()?;
+                let result = run(self.report_pool(state.index.len())?.as_deref(), || {
+                    state
+                        .index
+                        .find_weighted(options, exhaustive, budgets.0, budgets.1)
+                })?;
+                let records = state.index.store().records();
+                let matches = result
+                    .matches
+                    .iter()
+                    .map(|found| {
+                        match_data(
+                            &state.index,
+                            &records[found.left],
+                            found.left,
+                            found.right,
+                            &found.comparison,
+                        )
+                    })
+                    .collect::<univo_core::Result<_>>()?;
+                let weighed: Vec<_> = result
+                    .matches
+                    .iter()
+                    .map(|found| (found.probability, found.weight, found.bits.to_vec()))
+                    .collect();
+                let paths: Vec<String> = state
+                    .index
+                    .schema()
+                    .fields()
+                    .iter()
+                    .map(|field| field.path.to_string())
+                    .collect();
+                let report = ReportData {
+                    matches,
+                    total: result.total_matches,
+                    candidates: result.candidates,
+                    truncated: result.candidate_truncated,
+                    approximate: result.approximate,
+                    processed: state.index.len(),
+                    generation: state.generation,
+                };
+                Ok((report, weighed, paths, result.weights))
+            })
+            .map_err(|e: Error| to_py_err(py, &e))?;
+        let out = report_dict(py, &report)?;
+        let matches = out
+            .get_item("matches")?
+            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err("matches"))?;
+        for (found, (probability, weight, bits)) in matches.try_iter()?.zip(weighed) {
+            let found = found?;
+            found.set_item("probability", probability)?;
+            found.set_item("weight", weight)?;
+            let fields = PyDict::new(py);
+            for (path, bits) in paths.iter().zip(bits) {
+                fields.set_item(path, bits)?;
+            }
+            found.set_item("field_weights", fields)?;
+        }
+        out.set_item("weights", weights_dict(py, &paths, &weights)?)?;
+        Ok(out)
     }
 
     /// Exact and conservative groups of the indexed records.

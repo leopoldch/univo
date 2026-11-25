@@ -84,7 +84,7 @@ impl SearchIndex {
             }
         }
 
-        for index in &self.values {
+        for index in self.values.iter().filter(|_| query.values) {
             let mut read = 0usize;
             'lists: for slots in index.lists(self.store(), query.record) {
                 for &slot in slots {

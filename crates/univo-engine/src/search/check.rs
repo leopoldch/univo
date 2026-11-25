@@ -131,6 +131,7 @@ impl SearchIndex {
             slot: None,
             min_slot: 0,
             dense: None,
+            values: true,
         };
         if exhaustive {
             let slots = self

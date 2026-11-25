@@ -11,6 +11,20 @@ use univo_core::{
 
 use super::{Query, SearchIndex, SearchMatch, SearchOptions, SearchResult, check_options};
 
+/// Which records [`SearchIndex::visit_candidates`] hands over.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Candidates {
+    /// Lowest field similarity at which a lane proposes a record.
+    pub lane: f32,
+    pub max_entries: usize,
+    /// Every record of the partition, without lanes.
+    pub exhaustive: bool,
+    /// Only the records after the query's slot: each pair once.
+    pub later: bool,
+    /// Whether equal exact values propose records.
+    pub values: bool,
+}
+
 impl SearchIndex {
     /// What `slot` is against the query, scored without explanations.
     /// Records equal to the query without a score, such as unknown semantic
@@ -72,6 +86,58 @@ impl SearchIndex {
         }
         debug_assert_eq!(comparison.score.map(f32::to_bits), Some(score.to_bits()));
         Ok(comparison)
+    }
+
+    /// Hands `visit` each record a lane proposes for the stored record at
+    /// `slot` with a field similarity of at least `wanted.lane`, with its
+    /// score, whatever that score: the pairs that share evidence, for a
+    /// decision the mean of similarities does not make. Counts and flags
+    /// are returned as by [`Self::visit_pairs`].
+    pub(crate) fn visit_candidates(
+        &self,
+        slot: usize,
+        wanted: Candidates,
+        dense: Option<&[Vec<u32>]>,
+        visit: &mut dyn FnMut(usize, f32) -> Result<()>,
+    ) -> Result<SearchResult> {
+        let options = SearchOptions {
+            min_score: wanted.lane,
+            limit: usize::MAX,
+            max_entries: wanted.max_entries,
+        };
+        check_options(options)?;
+        let mut query = self.stored_query(slot)?;
+        query.min_slot = if wanted.later { slot + 1 } else { 0 };
+        query.dense = dense;
+        query.values = wanted.values;
+        let mut result = SearchResult::default();
+        if wanted.exhaustive {
+            let partition = self.partition(query.record);
+            let from = partition.partition_point(|&slot| (slot as usize) < query.min_slot);
+            let others = partition[from..].iter().map(|&slot| slot as usize);
+            self.score_each(&query, others, 0.0, &mut result, visit)?;
+        } else {
+            let candidates = self.candidates(&query, options, &mut result)?;
+            self.score_each(&query, candidates.into_iter(), 0.0, &mut result, visit)?;
+        }
+        Ok(result)
+    }
+
+    /// The comparison of stored records `left` and `right`, whatever their
+    /// score; `None` for records of different partitions.
+    pub(crate) fn compare_pair(&self, left: usize, right: usize) -> Result<Option<Comparison>> {
+        let query = self.stored_query(left)?;
+        let vectors = self
+            .vectors
+            .as_ref()
+            .map_or_else(Vec::new, |vectors| vectors.record(right));
+        compare_with_vectors(
+            self.schema(),
+            query.record,
+            &query.vectors,
+            &self.store().records()[right],
+            &vectors,
+        )
     }
 
     /// The explanation of the match of stored records `left` and `right`.

@@ -36,6 +36,7 @@ __all__ = [
     "SchemaMismatchError",
     "Text",
     "UnivoError",
+    "Weights",
     "__version__",
 ]
 
@@ -51,6 +52,7 @@ def __getattr__(name: str) -> object:
         "Exact",
         "Match",
         "Report",
+        "Weights",
     }:
         from univo import _api
 
@@ -71,4 +73,5 @@ if TYPE_CHECKING:
         Report,
         Schema,
         Text,
+        Weights,
     )

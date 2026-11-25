@@ -50,7 +50,7 @@ pub use semantic::{
     semantic_similarity,
 };
 pub use value::{DuplicateKey, Finite, Lookup, Map, Value};
-pub use weights::{FieldWeights, Fit, LEVELS, Level, Weights};
+pub use weights::{FieldWeights, Fit, LEVELS, Level, PARTIAL_SIMILARITY, Weights};
 
 /// Version of the Univo core, shared by every binding.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
