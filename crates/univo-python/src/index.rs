@@ -535,6 +535,7 @@ impl NativeIndex {
             min_probability,
             limit,
             max_entries,
+            every_lane: false,
         };
         let (report, weighed, paths, weights) = py
             .detach(|| {

@@ -58,6 +58,10 @@ pub struct WeightedOptions {
     pub min_probability: f64,
     pub limit: usize,
     pub max_entries: usize,
+    /// Read every lane of every record from [`PARTIAL_SIMILARITY`], leaving
+    /// nothing out. For tests and measurements: the report does not depend
+    /// on it.
+    pub every_lane: bool,
 }
 
 /// A pair, why it matches and what each field weighs.
@@ -351,12 +355,14 @@ impl SearchIndex {
                     exhaustive,
                     &sketches,
                     &mut |left, dense| {
-                        scale.lanes(self, left, needed, &mut lanes);
+                        if !options.every_lane {
+                            scale.lanes(self, left, needed, &mut lanes);
+                        }
                         let pairs = &mut kept;
                         let result = self.visit_candidates(
                             left,
                             wanted,
-                            Some(&lanes),
+                            (!options.every_lane).then_some(lanes.as_slice()),
                             dense,
                             &mut |right, score| {
                                 let weight = scale.weight(self, left, right)?;
