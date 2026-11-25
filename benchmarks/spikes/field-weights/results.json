@@ -1,0 +1,757 @@
+[
+  {
+    "tool": "univo candidates, learned weights",
+    "version": "spike",
+    "dataset": "abt_buy",
+    "records": {
+      "validation": 1044,
+      "test": 1129
+    },
+    "true_pairs": {
+      "validation": 529,
+      "test": 568
+    },
+    "f1": {
+      "variant": "univo score",
+      "validation": {
+        "threshold": 0.620886,
+        "pairs": 455,
+        "precision": 0.45714285714285713,
+        "recall": 0.3931947069943289,
+        "f1": 0.42276422764227645
+      },
+      "test": {
+        "threshold": 0.620886,
+        "pairs": 446,
+        "precision": 0.4820627802690583,
+        "recall": 0.3785211267605634,
+        "f1": 0.4240631163708087
+      },
+      "test_seconds": 4.139824541984126,
+      "test_pairs_written": 1894,
+      "test_recall_of_pairs_written": 0.6742957746478874
+    },
+    "precise": {
+      "variant": "univo score",
+      "validation": {
+        "threshold": 0.824356,
+        "pairs": 32,
+        "precision": 0.96875,
+        "recall": 0.05860113421550094,
+        "f1": 0.11051693404634583
+      },
+      "test": {
+        "threshold": 0.824356,
+        "pairs": 36,
+        "precision": 0.9166666666666666,
+        "recall": 0.058098591549295774,
+        "f1": 0.10927152317880795
+      },
+      "test_seconds": 4.139824541984126,
+      "test_pairs_written": 1894,
+      "test_recall_of_pairs_written": 0.6742957746478874
+    },
+    "entities": null,
+    "by_variant": {
+      "learned weights": {
+        "test_seconds": 4.139824541984126,
+        "f1": {
+          "validation": {
+            "threshold": 2.9719,
+            "pairs": 188,
+            "precision": 0.7553191489361702,
+            "recall": 0.2684310018903592,
+            "f1": 0.396094839609484
+          },
+          "test": {
+            "threshold": 2.9719,
+            "pairs": 212,
+            "precision": 0.7122641509433962,
+            "recall": 0.2658450704225352,
+            "f1": 0.38717948717948714
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 9.8226,
+            "pairs": 27,
+            "precision": 1.0,
+            "recall": 0.05103969754253308,
+            "f1": 0.09712230215827337
+          },
+          "test": {
+            "threshold": 9.8226,
+            "pairs": 88,
+            "precision": 0.8068181818181818,
+            "recall": 0.125,
+            "f1": 0.21646341463414634
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 1894,
+        "test_recall_of_pairs_written": 0.6742957746478874
+      },
+      "univo score": {
+        "test_seconds": 4.139824541984126,
+        "f1": {
+          "validation": {
+            "threshold": 0.620886,
+            "pairs": 455,
+            "precision": 0.45714285714285713,
+            "recall": 0.3931947069943289,
+            "f1": 0.42276422764227645
+          },
+          "test": {
+            "threshold": 0.620886,
+            "pairs": 446,
+            "precision": 0.4820627802690583,
+            "recall": 0.3785211267605634,
+            "f1": 0.4240631163708087
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 0.824356,
+            "pairs": 32,
+            "precision": 0.96875,
+            "recall": 0.05860113421550094,
+            "f1": 0.11051693404634583
+          },
+          "test": {
+            "threshold": 0.824356,
+            "pairs": 36,
+            "precision": 0.9166666666666666,
+            "recall": 0.058098591549295774,
+            "f1": 0.10927152317880795
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 1894,
+        "test_recall_of_pairs_written": 0.6742957746478874
+      }
+    }
+  },
+  {
+    "tool": "univo candidates, learned weights",
+    "version": "spike",
+    "dataset": "dblp_acm",
+    "records": {
+      "validation": 2494,
+      "test": 2416
+    },
+    "true_pairs": {
+      "validation": 1126,
+      "test": 1098
+    },
+    "f1": {
+      "variant": "learned weights",
+      "validation": {
+        "threshold": 11.5739,
+        "pairs": 1110,
+        "precision": 0.9846846846846847,
+        "recall": 0.9706927175843695,
+        "f1": 0.9776386404293382
+      },
+      "test": {
+        "threshold": 11.5739,
+        "pairs": 1095,
+        "precision": 0.9762557077625571,
+        "recall": 0.9735883424408015,
+        "f1": 0.974920200638395
+      },
+      "test_seconds": 9.57600195799023,
+      "test_pairs_written": 3302,
+      "test_recall_of_pairs_written": 1.0
+    },
+    "precise": {
+      "variant": "learned weights",
+      "validation": {
+        "threshold": 9.5991,
+        "pairs": 1154,
+        "precision": 0.9566724436741768,
+        "recall": 0.9804618117229129,
+        "f1": 0.968421052631579
+      },
+      "test": {
+        "threshold": 9.5991,
+        "pairs": 1142,
+        "precision": 0.9483362521891419,
+        "recall": 0.9863387978142076,
+        "f1": 0.9669642857142857
+      },
+      "test_seconds": 9.57600195799023,
+      "test_pairs_written": 3302,
+      "test_recall_of_pairs_written": 1.0
+    },
+    "entities": null,
+    "by_variant": {
+      "learned weights": {
+        "test_seconds": 9.57600195799023,
+        "f1": {
+          "validation": {
+            "threshold": 11.5739,
+            "pairs": 1110,
+            "precision": 0.9846846846846847,
+            "recall": 0.9706927175843695,
+            "f1": 0.9776386404293382
+          },
+          "test": {
+            "threshold": 11.5739,
+            "pairs": 1095,
+            "precision": 0.9762557077625571,
+            "recall": 0.9735883424408015,
+            "f1": 0.974920200638395
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 9.5991,
+            "pairs": 1154,
+            "precision": 0.9566724436741768,
+            "recall": 0.9804618117229129,
+            "f1": 0.968421052631579
+          },
+          "test": {
+            "threshold": 9.5991,
+            "pairs": 1142,
+            "precision": 0.9483362521891419,
+            "recall": 0.9863387978142076,
+            "f1": 0.9669642857142857
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 3302,
+        "test_recall_of_pairs_written": 1.0
+      },
+      "univo score": {
+        "test_seconds": 9.57600195799023,
+        "f1": {
+          "validation": {
+            "threshold": 0.627692,
+            "pairs": 1200,
+            "precision": 0.9108333333333334,
+            "recall": 0.9706927175843695,
+            "f1": 0.939810834049871
+          },
+          "test": {
+            "threshold": 0.627692,
+            "pairs": 1183,
+            "precision": 0.9070160608622148,
+            "recall": 0.9772313296903461,
+            "f1": 0.9408154318281456
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 0.687619,
+            "pairs": 1060,
+            "precision": 0.9518867924528301,
+            "recall": 0.8960923623445826,
+            "f1": 0.9231473010064043
+          },
+          "test": {
+            "threshold": 0.687619,
+            "pairs": 1057,
+            "precision": 0.934720908230842,
+            "recall": 0.8998178506375227,
+            "f1": 0.916937354988399
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 3302,
+        "test_recall_of_pairs_written": 1.0
+      }
+    }
+  },
+  {
+    "tool": "univo candidates, learned weights",
+    "version": "spike",
+    "dataset": "febrl3",
+    "records": {
+      "validation": 2623,
+      "test": 2377
+    },
+    "true_pairs": {
+      "validation": 3381,
+      "test": 3157
+    },
+    "f1": {
+      "variant": "learned weights",
+      "validation": {
+        "threshold": 0.8896,
+        "pairs": 3371,
+        "precision": 1.0,
+        "recall": 0.9970422951789412,
+        "f1": 0.9985189573459715
+      },
+      "test": {
+        "threshold": 0.8896,
+        "pairs": 3155,
+        "precision": 1.0,
+        "recall": 0.9993664871713652,
+        "f1": 0.9996831432192649
+      },
+      "test_seconds": 15.666896041948348,
+      "test_pairs_written": 3187,
+      "test_recall_of_pairs_written": 0.9996832435856826
+    },
+    "precise": {
+      "variant": "univo score",
+      "validation": {
+        "threshold": 0.501984,
+        "pairs": 3392,
+        "precision": 0.9938089622641509,
+        "recall": 0.9970422951789412,
+        "f1": 0.9954230031005463
+      },
+      "test": {
+        "threshold": 0.501984,
+        "pairs": 3178,
+        "precision": 0.9924480805538074,
+        "recall": 0.9990497307570478,
+        "f1": 0.9957379636937648
+      },
+      "test_seconds": 15.666896041948348,
+      "test_pairs_written": 3187,
+      "test_recall_of_pairs_written": 0.9996832435856826
+    },
+    "entities": {
+      "variant": "univo score",
+      "validation": {
+        "threshold": 0.571429,
+        "pairs": 3378,
+        "precision": 1.0,
+        "recall": 0.9991126885536823,
+        "f1": 0.9995561473590767,
+        "largest_group": 6
+      },
+      "test": {
+        "threshold": 0.571429,
+        "pairs": 3151,
+        "precision": 1.0,
+        "recall": 0.9980994615140957,
+        "f1": 0.9990488268864933,
+        "largest_group": 6
+      },
+      "test_seconds": 15.666896041948348,
+      "test_pairs_written": 3187,
+      "test_recall_of_pairs_written": 0.9996832435856826
+    },
+    "by_variant": {
+      "learned weights": {
+        "test_seconds": 15.666896041948348,
+        "f1": {
+          "validation": {
+            "threshold": 0.8896,
+            "pairs": 3371,
+            "precision": 1.0,
+            "recall": 0.9970422951789412,
+            "f1": 0.9985189573459715
+          },
+          "test": {
+            "threshold": 0.8896,
+            "pairs": 3155,
+            "precision": 1.0,
+            "recall": 0.9993664871713652,
+            "f1": 0.9996831432192649
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 0.8896,
+            "pairs": 3371,
+            "precision": 1.0,
+            "recall": 0.9970422951789412,
+            "f1": 0.9985189573459715
+          },
+          "test": {
+            "threshold": 0.8896,
+            "pairs": 3155,
+            "precision": 1.0,
+            "recall": 0.9993664871713652,
+            "f1": 0.9996831432192649
+          }
+        },
+        "entities": {
+          "validation": {
+            "threshold": 22.3115,
+            "pairs": 3375,
+            "precision": 1.0,
+            "recall": 0.9982253771073647,
+            "f1": 0.9991119005328597,
+            "largest_group": 6
+          },
+          "test": {
+            "threshold": 22.3115,
+            "pairs": 3152,
+            "precision": 1.0,
+            "recall": 0.9984162179284131,
+            "f1": 0.9992074813758124,
+            "largest_group": 6
+          }
+        },
+        "test_pairs_written": 3187,
+        "test_recall_of_pairs_written": 0.9996832435856826
+      },
+      "univo score": {
+        "test_seconds": 15.666896041948348,
+        "f1": {
+          "validation": {
+            "threshold": 0.549265,
+            "pairs": 3365,
+            "precision": 1.0,
+            "recall": 0.9952676722863059,
+            "f1": 0.9976282241328195
+          },
+          "test": {
+            "threshold": 0.549265,
+            "pairs": 3146,
+            "precision": 1.0,
+            "recall": 0.9965156794425087,
+            "f1": 0.9982547993019197
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 0.501984,
+            "pairs": 3392,
+            "precision": 0.9938089622641509,
+            "recall": 0.9970422951789412,
+            "f1": 0.9954230031005463
+          },
+          "test": {
+            "threshold": 0.501984,
+            "pairs": 3178,
+            "precision": 0.9924480805538074,
+            "recall": 0.9990497307570478,
+            "f1": 0.9957379636937648
+          }
+        },
+        "entities": {
+          "validation": {
+            "threshold": 0.571429,
+            "pairs": 3378,
+            "precision": 1.0,
+            "recall": 0.9991126885536823,
+            "f1": 0.9995561473590767,
+            "largest_group": 6
+          },
+          "test": {
+            "threshold": 0.571429,
+            "pairs": 3151,
+            "precision": 1.0,
+            "recall": 0.9980994615140957,
+            "f1": 0.9990488268864933,
+            "largest_group": 6
+          }
+        },
+        "test_pairs_written": 3187,
+        "test_recall_of_pairs_written": 0.9996832435856826
+      }
+    }
+  },
+  {
+    "tool": "univo candidates, learned weights",
+    "version": "spike",
+    "dataset": "febrl4",
+    "records": {
+      "validation": 5066,
+      "test": 4934
+    },
+    "true_pairs": {
+      "validation": 2533,
+      "test": 2467
+    },
+    "f1": {
+      "variant": "learned weights",
+      "validation": {
+        "threshold": 19.2778,
+        "pairs": 2533,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "test": {
+        "threshold": 19.2778,
+        "pairs": 2467,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "test_seconds": 22.240396542008966,
+      "test_pairs_written": 2550,
+      "test_recall_of_pairs_written": 1.0
+    },
+    "precise": {
+      "variant": "univo score",
+      "validation": {
+        "threshold": 0.546786,
+        "pairs": 2540,
+        "precision": 0.997244094488189,
+        "recall": 1.0,
+        "f1": 0.9986201458702937
+      },
+      "test": {
+        "threshold": 0.546786,
+        "pairs": 2471,
+        "precision": 0.9983812221772562,
+        "recall": 1.0,
+        "f1": 0.9991899554475496
+      },
+      "test_seconds": 22.240396542008966,
+      "test_pairs_written": 2550,
+      "test_recall_of_pairs_written": 1.0
+    },
+    "entities": null,
+    "by_variant": {
+      "learned weights": {
+        "test_seconds": 22.240396542008966,
+        "f1": {
+          "validation": {
+            "threshold": 19.2778,
+            "pairs": 2533,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "test": {
+            "threshold": 19.2778,
+            "pairs": 2467,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 19.2778,
+            "pairs": 2533,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "test": {
+            "threshold": 19.2778,
+            "pairs": 2467,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 2550,
+        "test_recall_of_pairs_written": 1.0
+      },
+      "univo score": {
+        "test_seconds": 22.240396542008966,
+        "f1": {
+          "validation": {
+            "threshold": 0.559341,
+            "pairs": 2534,
+            "precision": 0.9988161010260458,
+            "recall": 0.9992104224240032,
+            "f1": 0.9990132228142886
+          },
+          "test": {
+            "threshold": 0.559341,
+            "pairs": 2470,
+            "precision": 0.9987854251012146,
+            "recall": 1.0,
+            "f1": 0.9993923435284586
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 0.546786,
+            "pairs": 2540,
+            "precision": 0.997244094488189,
+            "recall": 1.0,
+            "f1": 0.9986201458702937
+          },
+          "test": {
+            "threshold": 0.546786,
+            "pairs": 2471,
+            "precision": 0.9983812221772562,
+            "recall": 1.0,
+            "f1": 0.9991899554475496
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 2550,
+        "test_recall_of_pairs_written": 1.0
+      }
+    }
+  },
+  {
+    "tool": "univo candidates, learned weights",
+    "version": "spike",
+    "dataset": "historical_50k",
+    "records": {
+      "validation": 25700,
+      "test": 24878
+    },
+    "true_pairs": {
+      "validation": 154050,
+      "test": 149911
+    },
+    "f1": {
+      "variant": "learned weights",
+      "validation": {
+        "threshold": 8.6525,
+        "pairs": 132594,
+        "precision": 0.9437304855423322,
+        "recall": 0.8122882181110029,
+        "f1": 0.8730899652530665
+      },
+      "test": {
+        "threshold": 8.6525,
+        "pairs": 130610,
+        "precision": 0.9312303805221652,
+        "recall": 0.811334725270327,
+        "f1": 0.8671578954873254
+      },
+      "test_seconds": 50.1984032089822,
+      "test_pairs_written": 375262,
+      "test_recall_of_pairs_written": 0.854893903716205
+    },
+    "precise": {
+      "variant": "learned weights",
+      "validation": {
+        "threshold": 9.0449,
+        "pairs": 130704,
+        "precision": 0.9500015301750521,
+        "recall": 0.8060305095748134,
+        "f1": 0.8721141757446779
+      },
+      "test": {
+        "threshold": 9.0449,
+        "pairs": 127498,
+        "precision": 0.9455913033929944,
+        "recall": 0.8042171688535198,
+        "f1": 0.8691931408137443
+      },
+      "test_seconds": 50.1984032089822,
+      "test_pairs_written": 375262,
+      "test_recall_of_pairs_written": 0.854893903716205
+    },
+    "entities": {
+      "variant": "learned weights",
+      "validation": {
+        "threshold": 16.088,
+        "pairs": 142262,
+        "precision": 0.9619786028595128,
+        "recall": 0.8883674131775398,
+        "f1": 0.923708793433948,
+        "largest_group": 54
+      },
+      "test": {
+        "threshold": 16.088,
+        "pairs": 137230,
+        "precision": 0.9690592436056256,
+        "recall": 0.887086337893817,
+        "f1": 0.9262627071717379,
+        "largest_group": 40
+      },
+      "test_seconds": 50.1984032089822,
+      "test_pairs_written": 375262,
+      "test_recall_of_pairs_written": 0.854893903716205
+    },
+    "by_variant": {
+      "learned weights": {
+        "test_seconds": 50.1984032089822,
+        "f1": {
+          "validation": {
+            "threshold": 8.6525,
+            "pairs": 132594,
+            "precision": 0.9437304855423322,
+            "recall": 0.8122882181110029,
+            "f1": 0.8730899652530665
+          },
+          "test": {
+            "threshold": 8.6525,
+            "pairs": 130610,
+            "precision": 0.9312303805221652,
+            "recall": 0.811334725270327,
+            "f1": 0.8671578954873254
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 9.0449,
+            "pairs": 130704,
+            "precision": 0.9500015301750521,
+            "recall": 0.8060305095748134,
+            "f1": 0.8721141757446779
+          },
+          "test": {
+            "threshold": 9.0449,
+            "pairs": 127498,
+            "precision": 0.9455913033929944,
+            "recall": 0.8042171688535198,
+            "f1": 0.8691931408137443
+          }
+        },
+        "entities": {
+          "validation": {
+            "threshold": 16.088,
+            "pairs": 142262,
+            "precision": 0.9619786028595128,
+            "recall": 0.8883674131775398,
+            "f1": 0.923708793433948,
+            "largest_group": 54
+          },
+          "test": {
+            "threshold": 16.088,
+            "pairs": 137230,
+            "precision": 0.9690592436056256,
+            "recall": 0.887086337893817,
+            "f1": 0.9262627071717379,
+            "largest_group": 40
+          }
+        },
+        "test_pairs_written": 375262,
+        "test_recall_of_pairs_written": 0.854893903716205
+      },
+      "univo score": {
+        "test_seconds": 50.1984032089822,
+        "f1": {
+          "validation": {
+            "threshold": 0.714476,
+            "pairs": 159798,
+            "precision": 0.6839697618243031,
+            "recall": 0.7094904251866277,
+            "f1": 0.6964963931584717
+          },
+          "test": {
+            "threshold": 0.714476,
+            "pairs": 158556,
+            "precision": 0.6699714927218143,
+            "recall": 0.7086071068834175,
+            "f1": 0.6887479049622813
+          }
+        },
+        "precise": null,
+        "entities": {
+          "validation": {
+            "threshold": 0.931818,
+            "pairs": 60694261,
+            "precision": 0.0013308836563641494,
+            "recall": 0.5243557286595262,
+            "f1": 0.0026550285019414917,
+            "largest_group": 11009
+          },
+          "test": {
+            "threshold": 0.931818,
+            "pairs": 68627087,
+            "precision": 0.0011924008955822357,
+            "recall": 0.5458638792350128,
+            "f1": 0.0023796037157655533,
+            "largest_group": 11707
+          }
+        },
+        "test_pairs_written": 375262,
+        "test_recall_of_pairs_written": 0.854893903716205
+      }
+    }
+  }
+]
