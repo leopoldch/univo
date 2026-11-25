@@ -13,6 +13,11 @@ in memory to the pairs in memory. With `--group`, writes instead the pairs
 inside the groups of `group` at five thresholds: Univo's own grouping, which
 joins records only when every pair of the group reaches the threshold.
 
+With `--probability`, pairs are decided by weights learned from the records
+(`find(min_probability=...)`) and ranked by their weight in bits, down to a
+probability of 0.05. Linking then calls `find` on both sources together and
+keeps the pairs across them.
+
     python -I benchmarks/records/record_pairs_univo.py --dataset febrl3 --cache /tmp/records-data \
         --output /tmp/records-pairs/febrl3-univo.json
 """
@@ -81,6 +86,7 @@ SCHEMAS: dict[str, dict[str, Fields]] = {
 }
 LINK_LIMIT = 10
 GROUP_THRESHOLDS = (0.6, 0.65, 0.7, 0.75, 0.8)
+MIN_PROBABILITY = 0.05
 
 
 def scored(
@@ -121,9 +127,33 @@ def in_groups(fields: Fields, records: list[Record], min_score: float) -> list[l
     ]
 
 
+def weighed(
+    dataset: Dataset, fields: Fields, records: list[Record], model: str | None
+) -> list[list[object]]:
+    """Pairs `[left, right, bits]` decided by learned weights."""
+    finder = Finder(
+        schema=Schema(id_field="id", fields=fields),
+        model_path=model,
+        offline=True,
+        max_records=len(records),
+        max_semantic_comparisons=2**62,
+    )
+    rows = [{key: record[key] for key in ("id", *fields)} for record in records]
+    source = {str(record["id"]): record["source"] for record in records}
+    report = finder.find(rows, min_probability=MIN_PROBABILITY, limit=2**31 - 1)
+    return [
+        [str(m.left_id), str(m.right_id), m.weight]
+        for m in report.matches
+        if not dataset.linking or source[str(m.left_id)] != source[str(m.right_id)]
+    ]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--group", action="store_true", help="measure `group`, not `find`")
+    parser.add_argument(
+        "--probability", action="store_true", help="decide by learned weights, not by score"
+    )
     parser.add_argument("--dataset", choices=sorted(SCHEMAS), required=True)
     parser.add_argument("--cache", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -147,7 +177,15 @@ def main() -> None:
             name = f"{variant}, at {threshold}"
             runs.append({"variant": name, "half": half, "seconds": seconds, "pairs": inside})
             print(f"{dataset.name} {half}, {name}: {len(inside)} pairs in {seconds:.1f} s")
-    for variant, fields in () if arguments.group else SCHEMAS[dataset.name].items():
+    for variant, fields in SCHEMAS[dataset.name].items() if arguments.probability else ():
+        for half in HALVES:
+            started = time.perf_counter()
+            inside = weighed(dataset, fields, dataset.half(half), arguments.model_path)
+            seconds = time.perf_counter() - started
+            runs.append({"variant": variant, "half": half, "seconds": seconds, "pairs": inside})
+            print(f"{dataset.name} {half}, {variant}: {len(inside)} pairs in {seconds:.1f} s")
+    plain = not (arguments.group or arguments.probability)
+    for variant, fields in SCHEMAS[dataset.name].items() if plain else ():
         for half in HALVES:
             started = time.perf_counter()
             pairs = scored(
@@ -164,7 +202,9 @@ def main() -> None:
                 runs.append({"variant": name, "half": half, "seconds": seconds, "pairs": ranked})
             print(f"{dataset.name} {half}, {variant}: {len(pairs)} pairs in {seconds:.1f} s")
     result = {
-        "tool": "univo group" if arguments.group else "univo",
+        "tool": "univo group"
+        if arguments.group
+        else ("univo by probability" if arguments.probability else "univo"),
         "version": univo.__version__,
         "dataset": dataset.name,
         "floor": arguments.floor,
