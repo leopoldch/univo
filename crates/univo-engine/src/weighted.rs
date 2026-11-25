@@ -28,12 +28,12 @@
 //! candidate.
 
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BTreeMap, BinaryHeap, HashMap};
 
 use rayon::prelude::*;
 use univo_core::{
-    CLOSE_SIMILARITY, Comparison, Error, FieldKind, FieldWeights, Fit, LEVELS, Level,
-    PARTIAL_SIMILARITY, Result, Weights,
+    CLOSE_SIMILARITY, Comparison, Error, FieldKind, FieldState, FieldWeights, Fit, LEVELS, Level,
+    NormalizedValue, PARTIAL_SIMILARITY, Result, Weights,
 };
 
 use crate::SearchIndex;
@@ -51,6 +51,11 @@ pub const FIT_QUERIES: usize = 1024;
 
 /// Index entries one lane reads for one of these records.
 const FIT_ENTRIES: usize = 4096;
+
+/// Candidates one of these records gives at most, spread over the slots.
+/// With [`FIT_QUERIES`] it bounds what is learned from: about a million
+/// pairs, kept as counts of their distinct combinations of levels.
+pub const FIT_PAIRS: usize = 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WeightedOptions {
@@ -172,9 +177,6 @@ struct Scale {
     weights: Weights,
     counts: Vec<HashMap<u64, u32>>,
     valued: Vec<u32>,
-    /// Fields compared by meaning: two texts can be equal for the model
-    /// without being the same value.
-    semantic: Vec<bool>,
     /// Fields compared by equality.
     exact: Vec<bool>,
     /// Bits the fields of a pair can add while all different.
@@ -195,8 +197,8 @@ impl Scale {
     }
 
     /// The bits `field` adds to the pair at `similarity`. An equal value
-    /// weighs by how common the left record's value is; for a field
-    /// compared by meaning, only when both records hold that value.
+    /// weighs by how common it is, the same for both records: the bits do
+    /// not depend on which one is on the left.
     fn field_bits(
         &self,
         index: &SearchIndex,
@@ -204,13 +206,8 @@ impl Scale {
         (left, right): (usize, usize),
         similarity: f32,
     ) -> f64 {
-        let level = Level::of(similarity);
-        let records = index.store().records();
-        let same = level == Level::Equal
-            && (!self.semantic[field]
-                || records[left].fields()[field].value_key()
-                    == records[right].fields()[field].value_key());
-        let share = same
+        let level = level(index, field, left, right, similarity);
+        let share = (level == Level::Equal)
             .then(|| self.common(index, field, left))
             .flatten()
             .map(|(_, share)| share);
@@ -281,7 +278,9 @@ impl Scale {
         whole.sort_unstable_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
         for (_, field) in whole {
             // Without a value, the lanes of the field propose nothing.
-            let best = valued[field].map_or(0.0, |(_, share)| self.at_best(field, share));
+            let best = valued[field].map_or(0.0, |(_, share)| {
+                self.at_best(field, share, is_object(index, field, slot))
+            });
             if spent - left_out[field] + best < needed - 1e-9 {
                 spent += best - left_out[field];
                 lanes[field] = f32::INFINITY;
@@ -290,21 +289,37 @@ impl Scale {
     }
 
     /// The most bits `field` adds to a pair that agrees on it, for a record
-    /// whose value is `share` of the others.
-    fn at_best(&self, field: usize, share: f64) -> f64 {
+    /// whose value is `share` of the others: those of the same value, or
+    /// of a close or partial likeness where the field can give one. A text
+    /// can, and an `object` compared key by key; any other exact value is
+    /// equal or different.
+    fn at_best(&self, field: usize, share: f64, object: bool) -> f64 {
         let learned = &self.weights.fields[field];
-        let equal = learned.weight(Level::Equal, Some(share));
-        let mut best = equal.max(0.0);
-        if !self.exact[field] {
+        let mut best = learned.weight(Level::Equal, Some(share)).max(0.0);
+        if !self.exact[field] || object {
             best = best
                 .max(learned.bits[Level::Close as usize])
                 .max(learned.bits[Level::Partial as usize]);
         }
-        if self.semantic[field] {
-            best = best.max(learned.bits[Level::Equal as usize]);
-        }
         best
     }
+}
+
+/// The level of `field` between two stored records at `similarity`: equal
+/// only when both hold the same value ([`Level::of`]).
+fn level(index: &SearchIndex, field: usize, left: usize, right: usize, similarity: f32) -> Level {
+    Level::of(similarity, || {
+        let records = index.store().records();
+        records[left].fields()[field].value_key() == records[right].fields()[field].value_key()
+    })
+}
+
+/// Whether the record at `slot` holds an object in `field`.
+fn is_object(index: &SearchIndex, field: usize, slot: usize) -> bool {
+    matches!(
+        index.store().records()[slot].fields()[field].state,
+        FieldState::Exact(NormalizedValue::Map(_))
+    )
 }
 
 impl SearchIndex {
@@ -344,6 +359,7 @@ impl SearchIndex {
             max_entries: options.max_entries,
             exhaustive,
             later: true,
+            at_most: usize::MAX,
         };
         let kept = crate::fold_queries(
             self.query_blocks(&queries),
@@ -377,6 +393,7 @@ impl SearchIndex {
                                 Ok(())
                             },
                         )?;
+                        let (result, _) = result;
                         kept.scored += result.candidates;
                         kept.truncated |= result.truncated;
                         kept.approximate |= result.approximate;
@@ -432,27 +449,51 @@ impl SearchIndex {
             max_entries: FIT_ENTRIES,
             exhaustive,
             later: false,
+            at_most: FIT_PAIRS,
         };
-        // One row of codes per candidate, in the order of the sample.
-        let rows = crate::fold_queries(
+        // The candidates as counts of their combinations of levels, with
+        // how many were proposed and how many of those were kept.
+        let learned = crate::fold_queries(
             sample.clone(),
-            Vec::new,
-            |mut rows: Vec<u8>, left| {
-                self.visit_candidates(left, wanted, None, None, &mut |right, _| {
-                    let start = rows.len();
-                    rows.resize(start + fields, 0);
-                    self.similarities(left, right, &mut |field, similarity| {
-                        rows[start + field] = Level::code(similarity.map(Level::of));
-                    })
-                })?;
-                Ok(rows)
+            || (BTreeMap::<Box<[u8]>, u64>::new(), 0usize, 0usize),
+            |(mut combinations, mut proposed, mut kept), left| {
+                let mut row = vec![0u8; fields];
+                let (_, found) =
+                    self.visit_candidates(left, wanted, None, None, &mut |right, _| {
+                        row.fill(0);
+                        self.similarities(left, right, &mut |field, similarity| {
+                            row[field] = Level::code(
+                                similarity
+                                    .map(|similarity| level(self, field, left, right, similarity)),
+                            );
+                        })?;
+                        match combinations.get_mut(row.as_slice()) {
+                            Some(count) => *count += 1,
+                            None => {
+                                combinations.insert(row.clone().into_boxed_slice(), 1);
+                            }
+                        }
+                        Ok(())
+                    })?;
+                proposed += found;
+                kept += found.div_ceil(wanted.stride(found));
+                Ok((combinations, proposed, kept))
             },
-            |mut rows, mut later| {
-                rows.append(&mut later);
-                rows
+            |(mut combinations, proposed, kept), (others, more, held)| {
+                for (row, count) in others {
+                    *combinations.entry(row).or_default() += count;
+                }
+                (combinations, proposed + more, kept + held)
             },
         )?;
-        // Each sampled record against every other record of its partition.
+        let (combinations, proposed, kept) = learned;
+        let rows: Vec<u8> = combinations
+            .keys()
+            .flat_map(|row| row.iter().copied())
+            .collect();
+        let counts: Vec<u64> = combinations.values().copied().collect();
+        // Each sampled record against every other record of its partition,
+        // less the share of its candidates that was not kept.
         let records = self.store().records();
         let compared: usize = sample
             .iter()
@@ -465,7 +506,8 @@ impl SearchIndex {
             })
             .sum();
         #[allow(clippy::cast_precision_loss)]
-        Ok(Weights::fit(&chance, &rows, compared as f64))
+        let pairs = compared as f64 * (kept.max(1) as f64 / proposed.max(1) as f64);
+        Ok(Weights::fit(&chance, &rows, &counts, pairs))
     }
 
     /// `u` of each field: its levels over pairs of one partition taken at
@@ -494,9 +536,12 @@ impl SearchIndex {
         }
         let count = |counts: &mut Vec<[u64; LEVELS]>, left: u32, right: u32| -> Result<()> {
             if let Some(comparison) = self.compare_pair(left as usize, right as usize)? {
-                for (field, compared) in counts.iter_mut().zip(comparison.fields.iter()) {
+                let fields = counts.iter_mut().zip(comparison.fields.iter());
+                for (position, (counted, compared)) in fields.enumerate() {
                     if let Some(similarity) = compared.similarity {
-                        field[Level::of(similarity) as usize] += 1;
+                        // Counted in order: `field` is the position.
+                        counted[level(self, position, left as usize, right as usize, similarity)
+                            as usize] += 1;
                     }
                 }
             }
@@ -564,9 +609,6 @@ impl SearchIndex {
             weights,
             counts: vec![HashMap::new(); fields],
             valued: vec![0; fields],
-            semantic: (0..fields)
-                .map(|field| self.semantic.contains(&field))
-                .collect(),
             exact: self
                 .schema()
                 .fields()
@@ -585,5 +627,143 @@ impl SearchIndex {
             }
         }
         scale
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use univo_core::{Exact, FieldPath, Map, Schema, Text, Value, prepare};
+
+    use super::*;
+
+    fn path(dotted: &str) -> FieldPath {
+        FieldPath::parse(dotted).unwrap()
+    }
+
+    /// A name, a code and a contact object. Most contacts are the same
+    /// `{"city": "lyon"}`; one record in four adds a phone of its own, and
+    /// names come in pairs, so that a common object and a rarer one that
+    /// agrees with it on every shared key meet in many pairs.
+    fn index(records: i64) -> SearchIndex {
+        let schema = Schema::builder()
+            .id_field(path("id"))
+            .text(path("name"), Text::default())
+            .exact(path("code"), Exact::default())
+            .exact(path("contact"), Exact::default())
+            .build()
+            .unwrap();
+        let prepared = (0..records)
+            .map(|id| {
+                let mut contact = vec![("city".to_owned(), Value::Str("lyon".into()))];
+                if id % 4 == 0 {
+                    contact.push(("phone".to_owned(), Value::Int(id)));
+                }
+                let entries = vec![
+                    ("id".to_owned(), Value::Int(id)),
+                    ("name".to_owned(), Value::Str(format!("person {}", id / 2))),
+                    (
+                        "code".to_owned(),
+                        Value::Str(["a", "b", "c"][usize::try_from(id % 3).unwrap()].into()),
+                    ),
+                    ("contact".to_owned(), Value::Map(Map::new(contact).unwrap())),
+                ];
+                prepare(&schema, &Value::Map(Map::new(entries).unwrap())).unwrap()
+            })
+            .collect();
+        let mut index = SearchIndex::new(schema, 10_000, None).unwrap();
+        index.add(prepared).unwrap();
+        index
+    }
+
+    #[test]
+    fn a_pair_weighs_the_same_whichever_record_comes_first() {
+        let index = index(240);
+        let queries: Vec<usize> = index.store().active_slots().collect();
+        let (weights, _) = index.fit_weights(&queries, false).unwrap();
+        let scale = index.scale(weights);
+        let (mut objects, mut equal) = (0, 0);
+        for left in 0..240 {
+            for right in left + 1..240 {
+                let forward = scale.bits(&index, left, right).unwrap();
+                let backward = scale.bits(&index, right, left).unwrap();
+                assert_eq!(forward, backward, "{left} {right}");
+                // The contact is the third field: shared keys that agree
+                // make two different objects close, never equal.
+                let same = is_object(&index, 2, left)
+                    && index.store().records()[left].fields()[2].value_key()
+                        == index.store().records()[right].fields()[2].value_key();
+                let found = level(&index, 2, left, right, 1.0);
+                assert_eq!(found == Level::Equal, same);
+                objects += usize::from(found == Level::Close);
+                equal += usize::from(same);
+            }
+        }
+        assert!(objects > 5_000 && equal > 5_000, "{objects} {equal}");
+    }
+
+    #[test]
+    fn an_object_field_is_bounded_by_its_partial_levels_too() {
+        let index = index(240);
+        let field = |bits: [f64; LEVELS]| FieldWeights {
+            m: [0.25; LEVELS],
+            u: [0.25; LEVELS],
+            bits,
+        };
+        // Closeness weighs more than an equal common value, for the code
+        // and for the contact alike; the name weighs nothing.
+        let learned = [1.0, 9.0, 6.0, -2.0];
+        let scale = index.scale(Weights {
+            fields: vec![field([0.0; LEVELS]), field(learned), field(learned)],
+            prior: -10.0,
+        });
+        // A code is equal or different; a contact can be close.
+        let common = scale.common(&index, 2, 1).unwrap().1;
+        assert!(scale.at_best(1, common, false) < 2.0);
+        assert!((scale.at_best(2, common, true) - 9.0).abs() < 1e-12);
+        let mut lanes = Vec::new();
+        scale.lanes(&index, 1, 5.0, &mut lanes);
+        assert!(
+            lanes[1].is_infinite(),
+            "an equal code cannot reach 5 bits: {lanes:?}"
+        );
+        assert!(lanes[2].is_finite(), "a close contact can: {lanes:?}");
+        // With room for both, both are left out.
+        scale.lanes(&index, 1, 20.0, &mut lanes);
+        assert!(
+            lanes[1].is_infinite() && lanes[2].is_infinite(),
+            "{lanes:?}"
+        );
+    }
+
+    #[test]
+    fn learning_keeps_counts_and_a_bounded_sample() {
+        // Every record equal to every other: each of the 1,000 sampled
+        // records has 2,000 candidates, itself included, and gives one in
+        // two of them, all of one combination of levels.
+        let schema = Schema::builder()
+            .text(path("a"), Text::default())
+            .text(path("b"), Text::default())
+            .build()
+            .unwrap();
+        let entries = || {
+            vec![
+                ("a".to_owned(), Value::Str("same".into())),
+                ("b".to_owned(), Value::Str("as ever".into())),
+            ]
+        };
+        let prepared = (0..2000)
+            .map(|_| prepare(&schema, &Value::Map(Map::new(entries()).unwrap())).unwrap())
+            .collect();
+        let mut index = SearchIndex::new(schema, 10_000, None).unwrap();
+        index.add(prepared).unwrap();
+        let queries: Vec<usize> = index.store().active_slots().collect();
+        let (weights, fit) = index.fit_weights(&queries, false).unwrap();
+        // One fewer where the record itself was among those kept.
+        assert!((1000 * 999..=1000 * 1000).contains(&fit.rows), "{fit:?}");
+        assert!(fit.rows <= FIT_QUERIES * FIT_PAIRS);
+        // One combination cannot be split in two classes, so the share is
+        // whatever the first rounds left. What was not kept still counts in
+        // the prior: most pairs match, and the odds are in favour.
+        assert!(weights.prior > 1.0, "{fit:?} {}", weights.prior);
     }
 }

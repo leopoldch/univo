@@ -43,7 +43,9 @@ const ROUNDS: usize = 100;
 /// Largest change of a parameter at which the rounds stop.
 const CONVERGED: f64 = 1e-6;
 
-/// How alike the two values of a field are.
+/// How alike the two values of a field are: the same value, or a
+/// similarity of at least [`CLOSE_SIMILARITY`], of at least
+/// [`PARTIAL_SIMILARITY`], or less.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Level {
     Equal = 0,
@@ -55,9 +57,14 @@ pub enum Level {
 impl Level {
     pub const ALL: [Self; LEVELS] = [Self::Equal, Self::Close, Self::Partial, Self::Different];
 
-    /// The level of a field similarity in `[0, 1]`.
-    pub fn of(similarity: f32) -> Self {
-        if similarity >= EQUAL {
+    /// The level of a field similarity in `[0, 1]`. Two values are equal
+    /// only when they are the same value, which `same` says and is asked
+    /// only at a similarity of 1: two objects whose shared keys agree, or
+    /// two texts a model cannot tell apart, are close, not equal. The level
+    /// then does not depend on which record comes first, and the frequency
+    /// of an equal value is that of both.
+    pub fn of(similarity: f32, same: impl FnOnce() -> bool) -> Self {
+        if similarity >= EQUAL && same() {
             Self::Equal
         } else if similarity >= CLOSE_SIMILARITY {
             Self::Close
@@ -147,21 +154,28 @@ impl Weights {
     /// Learns the weights of `fields` fields.
     ///
     /// `chance[f]` is `u` of field `f` ([`FieldWeights::chance`]).
-    /// `candidates` holds one row of `fields` codes per candidate pair
-    /// ([`Level::code`]). `pairs` is the number of pairs the candidates
-    /// were drawn from, for the prior.
+    /// `candidates` holds one row of `fields` codes ([`Level::code`]) per
+    /// distinct combination of levels among the candidate pairs, and
+    /// `counts` how many pairs have each: memory follows the combinations,
+    /// not the pairs. `pairs` is the number of pairs the candidates were
+    /// drawn from, for the prior.
     ///
     /// # Panics
     ///
-    /// When `chance` or the rows do not have `fields` entries.
-    pub fn fit(chance: &[[f64; LEVELS]], candidates: &[u8], pairs: f64) -> (Self, Fit) {
+    /// When `chance`, the rows or `counts` do not agree on their sizes.
+    pub fn fit(
+        chance: &[[f64; LEVELS]],
+        candidates: &[u8],
+        counts: &[u64],
+        pairs: f64,
+    ) -> (Self, Fit) {
         let fields = chance.len();
         assert!(
-            fields > 0 && candidates.len().is_multiple_of(fields),
-            "rows of {fields} codes"
+            fields > 0 && candidates.len() == counts.len() * fields,
+            "rows of {fields} codes, one count each"
         );
-        let rows = candidates.len() / fields;
-        let classes = Classes::split(fields, candidates);
+        let rows: u64 = counts.iter().sum();
+        let classes = Classes::split(fields, candidates, counts);
         let fields = classes
             .agreeing
             .iter()
@@ -182,7 +196,7 @@ impl Weights {
                 FieldWeights { m, u, bits }
             })
             .collect();
-        let matches = classes.share * exact(rows as u64);
+        let matches = classes.share * exact(rows);
         let odds = if pairs > matches && matches > 0.0 {
             matches / (pairs - matches)
         } else {
@@ -194,7 +208,7 @@ impl Weights {
                 prior: odds.max(1e-12).log2(),
             },
             Fit {
-                rows,
+                rows: usize::try_from(rows).unwrap_or(usize::MAX),
                 share: classes.share,
                 rounds: classes.rounds,
             },
@@ -219,8 +233,8 @@ struct Classes {
 }
 
 impl Classes {
-    fn split(fields: usize, candidates: &[u8]) -> Self {
-        let rows = candidates.len() / fields;
+    fn split(fields: usize, candidates: &[u8], counts: &[u64]) -> Self {
+        let rows: u64 = counts.iter().sum();
         let mut m = vec![[0.6, 0.2, 0.12, 0.08]; fields];
         let mut other = vec![[0.15, 0.05, 0.2, 0.6]; fields];
         let mut observed = vec![[0.0f64; LEVELS]; fields];
@@ -230,7 +244,8 @@ impl Classes {
             let mut agree = vec![[0.0f64; LEVELS]; fields];
             let mut differ = vec![[0.0f64; LEVELS]; fields];
             let mut matched = 0.0;
-            for row in candidates.chunks_exact(fields) {
+            for (row, &count) in candidates.chunks_exact(fields).zip(counts) {
+                let count = exact(count);
                 let (mut same, mut distinct) = (share, 1.0 - share);
                 for (field, &code) in row.iter().enumerate() {
                     if let Some(level) = Level::from_code(code) {
@@ -243,16 +258,16 @@ impl Classes {
                 } else {
                     0.0
                 };
-                matched += probability;
+                matched += count * probability;
                 for (field, &code) in row.iter().enumerate() {
                     if let Some(level) = Level::from_code(code) {
-                        agree[field][level as usize] += probability;
-                        differ[field][level as usize] += 1.0 - probability;
+                        agree[field][level as usize] += count * probability;
+                        differ[field][level as usize] += count * (1.0 - probability);
                     }
                 }
             }
             let previous = (share, m.clone());
-            share = (matched / exact(rows as u64)).clamp(1e-6, 1.0 - 1e-6);
+            share = (matched / exact(rows)).clamp(1e-6, 1.0 - 1e-6);
             for (table, counts) in m
                 .iter_mut()
                 .zip(&agree)
@@ -352,6 +367,38 @@ mod tests {
 
     const CHANCE: [f64; LEVELS] = [0.001, 0.001, 0.01, 0.988];
 
+    /// [`Weights::fit`] on one row per pair.
+    fn fit_rows(chance: &[[f64; LEVELS]], codes: &[u8], pairs: f64) -> (Weights, Fit) {
+        Weights::fit(chance, codes, &vec![1; codes.len() / chance.len()], pairs)
+    }
+
+    #[test]
+    fn counted_combinations_fit_like_one_row_per_pair() {
+        let (codes, _) = candidates(6_000, 3, 0.4, 13);
+        let mut combinations = std::collections::BTreeMap::<[u8; 3], u64>::new();
+        for row in codes.as_chunks::<3>().0 {
+            *combinations.entry(*row).or_default() += 1;
+        }
+        assert!(combinations.len() < 200, "{}", combinations.len());
+        let counted: Vec<u8> = combinations.keys().flatten().copied().collect();
+        let counts: Vec<u64> = combinations.values().copied().collect();
+        let (weights, fitted) = Weights::fit(&[CHANCE; 3], &counted, &counts, 1e8);
+        let (expected, rows) = fit_rows(&[CHANCE; 3], &codes, 1e8);
+        assert_eq!(fitted.rows, 6_000);
+        assert!((fitted.share - rows.share).abs() < 1e-9);
+        assert!((weights.prior - expected.prior).abs() < 1e-9);
+        for (field, other) in weights.fields.iter().zip(&expected.fields) {
+            for (bits, wanted) in field.bits.iter().zip(other.bits) {
+                assert!(
+                    (bits - wanted).abs() < 1e-6,
+                    "{:?} {:?}",
+                    field.bits,
+                    other.bits
+                );
+            }
+        }
+    }
+
     #[test]
     fn levels_follow_their_limits() {
         for (similarity, level) in [
@@ -364,7 +411,13 @@ mod tests {
             (0.699, Level::Different),
             (0.0, Level::Different),
         ] {
-            assert_eq!(Level::of(similarity), level, "{similarity}");
+            assert_eq!(Level::of(similarity, || true), level, "{similarity}");
+            let other = if level == Level::Equal {
+                Level::Close
+            } else {
+                level
+            };
+            assert_eq!(Level::of(similarity, || false), other, "{similarity}");
         }
         for level in Level::ALL {
             assert_eq!(Level::from_code(Level::code(Some(level))), Some(level));
@@ -378,7 +431,7 @@ mod tests {
     fn fitting_recovers_the_class_that_agrees() {
         for (share, seed) in [(0.2, 1), (0.5, 2), (0.8, 3)] {
             let (codes, _) = candidates(20_000, 5, share, seed);
-            let (weights, fit) = Weights::fit(&[CHANCE; 5], &codes, 1e9);
+            let (weights, fit) = fit_rows(&[CHANCE; 5], &codes, 1e9);
             assert!((fit.share - share).abs() < 0.03, "{share}: {}", fit.share);
             assert!(fit.rounds < ROUNDS, "{share}: no convergence");
             for field in &weights.fields {
@@ -395,7 +448,7 @@ mod tests {
     #[test]
     fn weights_rank_one_entity_above_the_rest() {
         let (codes, same) = candidates(20_000, 5, 0.3, 7);
-        let (weights, _) = Weights::fit(&[CHANCE; 5], &codes, 1e9);
+        let (weights, _) = fit_rows(&[CHANCE; 5], &codes, 1e9);
         let mut ranked: Vec<(f64, bool)> = codes
             .as_chunks::<5>()
             .0
@@ -425,7 +478,7 @@ mod tests {
     #[test]
     fn a_rare_value_weighs_more_than_a_common_one() {
         let (codes, _) = candidates(5_000, 2, 0.4, 11);
-        let (weights, _) = Weights::fit(&[CHANCE; 2], &codes, 1e9);
+        let (weights, _) = fit_rows(&[CHANCE; 2], &codes, 1e9);
         let field = &weights.fields[0];
         let (rare, common) = (
             field.weight(Level::Equal, Some(1e-5)),
@@ -448,7 +501,7 @@ mod tests {
             .flat_map(|row| if row % 4 == 0 { [1, 1] } else { [4, 4] })
             .collect();
         let chance = FieldWeights::chance([10, 0, 100, 99_890]);
-        let (weights, _) = Weights::fit(&[chance; 2], &codes, 1e9);
+        let (weights, _) = fit_rows(&[chance; 2], &codes, 1e9);
         for field in &weights.fields {
             assert_eq!(field.bits[1], field.bits[2]);
             assert_eq!(field.bits[2], field.bits[3]);
@@ -471,7 +524,7 @@ mod tests {
     #[test]
     fn probability_grows_with_the_bits_around_the_prior() {
         let (codes, _) = candidates(2_000, 3, 0.5, 5);
-        let (weights, fit) = Weights::fit(&[CHANCE; 3], &codes, 1e6);
+        let (weights, fit) = fit_rows(&[CHANCE; 3], &codes, 1e6);
         // About 1,000 matching pairs among a million: ten bits against.
         assert!(
             (weights.prior + 10.0).abs() < 0.5,
@@ -490,11 +543,11 @@ mod tests {
 
     #[test]
     fn nothing_to_learn_from_gives_neutral_fields() {
-        let (weights, fit) = Weights::fit(&[[0.25; LEVELS]; 2], &[], 0.0);
+        let (weights, fit) = fit_rows(&[[0.25; LEVELS]; 2], &[], 0.0);
         assert_eq!(fit.rounds, 0);
         assert!(weights.prior < -20.0);
         // Every value missing: the starting point is kept, and stays finite.
-        let (weights, _) = Weights::fit(&[CHANCE; 2], &[0; 200], 1e6);
+        let (weights, _) = fit_rows(&[CHANCE; 2], &[0; 200], 1e6);
         assert!(
             weights
                 .fields

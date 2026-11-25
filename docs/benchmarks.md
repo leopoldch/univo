@@ -108,7 +108,7 @@ By score is the 1.0.2 code; by probability is `find(min_probability=...)`, with 
 
 - **Clean records.** Every tool finds nearly every pair.
 - **Many noisy records per person.** By score, wrong pairs score high enough to join entities; `group`, which does not chain pairs, reaches 0.713 at 94% precision. By probability, Univo passes Splink on pairs and on entities, in 6 s against 17 s by score and 3.7 s for Splink, timed once on battery.
-- **Probabilities.** Above 0.9, the probability given is the share of true pairs on that dataset: 0.960 given, 0.967 true.
+- **Probabilities.** Above 0.9, the probability given is the share of true pairs on that dataset: 0.961 given, 0.961 true.
 - **Easy linking and free text.** A well chosen schema by score still does better on publications, and on product descriptions weights have nothing to weigh.
 
 Method, every number and the limits of the comparison: [benchmarks/records](../benchmarks/records/README.md).

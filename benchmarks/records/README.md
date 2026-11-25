@@ -20,14 +20,14 @@ Test half of each dataset, with the schema and the threshold chosen on the valid
 | --- | --- | --- | --- | --- | --- |
 | `febrl3` | Univo, by score | 100.0% / 99.7% | 0.998 | 0.999 (100.0% / 99.8%) | 0.7 |
 | | Univo, `group` | | | 0.986 (100.0% / 97.2%) | 0.4 |
-| | Univo, by probability | 100.0% / 100.0% | **1.000** | **1.000** (100.0% / 100.0%) | 0.8 |
+| | Univo, by probability | 100.0% / 100.0% | **1.000** | **1.000** (100.0% / 100.0%) | 0.9 |
 | | Splink | 99.8% / 99.2% | 0.995 | 0.998 (100.0% / 99.6%) | 0.9 |
 | `febrl4` | Univo, by score, `search` | 99.9% / 100.0% | 0.999 | linking | 7.2 |
-| | Univo, by probability | 100.0% / 100.0% | **1.000** | linking | **1.2** |
+| | Univo, by probability | 100.0% / 100.0% | **1.000** | linking | **1.1** |
 | | Splink | 100.0% / 99.9% | 0.999 | linking | 2.1 |
 | `historical_50k` | Univo, by score | 86.8% / 72.6% | 0.791 | 0.581 (55.5% / 61.0%) | 17.1 |
 | | Univo, `group` | | | 0.713 (94.0% / 57.4%) | 11.9 |
-| | Univo, by probability | 92.6% / 83.6% | **0.879** | **0.923** (96.0% / 88.8%) | 6.0 |
+| | Univo, by probability | 92.6% / 83.7% | **0.879** | **0.923** (96.8% / 88.2%) | 6.0 |
 | | Splink | 93.6% / 65.9% | 0.773 | 0.840 (90.3% / 78.5%) | **3.7** |
 | `dblp_acm` | Univo, by score, `search` | 98.2% / 97.8% | **0.980** | linking | 0.8 |
 | | Univo, by probability | 95.2% / 97.3% | 0.962 | linking | 0.4 |
@@ -36,13 +36,13 @@ Test half of each dataset, with the schema and the threshold chosen on the valid
 
 - **Pairs.** Every pair scoring at least the threshold, against the true pairs.
 - **Entities.** What a deduplicated table needs: the pairs kept at a threshold are closed transitively into groups, and every pair of records of one group counts as found. One wrong pair then joins two entities. `group` is Univo's own grouping, which joins records only when every pair of the group reaches the threshold: it is measured as it is, without closing.
-- **Seconds.** From the records in memory to the scored pairs in memory, on the test half. For Splink and for Univo by probability this includes learning the weights. By score it is the time at the lowest score written, 0.5, or 0.6 on `historical_50k`; by probability, at a minimum of 0.05. One run each, on battery: an order of magnitude, not a measurement to publish.
+- **Seconds.** From the records in memory to the scored pairs in memory, on the test half. For Splink and for Univo by probability this includes learning the weights. By score it is the time at the lowest score written, 0.5, or 0.6 on `historical_50k`; by probability, at a minimum of 0.05. One run each, on battery, on mains for the rows by probability: an order of magnitude, not a measurement to publish.
 
 **What this shows.**
 
 - **Clean records: no difference.** On Febrl, where most fields are present and altered copies stay close, every tool finds nearly every pair.
 - **By score, entities on `historical_50k` are far behind.** With ten records per person, a deduplicated table depends on chaining pairs. The score is a mean of field similarities: its wrong pairs score high enough to join entities, so closing them drops precision to 55%, and `group`, which does not chain, keeps precision and loses recall.
-- **By probability, Univo passes Splink there**, on pairs and on entities, with the same kind of model: its candidates hold more of the true pairs. It is about 3 times faster than by score, and 1.6 times slower than Splink on that half.
+- **By probability, Univo passes Splink there**, on pairs and on entities, with the same kind of model. It is about 3 times faster than by score, and 1.6 times slower than Splink on that half.
 - **A well chosen schema still wins on easy linking.** On `dblp_acm` the score with title, authors and year reaches 0.980; weights reach 0.962.
 - **Free text: weak either way.** On `abt_buy` the product names and descriptions carry everything; weights have nothing to weigh.
 
@@ -50,11 +50,11 @@ Test half of each dataset, with the schema and the threshold chosen on the valid
 
 | Probability given | Pairs | Mean given | True |
 | --- | --- | --- | --- |
-| 0.05 to 0.5 | 35,627 | 0.170 | 0.358 |
-| 0.5 to 0.9 | 12,821 | 0.730 | 0.849 |
-| 0.9 to 0.99 | 15,372 | 0.960 | 0.967 |
-| 0.99 to 0.999 | 14,185 | 0.996 | 0.996 |
-| 0.999 and more | 77,005 | 1.000 | 1.000 |
+| 0.05 to 0.5 | 42,688 | 0.164 | 0.306 |
+| 0.5 to 0.9 | 13,437 | 0.725 | 0.786 |
+| 0.9 to 0.99 | 15,095 | 0.961 | 0.961 |
+| 0.99 to 0.999 | 14,740 | 0.996 | 0.996 |
+| 0.999 and more | 78,649 | 1.000 | 1.000 |
 
 Above 0.9 the probability given is the share of true pairs; below, it understates it.
 

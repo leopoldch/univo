@@ -21,6 +21,17 @@ pub(crate) struct Candidates {
     pub exhaustive: bool,
     /// Only the records after the query's slot: each pair once.
     pub later: bool,
+    /// Records handed over at most. Above it, one record in so many is
+    /// kept, spread over the slots: the first ones alone would leave out
+    /// the neighbours of most records, where their duplicates often are.
+    pub at_most: usize,
+}
+
+impl Candidates {
+    /// One record in how many is handed over, of `proposed`.
+    pub(crate) fn stride(&self, proposed: usize) -> usize {
+        proposed.div_ceil(self.at_most.max(1)).max(1)
+    }
 }
 
 impl SearchIndex {
@@ -92,7 +103,8 @@ impl SearchIndex {
     /// decision the mean of similarities does not make. `lanes` raises the
     /// similarity at which the lanes of each field propose records, to
     /// infinity for none. Counts and flags are returned as by
-    /// [`Self::visit_pairs`].
+    /// [`Self::visit_pairs`], with the records proposed before
+    /// `wanted.at_most` cut them.
     pub(crate) fn visit_candidates(
         &self,
         slot: usize,
@@ -100,7 +112,7 @@ impl SearchIndex {
         lanes: Option<&[f32]>,
         dense: Option<&[Vec<u32>]>,
         visit: &mut dyn FnMut(usize, f32) -> Result<()>,
-    ) -> Result<SearchResult> {
+    ) -> Result<(SearchResult, usize)> {
         let options = SearchOptions {
             min_score: wanted.lane,
             limit: usize::MAX,
@@ -112,16 +124,22 @@ impl SearchIndex {
         query.dense = dense;
         query.lanes = lanes;
         let mut result = SearchResult::default();
-        if wanted.exhaustive {
+        let proposed = if wanted.exhaustive {
             let partition = self.partition(query.record);
             let from = partition.partition_point(|&slot| (slot as usize) < query.min_slot);
+            let proposed = partition.len() - from;
             let others = partition[from..].iter().map(|&slot| slot as usize);
-            self.score_each(&query, others, 0.0, &mut result, visit)?;
+            let kept = others.step_by(wanted.stride(proposed));
+            self.score_each(&query, kept, 0.0, &mut result, visit)?;
+            proposed
         } else {
             let candidates = self.candidates(&query, options, &mut result)?;
-            self.score_each(&query, candidates.into_iter(), 0.0, &mut result, visit)?;
-        }
-        Ok(result)
+            let proposed = candidates.len();
+            let kept = candidates.into_iter().step_by(wanted.stride(proposed));
+            self.score_each(&query, kept, 0.0, &mut result, visit)?;
+            proposed
+        };
+        Ok((result, proposed))
     }
 
     /// Hands `read` the similarity of each field of stored records `left`

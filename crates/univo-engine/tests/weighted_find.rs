@@ -36,7 +36,8 @@ fn path(dotted: &str) -> FieldPath {
 }
 
 /// A name, a birth date, a city from a short list, a trade from a shorter
-/// one and a sex that never differs inside a person.
+/// one, a contact object whose keys come and go, and a sex that never
+/// differs inside a person.
 fn schema() -> Schema {
     Schema::builder()
         .id_field(path("id"))
@@ -45,6 +46,7 @@ fn schema() -> Schema {
         .text(path("birth"), Text::default())
         .text(path("city"), Text::default())
         .exact(path("trade"), Exact::default())
+        .exact(path("contact"), Exact::default())
         .exact(
             path("sex"),
             Exact {
@@ -105,6 +107,25 @@ fn records(schema: &Schema, persons: usize, seed: u64) -> (Vec<PreparedRecord>, 
             }
             if rng.below(4) != 0 {
                 entries.push(("trade".to_owned(), Value::Str(trade.into())));
+            }
+            // An object: a phone of the person, a region shared by many, and
+            // a note that is sometimes another, each present or not.
+            let mut contact = Vec::new();
+            if rng.below(3) != 0 {
+                contact.push((
+                    "phone".to_owned(),
+                    Value::Int(i64::try_from(person).unwrap()),
+                ));
+            }
+            if rng.below(2) != 0 {
+                contact.push(("region".to_owned(), Value::Str(country.into())));
+            }
+            if rng.below(3) == 0 {
+                let note = ["x", "y"][rng.below(2)];
+                contact.push(("note".to_owned(), Value::Str(note.into())));
+            }
+            if !contact.is_empty() {
+                entries.push(("contact".to_owned(), Value::Map(Map::new(contact).unwrap())));
             }
             prepared.push(prepare(schema, &Value::Map(Map::new(entries).unwrap())).unwrap());
             person_of.push(person);
@@ -272,7 +293,7 @@ fn vetoes_partitions_and_removals_hold() {
         assert!(index.store().is_active(found.left) && index.store().is_active(found.right));
         assert_eq!(left.partition(), right.partition());
         // The sex is the last field: a difference is a veto.
-        assert!(!found.comparison.fields[4].veto && !found.comparison.vetoed);
+        assert!(!found.comparison.fields[5].veto && !found.comparison.vetoed);
         assert!(seen.insert((found.left, found.right)));
     }
 }
@@ -317,5 +338,5 @@ fn an_empty_index_gives_an_empty_report() {
     let index = SearchIndex::new(schema(), 10, None).unwrap();
     let report = find(&index, options(0.5));
     assert!(report.matches.is_empty() && report.total_matches == 0);
-    assert_eq!(report.weights.fields.len(), 5);
+    assert_eq!(report.weights.fields.len(), 6);
 }
