@@ -188,6 +188,31 @@ finder = Finder(schema=Schema(fields={"description": Text(mode="semantic")}))
 - **Semantic batches.** `find` and `group` with a semantic field first check a work budget: about n² vector comparisons for n records in one partition. The default `max_semantic_comparisons=1_000_000` covers about 1,000 records per partition; raise it for larger batches.
 - **Approximate semantic search.** Semantic search is exact by default. `Finder(retrieval="hnsw")` uses a graph for partitions of 10,000 records or more. It can be faster on very large partitions, depending on the data, and it can miss matches: compare it with the default on your data. Reports then say `search_profile == "approximate"`.
 
+## Decide by probability
+
+A score is a mean of field similarities: it ranks pairs, but one threshold rarely fits records whose fields are missing or noisy. With several fields and at least a few hundred records, `find` can instead learn from the records what each field is worth, without labels, and return probabilities.
+
+```python
+from univo import Finder, Schema, Text
+
+people = [
+    {"id": 1, "name": "Ada Lovelace", "born": "1815-12-10", "city": "London"},
+    {"id": 2, "name": "Ada Lovelase", "born": "1815-12-10", "city": None},
+    {"id": 3, "name": "Alan Turing", "born": "1912-06-23", "city": "London"},
+]
+schema = Schema(id_field="id", fields={"name": Text(), "born": Text(), "city": Text()})
+report = Finder(schema=schema).find(people, min_probability=0.9)
+for match in report.matches:
+    print(match.left_id, match.right_id, round(match.probability, 3), match.field_weights)
+```
+
+Three records are far too few to learn from: use this on a real table.
+
+- **What is learned.** How often each field agrees between records of one entity, and by chance, and how common each value is: sharing a rare surname weighs more than sharing a large city ([learned weights](reference/scoring.md#learned-weights)).
+- **What a match says.** `probability`, and `field_weights`, the bits each field adds for or against. `report.weights` holds what was learned.
+- **When to use it.** Records with several fields, missing values, and several records per entity: on 50,000 such persons it finds entities with an F1 of 0.92 where the score reaches 0.58 to 0.71 ([record benchmark](benchmarks.md#record-datasets)). On a single text field, or on free text, it has nothing to weigh: keep the score.
+- **What stays.** Partitions and vetoes apply as before.
+
 ## Read a report
 
 | Attribute | Means |

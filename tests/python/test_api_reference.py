@@ -59,7 +59,7 @@ def test_every_finder_method_and_parameter_is_documented() -> None:
 
 
 @pytest.mark.parametrize(
-    "cls", [univo.Match, univo.Report, univo.Groups, univo.Group, univo.Decision]
+    "cls", [univo.Match, univo.Report, univo.Weights, univo.Groups, univo.Group, univo.Decision]
 )
 def test_every_result_attribute_is_documented(cls: Any) -> None:
     assert not [field.name for field in dataclasses.fields(cls) if not explained(field.name)]

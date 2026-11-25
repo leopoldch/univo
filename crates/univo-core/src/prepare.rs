@@ -60,6 +60,17 @@ impl PreparedField {
     pub fn acronym_keys(&self) -> AcronymKeys {
         self.acronyms
     }
+
+    /// A fingerprint of the normalized value, equal for equal values of
+    /// one field; `None` without a value. For counting how common a value
+    /// is, not for comparing records: fingerprints can collide.
+    pub fn value_key(&self) -> Option<u64> {
+        match &self.state {
+            FieldState::Text(text) => Some(crate::fingerprint::text(text)),
+            FieldState::Exact(value) => Some(crate::fingerprint::normalized(value)),
+            FieldState::Absent | FieldState::Null => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

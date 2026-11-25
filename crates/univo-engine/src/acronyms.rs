@@ -72,6 +72,11 @@ impl AcronymIndex {
         Ok(())
     }
 
+    /// The schema field indexed.
+    pub(crate) fn field(&self) -> usize {
+        self.field
+    }
+
     /// The posting lists of the records the query's text is the acronym of,
     /// and of those that are its acronym.
     pub(crate) fn lists(&self, store: &RecordStore, query: &PreparedRecord) -> Vec<&[u32]> {

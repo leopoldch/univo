@@ -82,6 +82,10 @@ class Schema:
         object.__setattr__(self, "_native", native)
 
 
+# Candidate pairs below which learned weights are reported as unreliable.
+_LEARNABLE_PAIRS = 200
+
+
 @dataclass(frozen=True)
 class Match:
     left_id: RecordId
@@ -92,6 +96,22 @@ class Match:
     reasons: list[str]
     conflicts: list[str]
     coverage: float
+    probability: float | None = None
+    weight: float | None = None
+    field_weights: dict[str, float | None] | None = None
+
+
+@dataclass(frozen=True)
+class Weights:
+    """What each field's similarity weighs, learned from the records.
+
+    ``fields`` gives, for each field, the bits its similarity adds to a pair
+    when the two values are ``equal``, ``close``, ``partial`` or
+    ``different``. ``prior`` is the bits before any evidence.
+    """
+
+    prior: float
+    fields: dict[str, dict[str, float]]
 
 
 @dataclass(frozen=True)
@@ -106,6 +126,7 @@ class Report:
     candidate_truncated: bool
     output_truncated: bool
     warnings: tuple[str, ...]
+    weights: Weights | None = None
 
 
 @dataclass(frozen=True)
@@ -342,21 +363,32 @@ class Finder:
         limit: int = 1000,
         max_entries: int | None = None,
         exhaustive: bool = False,
+        min_probability: float | None = None,
     ) -> Report:
-        """Report unordered pairs from a temporary dataset, without storing it."""
+        """Report unordered pairs from a temporary dataset, without storing it.
+
+        With ``min_probability``, pairs are decided by weights learned from
+        ``records`` themselves, without labels: each match then has a
+        ``probability``, and ``min_score`` is not used.
+        """
         min_score = self._validate_options(min_score, limit, max_entries)
+        if min_probability is not None and (
+            type(min_probability) not in (int, float) or not 0 < min_probability <= 1
+        ):
+            raise _univo.invalid_option("min_probability", "a number in (0, 1]")
         with self._lock:
             index = self._new_index(exhaustive=exhaustive)
             stored = self._index
         budget = self._max_semantic_comparisons if self._ann and not exhaustive else None
         index.add(records, budget)
-        result = index.find(
-            min_score,
-            limit,
-            self._entries(max_entries),
-            exhaustive,
-            (self._max_exhaustive_pairs, self._max_semantic_comparisons),
-        )
+        budgets = (self._max_exhaustive_pairs, self._max_semantic_comparisons)
+        entries = self._entries(max_entries)
+        if min_probability is None:
+            result = index.find(min_score, limit, entries, exhaustive, budgets)
+        else:
+            result = index.find_weighted(
+                float(min_probability), limit, entries, exhaustive, budgets
+            )
         result["generation"] = 0 if stored is None else stored.stats()["generation"]
         return self._report(result, exhaustive)
 
@@ -460,7 +492,13 @@ class Finder:
             warnings.append("Candidate work limit reached; matches may be missing.")
         if result["output_truncated"]:
             warnings.append("Output limit reached; total_matches includes omitted matches.")
+        weights = result.get("weights")
+        if weights is not None and result.get("learned_from", 0) < _LEARNABLE_PAIRS:
+            warnings.append(
+                "Too few candidate pairs to learn weights from; probabilities are unreliable."
+            )
         return Report(
+            weights=None if weights is None else Weights(**weights),
             matches=tuple(Match(**match) for match in result["matches"]),
             processed=result["processed"],
             total_matches=result["total_matches"],

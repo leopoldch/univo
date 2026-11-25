@@ -45,10 +45,13 @@ Finds duplicates in a batch (`find`, `group`) and keeps an index of records to s
 ### find
 
 ```python
-finder.find(records, *, min_score=0.8, limit=1000, max_entries=None, exhaustive=False) -> Report
+finder.find(records, *, min_score=0.8, limit=1000, max_entries=None, exhaustive=False,
+            min_probability=None) -> Report
 ```
 
 Every pair of `records` scoring at least `min_score`, best first. The records are indexed temporarily; the Finder's own index is unchanged.
+
+With `min_probability`, pairs are decided by weights learned from `records` themselves, without labels, instead of the score ([learned weights](scoring.md#learned-weights)): every pair that is one entity with at least that probability, most certain first.
 
 | Parameter | Default | Meaning |
 | --- | --- | --- |
@@ -57,6 +60,7 @@ Every pair of `records` scoring at least `min_score`, best first. The records ar
 | `limit` | `1000` | Matches returned. `total_matches` counts all of them. |
 | `max_entries` | `None` | Index entries one candidate lane may read per record. Reaching it sets `candidate_truncated`. `None` is unlimited. |
 | `exhaustive` | `False` | Compare every pair, without candidate search, within `max_exhaustive_pairs`. The reference for any other mode. |
+| `min_probability` | `None` | A number in `(0, 1]`: decide by learned weights. `min_score` is then not used, each match has a `probability`, and the report has the `weights`. It needs records with several fields and enough duplicates to learn from, a few hundred records at least: with fewer than 200 candidate pairs the report warns that probabilities are unreliable. |
 
 Raises `InvalidRecordError`, `DuplicateIdError` or `ResourceLimitError` before any result.
 
@@ -222,6 +226,9 @@ A pair of records and why they match.
 | `reasons` | `list[str]` | The signal behind each field's score, such as `"name: trigrams"`. |
 | `conflicts` | `list[str]` | Fields that differ. |
 | `coverage` | `float` | Share of the schema's weight that gave evidence. A low coverage means few fields were compared. |
+| `probability` | `float` or `None` | With `min_probability`: how likely the two records are one entity, by the learned weights. `None` otherwise. |
+| `weight` | `float` or `None` | With `min_probability`: the evidence in bits, the sum of `field_weights`. Ten more bits make a pair about a thousand times more likely. |
+| `field_weights` | `dict[str, float \| None]` or `None` | With `min_probability`: the bits each field adds, positive for one entity and negative against; `None` when the field gave no evidence. |
 
 ### Report
 
@@ -239,6 +246,16 @@ What `find`, `search` and `check_or_add` return.
 | `candidate_truncated` | `bool` | A work limit was reached: matches may be missing. |
 | `output_truncated` | `bool` | More matches than `limit`. |
 | `warnings` | `tuple[str, ...]` | The above, explained. |
+| `weights` | `Weights` or `None` | With `min_probability`: what was learned from the records. |
+
+### Weights
+
+What each field's similarity weighs, learned from the records of one report ([learned weights](scoring.md#learned-weights)).
+
+| Attribute | Type | Meaning |
+| --- | --- | --- |
+| `fields` | `dict[str, dict[str, float]]` | For each field, the bits its similarity adds when the two values are `equal`, `close`, `partial` or `different`. An equal value then weighs more or less by how common it is. |
+| `prior` | `float` | Bits before any evidence: how unlikely two records taken at random are one entity. |
 
 ### Groups
 
@@ -344,6 +361,7 @@ From 1.0, Univo follows [Semantic Versioning](https://semver.org/). This page sa
 Each change is announced in the [release notes](https://github.com/leopoldch/univo/releases).
 
 - **Scores.** Raising `SCORING_VERSION` changes the scores of some pairs, as version 4 did for names with distinct words. Rankings stay explained; thresholds calibrated on an earlier version should be checked again.
+- **Learned weights.** How `min_probability` reads similarities, learns weights and finds candidates: probabilities and matches may change, as scores do.
 - **The default model.** It is pinned by revision and checksums. A new default model is a minor release. Existing snapshots keep the model they were built with: `Finder.load` uses the pinned model recorded in the snapshot, not the current default.
 - **Messages, hints and warning texts.**
 

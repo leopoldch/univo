@@ -25,6 +25,7 @@ mod sketch;
 pub mod store;
 mod values;
 pub mod vectors;
+pub mod weighted;
 
 pub use dense::{Neighbor, top_k, within};
 pub use embedding_cache::{CacheStats, EmbeddingCache};
@@ -37,6 +38,7 @@ pub use search::{
 };
 pub use store::RecordStore;
 pub use vectors::{FieldVectors, RecordVectors, embed_records, embed_records_cached, is_embedded};
+pub use weighted::{WeightedMatch, WeightedOptions, WeightedReport};
 
 mod report;
 pub use report::{PairMatch, PairReport};

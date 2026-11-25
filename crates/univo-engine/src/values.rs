@@ -99,6 +99,11 @@ impl ValueIndex {
         Ok(())
     }
 
+    /// The schema field indexed.
+    pub(crate) fn field(&self) -> usize {
+        self.field
+    }
+
     /// The posting lists of the query's value, rarest first.
     pub(crate) fn lists(&self, store: &RecordStore, query: &PreparedRecord) -> Vec<&[u32]> {
         let partition = partition_fingerprint(query);

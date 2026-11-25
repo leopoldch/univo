@@ -40,6 +40,7 @@ mod check;
 mod lanes;
 mod scoring;
 pub use check::{CheckOrAdd, Decision, QueryEncoder};
+pub(crate) use scoring::{Candidates, Draws, one_in};
 
 /// Relative margin by which lanes lower the minimum score, so that rounding
 /// in the weighted mean never drops a record that reaches it. Relative, so
@@ -140,6 +141,22 @@ struct Query<'a> {
     /// The dense candidates of each semantic field, when an all-pairs
     /// report computed them for a block of queries ([`crate::blocks`]).
     dense: Option<&'a [Vec<u32>]>,
+    /// The lowest similarity at which the lanes of each field propose
+    /// candidates, by schema index, when it is not the search's own:
+    /// infinite for a field whose lanes propose nothing.
+    lanes: Option<&'a [f32]>,
+}
+
+impl Query<'_> {
+    /// The threshold of the lanes of `field`, at least `threshold`; `None`
+    /// when they propose nothing.
+    fn lane(&self, field: usize, threshold: f32) -> Option<f32> {
+        match self.lanes.and_then(|lanes| lanes.get(field)) {
+            Some(lane) if lane.is_infinite() => None,
+            Some(&lane) => Some(threshold.max(lane_threshold(lane))),
+            None => Some(threshold),
+        }
+    }
 }
 
 impl SearchIndex {
@@ -533,6 +550,7 @@ impl SearchIndex {
             slot: None,
             min_slot: 0,
             dense: None,
+            lanes: None,
         };
         self.search_candidates(&query, options)
     }
@@ -573,6 +591,7 @@ impl SearchIndex {
             slot: None,
             min_slot: 0,
             dense: None,
+            lanes: None,
         };
         let slots = self
             .partition(query.record)
@@ -658,6 +677,7 @@ impl SearchIndex {
             slot: Some(slot),
             min_slot: 0,
             dense: None,
+            lanes: None,
         })
     }
 

@@ -2,7 +2,7 @@
 
 How two prepared records are compared, field by field, into a score, a coverage and a list of contradictions. It combines lexical signals and semantic similarity. The rules are versioned by `SCORING_VERSION`, now 4: any change in a similarity, a signal or a score increments it. Version 3 adds acronym evidence, version 4 distinct words; snapshots saved with an earlier version are refused and must be rebuilt from the records.
 
-Scores rank pairs. **They are not probabilities**, and no threshold is defined here: thresholds are calibrated on a separate dataset ([benchmarks](../benchmarks.md#name-quality)).
+Scores rank pairs. **They are not probabilities**, and no threshold is defined here: thresholds are calibrated on a separate dataset ([benchmarks](../benchmarks.md#name-quality)). [Learned weights](#learned-weights) combine the same field similarities another way, into a probability learned from the records of one report.
 
 ## Comparing two records
 
@@ -88,6 +88,23 @@ coverage = Σ_{j ∈ O} w_j e_j / Σ_j w_j
 ```
 
 When no field gives evidence the score is absent, never 1. Coverage tells how much of the schema supported the score, so a 100 % coverage never hides missing information. It is lowered by a semantic field without embeddings, by a missing value, and by object keys on one side only: `{"port": 5432}` against `{"port": 5432, "tls": true}` scores 1 with a coverage of 0.5.
+
+## Learned weights
+
+The score is a mean: every field counts the same whatever its values, and a difference only lowers it a little. With `min_probability`, `find` instead weighs each field's similarity by what it says in these records, as probabilistic record linkage does ([Fellegi and Sunter, 1969](https://doi.org/10.1080/01621459.1969.10501049)). Nothing is labelled: the weights come from the records of the report.
+
+- **Levels.** Two values are `equal` when they are the same value, `close` at a similarity of at least 0.88, `partial` at 0.7 or more, and `different` below. Two objects whose shared keys agree, or two texts a model cannot tell apart, are close, not equal: a pair then weighs the same whichever record comes first. A field without evidence adds nothing, as in the score.
+- **Chance, `u`.** How often a level occurs between two different entities: counted over a million pairs of one partition taken at random, every pair when there are fewer.
+- **Common values.** For equal values, the share of the other records holding that value replaces `u`: sharing a rare surname weighs more than sharing a common one.
+- **Inside an entity, `m`.** How often a level occurs between two records of one entity. The candidates of at most 1,024 records, at most 1,024 each, are counted by combination of levels, whatever their number, and split in two classes by expectation maximisation: the class that agrees gives `m`. Above these limits the records and their candidates are drawn with a fixed seed, each with the same chance: the same records give the same weights, and the order they are stored in does not choose which pairs are learned from.
+- **Bits.** A level of a field adds `log2(m / u)` bits to a pair: positive when it is more common inside an entity than by chance. A level seen fewer than five times in the agreeing class takes the bits of the level below it.
+- **Probability.** The weight of a pair is the sum of its fields' bits. With the prior, the bits against two records taken at random being one entity, it gives the probability `1 / (1 + 2^-(weight + prior))`.
+
+**What it assumes.** Fields are taken as independent given that two records are, or are not, one entity. Two fields that always agree together, such as a name and a full name, are counted twice: compare one of them. The probability is the model's own, not a guarantee. Against labels on the 50,000 persons of the [record benchmark](../benchmarks.md#record-datasets), pairs given 0.9 to 0.99 are true 96.0 times in 100, and pairs given 0.5 to 0.9, 0.73 on average, are true 79 times in 100.
+
+**Candidates.** A pair is weighed when a field is at least `partial`, or an exact value is equal, whatever its score. Common values and loose likenesses propose most pairs, so each record leaves some out: the partial likenesses of some fields, and its most common values, as long as everything left out, with what different fields can add, weighs less than a pair needs to reach `min_probability`. A pair that reaches it then agrees on something that is still read: none is lost, which a test checks against reading everything.
+
+**Hard rules stay.** Partitions and vetoes apply before any weight: a vetoed pair is never returned.
 
 ## Explanations
 

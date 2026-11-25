@@ -18,6 +18,7 @@ mod schema;
 mod semantic;
 pub mod snapshot;
 mod value;
+mod weights;
 
 pub use acronym::{
     ACRONYM_SIMILARITY, AcronymKeys, MAX_ACRONYM_CHARS, MIN_ACRONYM_CHARS, acronym,
@@ -25,7 +26,7 @@ pub use acronym::{
 };
 pub use compare::{
     Comparison, FieldComparison, SCORING_VERSION, Score, Signal, compare, compare_with_vectors,
-    has_value, lexical_similarity, score_with_vectors,
+    has_value, lexical_similarity, score_with_vectors, similarities_with_vectors,
 };
 pub use distinct::{DISTINCT_WORDS_FACTOR, distinct_words};
 pub use error::{Detail, Error, ErrorCode, ErrorKind, RecordLocation, Result};
@@ -49,6 +50,9 @@ pub use semantic::{
     semantic_similarity,
 };
 pub use value::{DuplicateKey, Finite, Lookup, Map, Value};
+pub use weights::{
+    CLOSE_SIMILARITY, FieldWeights, Fit, LEVELS, Level, PARTIAL_SIMILARITY, Weights,
+};
 
 /// Version of the Univo core, shared by every binding.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

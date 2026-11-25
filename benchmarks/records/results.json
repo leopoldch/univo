@@ -1,5 +1,168 @@
 [
   {
+    "tool": "univo by probability",
+    "version": "1.0.2",
+    "dataset": "abt_buy",
+    "records": {
+      "validation": 1044,
+      "test": 1129
+    },
+    "true_pairs": {
+      "validation": 529,
+      "test": 568
+    },
+    "f1": {
+      "variant": "name by meaning",
+      "validation": {
+        "threshold": 8.758168714757545,
+        "pairs": 234,
+        "precision": 0.7435897435897436,
+        "recall": 0.32892249527410206,
+        "f1": 0.45609436435124506
+      },
+      "test": {
+        "threshold": 8.758168714757545,
+        "pairs": 259,
+        "precision": 0.7297297297297297,
+        "recall": 0.33274647887323944,
+        "f1": 0.45707376058041116
+      },
+      "test_seconds": 0.2751192501746118,
+      "test_pairs_written": 259,
+      "test_recall_of_pairs_written": 0.33274647887323944
+    },
+    "precise": {
+      "variant": "name and description by meaning",
+      "validation": {
+        "threshold": 10.94101545649887,
+        "pairs": 16,
+        "precision": 1.0,
+        "recall": 0.030245746691871456,
+        "f1": 0.058715596330275226
+      },
+      "test": {
+        "threshold": 10.94101545649887,
+        "pairs": 0,
+        "precision": 1.0,
+        "recall": 0.0,
+        "f1": 0.0
+      },
+      "test_seconds": 0.3144017078448087,
+      "test_pairs_written": 259,
+      "test_recall_of_pairs_written": 0.33274647887323944
+    },
+    "entities": null,
+    "by_variant": {
+      "name": {
+        "test_seconds": 0.5660613749641925,
+        "f1": {
+          "validation": {
+            "threshold": 10.260189476532489,
+            "pairs": 43,
+            "precision": 0.9302325581395349,
+            "recall": 0.07561436672967864,
+            "f1": 0.13986013986013987
+          },
+          "test": {
+            "threshold": 10.260189476532489,
+            "pairs": 77,
+            "precision": 0.8441558441558441,
+            "recall": 0.11443661971830986,
+            "f1": 0.20155038759689922
+          }
+        },
+        "precise": null,
+        "entities": null,
+        "test_pairs_written": 77,
+        "test_recall_of_pairs_written": 0.11443661971830986
+      },
+      "name by meaning": {
+        "test_seconds": 0.2751192501746118,
+        "f1": {
+          "validation": {
+            "threshold": 8.758168714757545,
+            "pairs": 234,
+            "precision": 0.7435897435897436,
+            "recall": 0.32892249527410206,
+            "f1": 0.45609436435124506
+          },
+          "test": {
+            "threshold": 8.758168714757545,
+            "pairs": 259,
+            "precision": 0.7297297297297297,
+            "recall": 0.33274647887323944,
+            "f1": 0.45707376058041116
+          }
+        },
+        "precise": null,
+        "entities": null,
+        "test_pairs_written": 259,
+        "test_recall_of_pairs_written": 0.33274647887323944
+      },
+      "name and description by meaning": {
+        "test_seconds": 0.3144017078448087,
+        "f1": {
+          "validation": {
+            "threshold": 8.693817185979695,
+            "pairs": 234,
+            "precision": 0.7435897435897436,
+            "recall": 0.32892249527410206,
+            "f1": 0.45609436435124506
+          },
+          "test": {
+            "threshold": 8.693817185979695,
+            "pairs": 259,
+            "precision": 0.7297297297297297,
+            "recall": 0.33274647887323944,
+            "f1": 0.45707376058041116
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 10.94101545649887,
+            "pairs": 16,
+            "precision": 1.0,
+            "recall": 0.030245746691871456,
+            "f1": 0.058715596330275226
+          },
+          "test": {
+            "threshold": 10.94101545649887,
+            "pairs": 0,
+            "precision": 1.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 259,
+        "test_recall_of_pairs_written": 0.33274647887323944
+      },
+      "name by meaning, price": {
+        "test_seconds": 0.2809230829589069,
+        "f1": {
+          "validation": {
+            "threshold": 9.594616271188977,
+            "pairs": 229,
+            "precision": 0.7379912663755459,
+            "recall": 0.31947069943289225,
+            "f1": 0.44591029023746703
+          },
+          "test": {
+            "threshold": 9.594616271188977,
+            "pairs": 259,
+            "precision": 0.7297297297297297,
+            "recall": 0.33274647887323944,
+            "f1": 0.45707376058041116
+          }
+        },
+        "precise": null,
+        "entities": null,
+        "test_pairs_written": 259,
+        "test_recall_of_pairs_written": 0.33274647887323944
+      }
+    }
+  },
+  {
     "tool": "univo",
     "version": "1.0.2",
     "dataset": "abt_buy",
@@ -27,7 +190,7 @@
         "recall": 0.5193661971830986,
         "f1": 0.5457909343200741
       },
-      "test_seconds": 0.04542666603811085,
+      "test_seconds": 0.04647729196585715,
       "test_pairs_written": 2288,
       "test_recall_of_pairs_written": 0.8785211267605634
     },
@@ -47,14 +210,14 @@
         "recall": 0.1602112676056338,
         "f1": 0.2688330871491876
       },
-      "test_seconds": 0.04542666603811085,
+      "test_seconds": 0.04647729196585715,
       "test_pairs_written": 2288,
       "test_recall_of_pairs_written": 0.8785211267605634
     },
     "entities": null,
     "by_variant": {
       "name": {
-        "test_seconds": 0.10040912497788668,
+        "test_seconds": 0.10036887507885695,
         "f1": {
           "validation": {
             "threshold": 0.5,
@@ -92,7 +255,7 @@
         "test_recall_of_pairs_written": 0.31514084507042256
       },
       "name, by coverage": {
-        "test_seconds": 0.10040912497788668,
+        "test_seconds": 0.10036887507885695,
         "f1": {
           "validation": {
             "threshold": 0.5,
@@ -130,7 +293,7 @@
         "test_recall_of_pairs_written": 0.31514084507042256
       },
       "name by meaning": {
-        "test_seconds": 0.04542666603811085,
+        "test_seconds": 0.04647729196585715,
         "f1": {
           "validation": {
             "threshold": 0.638498,
@@ -168,7 +331,7 @@
         "test_recall_of_pairs_written": 0.8785211267605634
       },
       "name by meaning, by coverage": {
-        "test_seconds": 0.04542666603811085,
+        "test_seconds": 0.04647729196585715,
         "f1": {
           "validation": {
             "threshold": 0.638498,
@@ -206,7 +369,7 @@
         "test_recall_of_pairs_written": 0.8785211267605634
       },
       "name and description by meaning": {
-        "test_seconds": 0.05588237498886883,
+        "test_seconds": 0.05676116677932441,
         "f1": {
           "validation": {
             "threshold": 0.620886,
@@ -244,7 +407,7 @@
         "test_recall_of_pairs_written": 0.7922535211267606
       },
       "name and description by meaning, by coverage": {
-        "test_seconds": 0.05588237498886883,
+        "test_seconds": 0.05676116677932441,
         "f1": {
           "validation": {
             "threshold": 0.29628,
@@ -282,7 +445,7 @@
         "test_recall_of_pairs_written": 0.7922535211267606
       },
       "name by meaning, price": {
-        "test_seconds": 0.04587562498636544,
+        "test_seconds": 0.04839691612869501,
         "f1": {
           "validation": {
             "threshold": 0.638498,
@@ -320,7 +483,7 @@
         "test_recall_of_pairs_written": 0.7323943661971831
       },
       "name by meaning, price, by coverage": {
-        "test_seconds": 0.04587562498636544,
+        "test_seconds": 0.04839691612869501,
         "f1": {
           "validation": {
             "threshold": 0.297207,
@@ -360,6 +523,214 @@
     }
   },
   {
+    "tool": "univo by probability",
+    "version": "1.0.2",
+    "dataset": "dblp_acm",
+    "records": {
+      "validation": 2494,
+      "test": 2416
+    },
+    "true_pairs": {
+      "validation": 1126,
+      "test": 1098
+    },
+    "f1": {
+      "variant": "title, authors",
+      "validation": {
+        "threshold": 9.673301255021554,
+        "pairs": 1115,
+        "precision": 0.9757847533632287,
+        "recall": 0.9662522202486679,
+        "f1": 0.9709950914770192
+      },
+      "test": {
+        "threshold": 9.673301255021554,
+        "pairs": 1122,
+        "precision": 0.9518716577540107,
+        "recall": 0.9726775956284153,
+        "f1": 0.9621621621621621
+      },
+      "test_seconds": 0.3723000830505043,
+      "test_pairs_written": 1136,
+      "test_recall_of_pairs_written": 0.9744990892531876
+    },
+    "precise": {
+      "variant": "title, authors, year",
+      "validation": {
+        "threshold": 10.455105870232787,
+        "pairs": 1150,
+        "precision": 0.9565217391304348,
+        "recall": 0.9769094138543517,
+        "f1": 0.9666080843585237
+      },
+      "test": {
+        "threshold": 10.455105870232787,
+        "pairs": 1147,
+        "precision": 0.9433304272013949,
+        "recall": 0.9854280510018215,
+        "f1": 0.9639198218262807
+      },
+      "test_seconds": 0.4667655830271542,
+      "test_pairs_written": 1365,
+      "test_recall_of_pairs_written": 0.9927140255009107
+    },
+    "entities": null,
+    "by_variant": {
+      "title, authors": {
+        "test_seconds": 0.3723000830505043,
+        "f1": {
+          "validation": {
+            "threshold": 9.673301255021554,
+            "pairs": 1115,
+            "precision": 0.9757847533632287,
+            "recall": 0.9662522202486679,
+            "f1": 0.9709950914770192
+          },
+          "test": {
+            "threshold": 9.673301255021554,
+            "pairs": 1122,
+            "precision": 0.9518716577540107,
+            "recall": 0.9726775956284153,
+            "f1": 0.9621621621621621
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 9.673301255021554,
+            "pairs": 1115,
+            "precision": 0.9757847533632287,
+            "recall": 0.9662522202486679,
+            "f1": 0.9709950914770192
+          },
+          "test": {
+            "threshold": 9.673301255021554,
+            "pairs": 1122,
+            "precision": 0.9518716577540107,
+            "recall": 0.9726775956284153,
+            "f1": 0.9621621621621621
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 1136,
+        "test_recall_of_pairs_written": 0.9744990892531876
+      },
+      "title, authors, year": {
+        "test_seconds": 0.4667655830271542,
+        "f1": {
+          "validation": {
+            "threshold": 10.455105870232787,
+            "pairs": 1150,
+            "precision": 0.9565217391304348,
+            "recall": 0.9769094138543517,
+            "f1": 0.9666080843585237
+          },
+          "test": {
+            "threshold": 10.455105870232787,
+            "pairs": 1147,
+            "precision": 0.9433304272013949,
+            "recall": 0.9854280510018215,
+            "f1": 0.9639198218262807
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 10.455105870232787,
+            "pairs": 1150,
+            "precision": 0.9565217391304348,
+            "recall": 0.9769094138543517,
+            "f1": 0.9666080843585237
+          },
+          "test": {
+            "threshold": 10.455105870232787,
+            "pairs": 1147,
+            "precision": 0.9433304272013949,
+            "recall": 0.9854280510018215,
+            "f1": 0.9639198218262807
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 1365,
+        "test_recall_of_pairs_written": 0.9927140255009107
+      },
+      "title, authors, venue, year": {
+        "test_seconds": 4.794247499899939,
+        "f1": {
+          "validation": {
+            "threshold": 3.107953406756912,
+            "pairs": 145,
+            "precision": 0.9862068965517241,
+            "recall": 0.1269982238010657,
+            "f1": 0.22501966955153424
+          },
+          "test": {
+            "threshold": 3.107953406756912,
+            "pairs": 491,
+            "precision": 0.32382892057026474,
+            "recall": 0.1448087431693989,
+            "f1": 0.20012586532410317
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 3.107953406756912,
+            "pairs": 145,
+            "precision": 0.9862068965517241,
+            "recall": 0.1269982238010657,
+            "f1": 0.22501966955153424
+          },
+          "test": {
+            "threshold": 3.107953406756912,
+            "pairs": 491,
+            "precision": 0.32382892057026474,
+            "recall": 0.1448087431693989,
+            "f1": 0.20012586532410317
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 76085,
+        "test_recall_of_pairs_written": 0.2058287795992714
+      },
+      "title by meaning, authors, year": {
+        "test_seconds": 0.3294374579563737,
+        "f1": {
+          "validation": {
+            "threshold": 10.760291034644002,
+            "pairs": 1191,
+            "precision": 0.9328295549958019,
+            "recall": 0.9866785079928952,
+            "f1": 0.9589987052222702
+          },
+          "test": {
+            "threshold": 10.760291034644002,
+            "pairs": 1174,
+            "precision": 0.924190800681431,
+            "recall": 0.98816029143898,
+            "f1": 0.9551056338028169
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 10.987958398021124,
+            "pairs": 1137,
+            "precision": 0.9525065963060686,
+            "recall": 0.9618117229129662,
+            "f1": 0.9571365444100751
+          },
+          "test": {
+            "threshold": 10.987958398021124,
+            "pairs": 1094,
+            "precision": 0.93327239488117,
+            "recall": 0.9298724954462659,
+            "f1": 0.9315693430656934
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 1436,
+        "test_recall_of_pairs_written": 0.9954462659380692
+      }
+    }
+  },
+  {
     "tool": "univo",
     "version": "1.0.2",
     "dataset": "dblp_acm",
@@ -387,7 +758,7 @@
         "recall": 0.9781420765027322,
         "f1": 0.9799270072992701
       },
-      "test_seconds": 0.766142041888088,
+      "test_seconds": 0.7574775828979909,
       "test_pairs_written": 4255,
       "test_recall_of_pairs_written": 1.0
     },
@@ -407,14 +778,14 @@
         "recall": 0.9908925318761385,
         "f1": 0.9731663685152058
       },
-      "test_seconds": 0.766142041888088,
+      "test_seconds": 0.7574775828979909,
       "test_pairs_written": 4255,
       "test_recall_of_pairs_written": 1.0
     },
     "entities": null,
     "by_variant": {
       "title, authors": {
-        "test_seconds": 0.5372627500910312,
+        "test_seconds": 0.576737541006878,
         "f1": {
           "validation": {
             "threshold": 0.662589,
@@ -452,7 +823,7 @@
         "test_recall_of_pairs_written": 0.994535519125683
       },
       "title, authors, by coverage": {
-        "test_seconds": 0.5372627500910312,
+        "test_seconds": 0.576737541006878,
         "f1": {
           "validation": {
             "threshold": 0.662589,
@@ -490,7 +861,7 @@
         "test_recall_of_pairs_written": 0.994535519125683
       },
       "title, authors, year": {
-        "test_seconds": 0.766142041888088,
+        "test_seconds": 0.7574775828979909,
         "f1": {
           "validation": {
             "threshold": 0.746032,
@@ -528,7 +899,7 @@
         "test_recall_of_pairs_written": 1.0
       },
       "title, authors, year, by coverage": {
-        "test_seconds": 0.766142041888088,
+        "test_seconds": 0.7574775828979909,
         "f1": {
           "validation": {
             "threshold": 0.746032,
@@ -566,7 +937,7 @@
         "test_recall_of_pairs_written": 1.0
       },
       "title, authors, venue, year": {
-        "test_seconds": 0.9355223749298602,
+        "test_seconds": 0.9505205841269344,
         "f1": {
           "validation": {
             "threshold": 0.627692,
@@ -604,7 +975,7 @@
         "test_recall_of_pairs_written": 1.0
       },
       "title, authors, venue, year, by coverage": {
-        "test_seconds": 0.9355223749298602,
+        "test_seconds": 0.9505205841269344,
         "f1": {
           "validation": {
             "threshold": 0.627692,
@@ -642,7 +1013,7 @@
         "test_recall_of_pairs_written": 1.0
       },
       "title by meaning, authors, year": {
-        "test_seconds": 0.47613808303140104,
+        "test_seconds": 0.4755545421503484,
         "f1": {
           "validation": {
             "threshold": 0.76,
@@ -680,7 +1051,7 @@
         "test_recall_of_pairs_written": 1.0
       },
       "title by meaning, authors, year, by coverage": {
-        "test_seconds": 0.47613808303140104,
+        "test_seconds": 0.4755545421503484,
         "f1": {
           "validation": {
             "threshold": 0.746032,
@@ -747,7 +1118,7 @@
         "recall": 0.9917643332277478,
         "f1": 0.9950738916256158
       },
-      "test_seconds": 0.8525337080936879,
+      "test_seconds": 0.8404789171181619,
       "test_pairs_written": 3294,
       "test_recall_of_pairs_written": 0.9968324358568261
     },
@@ -767,7 +1138,7 @@
         "recall": 0.9965156794425087,
         "f1": 0.983893666927287
       },
-      "test_seconds": 0.8525337080936879,
+      "test_seconds": 0.8404789171181619,
       "test_pairs_written": 3294,
       "test_recall_of_pairs_written": 0.9968324358568261
     },
@@ -789,13 +1160,13 @@
         "f1": 0.9979368354229488,
         "largest_group": 6
       },
-      "test_seconds": 0.8525337080936879,
+      "test_seconds": 0.8404789171181619,
       "test_pairs_written": 3294,
       "test_recall_of_pairs_written": 0.9968324358568261
     },
     "by_variant": {
       "example": {
-        "test_seconds": 0.8525337080936879,
+        "test_seconds": 0.8404789171181619,
         "f1": {
           "validation": {
             "threshold": -3.5307,
@@ -879,7 +1250,7 @@
         "recall": 0.9718086791257523,
         "f1": 0.9857028112449799
       },
-      "test_seconds": 0.3566215829923749,
+      "test_seconds": 0.33010970801115036,
       "test_pairs_written": 3068,
       "test_recall_of_pairs_written": 0.9718086791257523
     },
@@ -899,7 +1270,7 @@
         "recall": 0.9718086791257523,
         "f1": 0.9857028112449799
       },
-      "test_seconds": 0.3566215829923749,
+      "test_seconds": 0.33010970801115036,
       "test_pairs_written": 3068,
       "test_recall_of_pairs_written": 0.9718086791257523
     },
@@ -921,13 +1292,13 @@
         "f1": 0.9857028112449799,
         "largest_group": 6
       },
-      "test_seconds": 0.3566215829923749,
+      "test_seconds": 0.33010970801115036,
       "test_pairs_written": 3068,
       "test_recall_of_pairs_written": 0.9718086791257523
     },
     "by_variant": {
       "every column as text, at 0.6": {
-        "test_seconds": 0.3566215829923749,
+        "test_seconds": 0.33010970801115036,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -982,7 +1353,7 @@
         "test_recall_of_pairs_written": 0.9718086791257523
       },
       "every column as text, at 0.65": {
-        "test_seconds": 0.2539792498573661,
+        "test_seconds": 0.25182933383621275,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1037,7 +1408,7 @@
         "test_recall_of_pairs_written": 0.9429838454228698
       },
       "every column as text, at 0.7": {
-        "test_seconds": 0.23207145789638162,
+        "test_seconds": 0.21914587495848536,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1092,7 +1463,7 @@
         "test_recall_of_pairs_written": 0.8907190370605005
       },
       "every column as text, at 0.75": {
-        "test_seconds": 0.2176963749807328,
+        "test_seconds": 0.2083934168331325,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1147,7 +1518,7 @@
         "test_recall_of_pairs_written": 0.7975926512511878
       },
       "every column as text, at 0.8": {
-        "test_seconds": 0.19249454187229276,
+        "test_seconds": 0.18243966600857675,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1202,7 +1573,7 @@
         "test_recall_of_pairs_written": 0.6892619575546405
       },
       "text, state exact, at 0.6": {
-        "test_seconds": 0.3609363748691976,
+        "test_seconds": 0.32313883397728205,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1257,7 +1628,7 @@
         "test_recall_of_pairs_written": 0.9686411149825784
       },
       "text, state exact, at 0.65": {
-        "test_seconds": 0.25120070786215365,
+        "test_seconds": 0.22087133396416903,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1312,7 +1683,7 @@
         "test_recall_of_pairs_written": 0.9391827684510611
       },
       "text, state exact, at 0.7": {
-        "test_seconds": 0.21130416681990027,
+        "test_seconds": 0.21236216695979238,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1367,7 +1738,7 @@
         "test_recall_of_pairs_written": 0.8856509344314223
       },
       "text, state exact, at 0.75": {
-        "test_seconds": 0.19921041699126363,
+        "test_seconds": 0.20585012482479215,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1422,7 +1793,7 @@
         "test_recall_of_pairs_written": 0.792841305036427
       },
       "text, state exact, at 0.8": {
-        "test_seconds": 0.18461012514308095,
+        "test_seconds": 0.17904891702346504,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1477,7 +1848,7 @@
         "test_recall_of_pairs_written": 0.6813430471967057
       },
       "person and postcode, at 0.6": {
-        "test_seconds": 0.08692875015549362,
+        "test_seconds": 0.08883616700768471,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1532,7 +1903,7 @@
         "test_recall_of_pairs_written": 0.9056065885334178
       },
       "person and postcode, at 0.65": {
-        "test_seconds": 0.04311866592615843,
+        "test_seconds": 0.04023275012150407,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1587,7 +1958,7 @@
         "test_recall_of_pairs_written": 0.8596769084573963
       },
       "person and postcode, at 0.7": {
-        "test_seconds": 0.04058212507516146,
+        "test_seconds": 0.03803258412517607,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1642,7 +2013,7 @@
         "test_recall_of_pairs_written": 0.8070953436807096
       },
       "person and postcode, at 0.75": {
-        "test_seconds": 0.04036220791749656,
+        "test_seconds": 0.0355445418972522,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1697,7 +2068,7 @@
         "test_recall_of_pairs_written": 0.7659170098194489
       },
       "person and postcode, at 0.8": {
-        "test_seconds": 0.02418766589835286,
+        "test_seconds": 0.022764416877180338,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -1754,6 +2125,248 @@
     }
   },
   {
+    "tool": "univo by probability",
+    "version": "1.0.2",
+    "dataset": "febrl3",
+    "records": {
+      "validation": 2623,
+      "test": 2377
+    },
+    "true_pairs": {
+      "validation": 3381,
+      "test": 3157
+    },
+    "f1": {
+      "variant": "text, state exact",
+      "validation": {
+        "threshold": 9.05616330872475,
+        "pairs": 3376,
+        "precision": 1.0,
+        "recall": 0.9985211475894705,
+        "f1": 0.9992600266390409
+      },
+      "test": {
+        "threshold": 9.05616330872475,
+        "pairs": 3155,
+        "precision": 1.0,
+        "recall": 0.9993664871713652,
+        "f1": 0.9996831432192649
+      },
+      "test_seconds": 0.6611144579946995,
+      "test_pairs_written": 3156,
+      "test_recall_of_pairs_written": 0.9996832435856826
+    },
+    "precise": {
+      "variant": "text, state exact",
+      "validation": {
+        "threshold": 9.05616330872475,
+        "pairs": 3376,
+        "precision": 1.0,
+        "recall": 0.9985211475894705,
+        "f1": 0.9992600266390409
+      },
+      "test": {
+        "threshold": 9.05616330872475,
+        "pairs": 3155,
+        "precision": 1.0,
+        "recall": 0.9993664871713652,
+        "f1": 0.9996831432192649
+      },
+      "test_seconds": 0.6611144579946995,
+      "test_pairs_written": 3156,
+      "test_recall_of_pairs_written": 0.9996832435856826
+    },
+    "entities": {
+      "variant": "text, state exact",
+      "validation": {
+        "threshold": 9.05616330872475,
+        "pairs": 3381,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "largest_group": 6
+      },
+      "test": {
+        "threshold": 9.05616330872475,
+        "pairs": 3157,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "largest_group": 6
+      },
+      "test_seconds": 0.6611144579946995,
+      "test_pairs_written": 3156,
+      "test_recall_of_pairs_written": 0.9996832435856826
+    },
+    "by_variant": {
+      "every column as text": {
+        "test_seconds": 0.6991329579614103,
+        "f1": {
+          "validation": {
+            "threshold": 9.05616330872475,
+            "pairs": 3376,
+            "precision": 1.0,
+            "recall": 0.9985211475894705,
+            "f1": 0.9992600266390409
+          },
+          "test": {
+            "threshold": 9.05616330872475,
+            "pairs": 3155,
+            "precision": 1.0,
+            "recall": 0.9993664871713652,
+            "f1": 0.9996831432192649
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 9.05616330872475,
+            "pairs": 3376,
+            "precision": 1.0,
+            "recall": 0.9985211475894705,
+            "f1": 0.9992600266390409
+          },
+          "test": {
+            "threshold": 9.05616330872475,
+            "pairs": 3155,
+            "precision": 1.0,
+            "recall": 0.9993664871713652,
+            "f1": 0.9996831432192649
+          }
+        },
+        "entities": {
+          "validation": {
+            "threshold": 9.05616330872475,
+            "pairs": 3381,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "largest_group": 6
+          },
+          "test": {
+            "threshold": 9.05616330872475,
+            "pairs": 3157,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "largest_group": 6
+          }
+        },
+        "test_pairs_written": 3156,
+        "test_recall_of_pairs_written": 0.9996832435856826
+      },
+      "text, state exact": {
+        "test_seconds": 0.6611144579946995,
+        "f1": {
+          "validation": {
+            "threshold": 9.05616330872475,
+            "pairs": 3376,
+            "precision": 1.0,
+            "recall": 0.9985211475894705,
+            "f1": 0.9992600266390409
+          },
+          "test": {
+            "threshold": 9.05616330872475,
+            "pairs": 3155,
+            "precision": 1.0,
+            "recall": 0.9993664871713652,
+            "f1": 0.9996831432192649
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 9.05616330872475,
+            "pairs": 3376,
+            "precision": 1.0,
+            "recall": 0.9985211475894705,
+            "f1": 0.9992600266390409
+          },
+          "test": {
+            "threshold": 9.05616330872475,
+            "pairs": 3155,
+            "precision": 1.0,
+            "recall": 0.9993664871713652,
+            "f1": 0.9996831432192649
+          }
+        },
+        "entities": {
+          "validation": {
+            "threshold": 9.05616330872475,
+            "pairs": 3381,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "largest_group": 6
+          },
+          "test": {
+            "threshold": 9.05616330872475,
+            "pairs": 3157,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "largest_group": 6
+          }
+        },
+        "test_pairs_written": 3156,
+        "test_recall_of_pairs_written": 0.9996832435856826
+      },
+      "person and postcode": {
+        "test_seconds": 0.1784193750936538,
+        "f1": {
+          "validation": {
+            "threshold": 6.854451112577474,
+            "pairs": 3344,
+            "precision": 0.999700956937799,
+            "recall": 0.9887607216799763,
+            "f1": 0.9942007434944238
+          },
+          "test": {
+            "threshold": 6.854451112577474,
+            "pairs": 3121,
+            "precision": 0.9977571291252804,
+            "recall": 0.9863794741843522,
+            "f1": 0.9920356801529149
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 6.374322850195453,
+            "pairs": 3349,
+            "precision": 0.9988056136160047,
+            "recall": 0.9893522626441881,
+            "f1": 0.9940564635958395
+          },
+          "test": {
+            "threshold": 6.374322850195453,
+            "pairs": 3126,
+            "precision": 0.9964811260396673,
+            "recall": 0.9866962305986696,
+            "f1": 0.9915645392328505
+          }
+        },
+        "entities": {
+          "validation": {
+            "threshold": 9.669583163214236,
+            "pairs": 3351,
+            "precision": 1.0,
+            "recall": 0.9911268855368234,
+            "f1": 0.9955436720142602,
+            "largest_group": 6
+          },
+          "test": {
+            "threshold": 9.669583163214236,
+            "pairs": 3132,
+            "precision": 0.9996807151979565,
+            "recall": 0.9917643332277478,
+            "f1": 0.9957067896326919,
+            "largest_group": 6
+          }
+        },
+        "test_pairs_written": 3143,
+        "test_recall_of_pairs_written": 0.9873297434273044
+      }
+    }
+  },
+  {
     "tool": "univo",
     "version": "1.0.2",
     "dataset": "febrl3",
@@ -1781,7 +2394,7 @@
         "recall": 0.9965156794425087,
         "f1": 0.9982547993019197
       },
-      "test_seconds": 0.7416266668587923,
+      "test_seconds": 0.7194513748399913,
       "test_pairs_written": 3187,
       "test_recall_of_pairs_written": 0.9996832435856826
     },
@@ -1801,7 +2414,7 @@
         "recall": 0.9996832435856826,
         "f1": 0.9966840360018948
       },
-      "test_seconds": 0.7416266668587923,
+      "test_seconds": 0.7194513748399913,
       "test_pairs_written": 3187,
       "test_recall_of_pairs_written": 0.9996832435856826
     },
@@ -1823,13 +2436,13 @@
         "f1": 0.9990488268864933,
         "largest_group": 6
       },
-      "test_seconds": 0.6870270830113441,
+      "test_seconds": 0.6684901660773903,
       "test_pairs_written": 3185,
       "test_recall_of_pairs_written": 0.9993664871713652
     },
     "by_variant": {
       "every column as text": {
-        "test_seconds": 0.7416266668587923,
+        "test_seconds": 0.7194513748399913,
         "f1": {
           "validation": {
             "threshold": 0.549265,
@@ -1884,7 +2497,7 @@
         "test_recall_of_pairs_written": 0.9996832435856826
       },
       "every column as text, by coverage": {
-        "test_seconds": 0.7416266668587923,
+        "test_seconds": 0.7194513748399913,
         "f1": {
           "validation": {
             "threshold": 0.45,
@@ -1939,7 +2552,7 @@
         "test_recall_of_pairs_written": 0.9996832435856826
       },
       "text, state exact": {
-        "test_seconds": 0.6870270830113441,
+        "test_seconds": 0.6684901660773903,
         "f1": {
           "validation": {
             "threshold": 0.522348,
@@ -1994,7 +2607,7 @@
         "test_recall_of_pairs_written": 0.9993664871713652
       },
       "text, state exact, by coverage": {
-        "test_seconds": 0.6870270830113441,
+        "test_seconds": 0.6684901660773903,
         "f1": {
           "validation": {
             "threshold": 0.471895,
@@ -2049,7 +2662,7 @@
         "test_recall_of_pairs_written": 0.9993664871713652
       },
       "person and postcode": {
-        "test_seconds": 0.3029037918895483,
+        "test_seconds": 0.2757935840636492,
         "f1": {
           "validation": {
             "threshold": 0.592857,
@@ -2104,7 +2717,7 @@
         "test_recall_of_pairs_written": 0.9838454228698131
       },
       "person and postcode, by coverage": {
-        "test_seconds": 0.3029037918895483,
+        "test_seconds": 0.2757935840636492,
         "f1": {
           "validation": {
             "threshold": 0.55,
@@ -2188,7 +2801,7 @@
         "recall": 0.9987839481151196,
         "f1": 0.9991889699918897
       },
-      "test_seconds": 2.071267833933234,
+      "test_seconds": 2.0377381660509855,
       "test_pairs_written": 2514,
       "test_recall_of_pairs_written": 0.9995946493717065
     },
@@ -2208,14 +2821,14 @@
         "recall": 0.9987839481151196,
         "f1": 0.9991889699918897
       },
-      "test_seconds": 2.071267833933234,
+      "test_seconds": 2.0377381660509855,
       "test_pairs_written": 2514,
       "test_recall_of_pairs_written": 0.9995946493717065
     },
     "entities": null,
     "by_variant": {
       "example": {
-        "test_seconds": 2.071267833933234,
+        "test_seconds": 2.0377381660509855,
         "f1": {
           "validation": {
             "threshold": -2.0756,
@@ -2255,6 +2868,176 @@
     }
   },
   {
+    "tool": "univo by probability",
+    "version": "1.0.2",
+    "dataset": "febrl4",
+    "records": {
+      "validation": 5066,
+      "test": 4934
+    },
+    "true_pairs": {
+      "validation": 2533,
+      "test": 2467
+    },
+    "f1": {
+      "variant": "text, state exact",
+      "validation": {
+        "threshold": 19.154885676123254,
+        "pairs": 2533,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "test": {
+        "threshold": 19.154885676123254,
+        "pairs": 2467,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "test_seconds": 0.8714701251592487,
+      "test_pairs_written": 2467,
+      "test_recall_of_pairs_written": 1.0
+    },
+    "precise": {
+      "variant": "text, state exact",
+      "validation": {
+        "threshold": 19.154885676123254,
+        "pairs": 2533,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "test": {
+        "threshold": 19.154885676123254,
+        "pairs": 2467,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "test_seconds": 0.8714701251592487,
+      "test_pairs_written": 2467,
+      "test_recall_of_pairs_written": 1.0
+    },
+    "entities": null,
+    "by_variant": {
+      "every column as text": {
+        "test_seconds": 0.9821352909784764,
+        "f1": {
+          "validation": {
+            "threshold": 19.154885676123254,
+            "pairs": 2533,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "test": {
+            "threshold": 19.154885676123254,
+            "pairs": 2467,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 19.154885676123254,
+            "pairs": 2533,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "test": {
+            "threshold": 19.154885676123254,
+            "pairs": 2467,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 2467,
+        "test_recall_of_pairs_written": 1.0
+      },
+      "text, state exact": {
+        "test_seconds": 0.8714701251592487,
+        "f1": {
+          "validation": {
+            "threshold": 19.154885676123254,
+            "pairs": 2533,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "test": {
+            "threshold": 19.154885676123254,
+            "pairs": 2467,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 19.154885676123254,
+            "pairs": 2533,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "test": {
+            "threshold": 19.154885676123254,
+            "pairs": 2467,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 2467,
+        "test_recall_of_pairs_written": 1.0
+      },
+      "person and postcode": {
+        "test_seconds": 0.25433579203672707,
+        "f1": {
+          "validation": {
+            "threshold": 8.302572760966369,
+            "pairs": 2526,
+            "precision": 1.0,
+            "recall": 0.9972364784840111,
+            "f1": 0.9986163273374185
+          },
+          "test": {
+            "threshold": 8.302572760966369,
+            "pairs": 2464,
+            "precision": 0.9995941558441559,
+            "recall": 0.9983785974868261,
+            "f1": 0.9989860068951532
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 8.302572760966369,
+            "pairs": 2526,
+            "precision": 1.0,
+            "recall": 0.9972364784840111,
+            "f1": 0.9986163273374185
+          },
+          "test": {
+            "threshold": 8.302572760966369,
+            "pairs": 2464,
+            "precision": 0.9995941558441559,
+            "recall": 0.9983785974868261,
+            "f1": 0.9989860068951532
+          }
+        },
+        "entities": null,
+        "test_pairs_written": 2465,
+        "test_recall_of_pairs_written": 0.9983785974868261
+      }
+    }
+  },
+  {
     "tool": "univo",
     "version": "1.0.2",
     "dataset": "febrl4",
@@ -2282,7 +3065,7 @@
         "recall": 1.0,
         "f1": 0.9993923435284586
       },
-      "test_seconds": 7.187815666897222,
+      "test_seconds": 7.15100383409299,
       "test_pairs_written": 2550,
       "test_recall_of_pairs_written": 1.0
     },
@@ -2302,14 +3085,14 @@
         "recall": 0.9995946493717065,
         "f1": 0.9975728155339806
       },
-      "test_seconds": 7.187815666897222,
+      "test_seconds": 7.15100383409299,
       "test_pairs_written": 2550,
       "test_recall_of_pairs_written": 1.0
     },
     "entities": null,
     "by_variant": {
       "every column as text": {
-        "test_seconds": 7.4574575000442564,
+        "test_seconds": 7.500285041984171,
         "f1": {
           "validation": {
             "threshold": 0.559341,
@@ -2347,7 +3130,7 @@
         "test_recall_of_pairs_written": 1.0
       },
       "every column as text, by coverage": {
-        "test_seconds": 7.4574575000442564,
+        "test_seconds": 7.500285041984171,
         "f1": {
           "validation": {
             "threshold": 0.518405,
@@ -2385,7 +3168,7 @@
         "test_recall_of_pairs_written": 1.0
       },
       "text, state exact": {
-        "test_seconds": 7.187815666897222,
+        "test_seconds": 7.15100383409299,
         "f1": {
           "validation": {
             "threshold": 0.559341,
@@ -2423,7 +3206,7 @@
         "test_recall_of_pairs_written": 1.0
       },
       "text, state exact, by coverage": {
-        "test_seconds": 7.187815666897222,
+        "test_seconds": 7.15100383409299,
         "f1": {
           "validation": {
             "threshold": 0.518405,
@@ -2461,7 +3244,7 @@
         "test_recall_of_pairs_written": 1.0
       },
       "person and postcode": {
-        "test_seconds": 2.8903285411652178,
+        "test_seconds": 2.945062041049823,
         "f1": {
           "validation": {
             "threshold": 0.6,
@@ -2499,7 +3282,7 @@
         "test_recall_of_pairs_written": 0.9963518443453587
       },
       "person and postcode, by coverage": {
-        "test_seconds": 2.8903285411652178,
+        "test_seconds": 2.945062041049823,
         "f1": {
           "validation": {
             "threshold": 0.595238,
@@ -2566,7 +3349,7 @@
         "recall": 0.6586174463515019,
         "f1": 0.7731654411476808
       },
-      "test_seconds": 3.6983849168755114,
+      "test_seconds": 3.686282832873985,
       "test_pairs_written": 121674,
       "test_recall_of_pairs_written": 0.6662619821093849
     },
@@ -2586,7 +3369,7 @@
         "recall": 0.6610122005723396,
         "f1": 0.7700102183144831
       },
-      "test_seconds": 3.6983849168755114,
+      "test_seconds": 3.686282832873985,
       "test_pairs_written": 121674,
       "test_recall_of_pairs_written": 0.6662619821093849
     },
@@ -2608,13 +3391,13 @@
         "f1": 0.8399070932385713,
         "largest_group": 83
       },
-      "test_seconds": 3.6983849168755114,
+      "test_seconds": 3.686282832873985,
       "test_pairs_written": 121674,
       "test_recall_of_pairs_written": 0.6662619821093849
     },
     "by_variant": {
       "example": {
-        "test_seconds": 3.6983849168755114,
+        "test_seconds": 3.686282832873985,
         "f1": {
           "validation": {
             "threshold": -5.6544,
@@ -2698,7 +3481,7 @@
         "recall": 0.5738871730560132,
         "f1": 0.7125393407321517
       },
-      "test_seconds": 11.899135790998116,
+      "test_seconds": 11.162104167044163,
       "test_pairs_written": 91569,
       "test_recall_of_pairs_written": 0.5738871730560132
     },
@@ -2718,7 +3501,7 @@
         "recall": 0.545797172989307,
         "f1": 0.7003903374364417
       },
-      "test_seconds": 12.03660708386451,
+      "test_seconds": 11.377400500001386,
       "test_pairs_written": 83733,
       "test_recall_of_pairs_written": 0.545797172989307
     },
@@ -2740,13 +3523,13 @@
         "f1": 0.7125393407321517,
         "largest_group": 59
       },
-      "test_seconds": 11.899135790998116,
+      "test_seconds": 11.162104167044163,
       "test_pairs_written": 91569,
       "test_recall_of_pairs_written": 0.5738871730560132
     },
     "by_variant": {
       "names, birth, postcode, at 0.6": {
-        "test_seconds": 10.548697625054047,
+        "test_seconds": 10.226993875112385,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -2786,7 +3569,7 @@
         "test_recall_of_pairs_written": 0.5777094409349547
       },
       "names, birth, postcode, at 0.65": {
-        "test_seconds": 6.4133918329607695,
+        "test_seconds": 6.192091125063598,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -2841,7 +3624,7 @@
         "test_recall_of_pairs_written": 0.5304213833541235
       },
       "names, birth, postcode, at 0.7": {
-        "test_seconds": 6.159222666872665,
+        "test_seconds": 5.9782541249878705,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -2896,7 +3679,7 @@
         "test_recall_of_pairs_written": 0.47359433263736483
       },
       "names, birth, postcode, at 0.75": {
-        "test_seconds": 2.94181099999696,
+        "test_seconds": 2.7984394158702344,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -2951,7 +3734,7 @@
         "test_recall_of_pairs_written": 0.41608020758983666
       },
       "names, birth, postcode, at 0.8": {
-        "test_seconds": 2.603106749942526,
+        "test_seconds": 2.4985832918900996,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3006,7 +3789,7 @@
         "test_recall_of_pairs_written": 0.3572919932493279
       },
       "names, birth, postcode, occupation, at 0.6": {
-        "test_seconds": 11.899135790998116,
+        "test_seconds": 11.162104167044163,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3046,7 +3829,7 @@
         "test_recall_of_pairs_written": 0.5738871730560132
       },
       "names, birth, postcode, occupation, at 0.65": {
-        "test_seconds": 7.1897249589674175,
+        "test_seconds": 6.773979207966477,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3101,7 +3884,7 @@
         "test_recall_of_pairs_written": 0.5238841712749565
       },
       "names, birth, postcode, occupation, at 0.7": {
-        "test_seconds": 6.8307099170051515,
+        "test_seconds": 6.468040290987119,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3156,7 +3939,7 @@
         "test_recall_of_pairs_written": 0.4660698681217522
       },
       "names, birth, postcode, occupation, at 0.75": {
-        "test_seconds": 3.359150666045025,
+        "test_seconds": 3.1533122500404716,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3211,7 +3994,7 @@
         "test_recall_of_pairs_written": 0.4077219150029017
       },
       "names, birth, postcode, occupation, at 0.8": {
-        "test_seconds": 3.120525124948472,
+        "test_seconds": 2.943830291973427,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3266,7 +4049,7 @@
         "test_recall_of_pairs_written": 0.35025448432736755
       },
       "full name, birth, postcode, at 0.6": {
-        "test_seconds": 12.03660708386451,
+        "test_seconds": 11.377400500001386,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3321,7 +4104,7 @@
         "test_recall_of_pairs_written": 0.545797172989307
       },
       "full name, birth, postcode, at 0.65": {
-        "test_seconds": 7.716644708998501,
+        "test_seconds": 6.301773707848042,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3376,7 +4159,7 @@
         "test_recall_of_pairs_written": 0.481125467777548
       },
       "full name, birth, postcode, at 0.7": {
-        "test_seconds": 6.539907791884616,
+        "test_seconds": 6.11638620798476,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3431,7 +4214,7 @@
         "test_recall_of_pairs_written": 0.41837490244211567
       },
       "full name, birth, postcode, at 0.75": {
-        "test_seconds": 2.8606268749572337,
+        "test_seconds": 2.758810624945909,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3486,7 +4269,7 @@
         "test_recall_of_pairs_written": 0.353476395994957
       },
       "full name, birth, postcode, at 0.8": {
-        "test_seconds": 2.511596916941926,
+        "test_seconds": 2.4039997081272304,
         "f1": {
           "validation": {
             "threshold": 1.0,
@@ -3543,6 +4326,248 @@
     }
   },
   {
+    "tool": "univo by probability",
+    "version": "1.0.2",
+    "dataset": "historical_50k",
+    "records": {
+      "validation": 25700,
+      "test": 24878
+    },
+    "true_pairs": {
+      "validation": 154050,
+      "test": 149911
+    },
+    "f1": {
+      "variant": "names, birth, postcode, occupation",
+      "validation": {
+        "threshold": 8.880856800812728,
+        "pairs": 139119,
+        "precision": 0.9280400232894142,
+        "recall": 0.8380915287244401,
+        "f1": 0.8807752524994116
+      },
+      "test": {
+        "threshold": 8.880856800812728,
+        "pairs": 136088,
+        "precision": 0.9236817353477161,
+        "recall": 0.8385108497708641,
+        "f1": 0.8790380385945405
+      },
+      "test_seconds": 4.841711790999398,
+      "test_pairs_written": 165064,
+      "test_recall_of_pairs_written": 0.876339961710615
+    },
+    "precise": {
+      "variant": "names, birth, postcode, occupation",
+      "validation": {
+        "threshold": 9.790817969221905,
+        "pairs": 132022,
+        "precision": 0.9501749708381937,
+        "recall": 0.8143070431678027,
+        "f1": 0.8770099835006572
+      },
+      "test": {
+        "threshold": 9.790817969221905,
+        "pairs": 129312,
+        "precision": 0.9438644518683494,
+        "recall": 0.8141697407128229,
+        "f1": 0.8742331398201437
+      },
+      "test_seconds": 4.841711790999398,
+      "test_pairs_written": 165064,
+      "test_recall_of_pairs_written": 0.876339961710615
+    },
+    "entities": {
+      "variant": "names, birth, postcode, occupation",
+      "validation": {
+        "threshold": 16.37695006311204,
+        "pairs": 142410,
+        "precision": 0.9577347096411769,
+        "recall": 0.8853683868873742,
+        "f1": 0.9201308776900763,
+        "largest_group": 54
+      },
+      "test": {
+        "threshold": 16.37695006311204,
+        "pairs": 137477,
+        "precision": 0.9639503335103327,
+        "recall": 0.8839978387176392,
+        "f1": 0.9222444917672276,
+        "largest_group": 39
+      },
+      "test_seconds": 4.841711790999398,
+      "test_pairs_written": 165064,
+      "test_recall_of_pairs_written": 0.876339961710615
+    },
+    "by_variant": {
+      "names, birth, postcode": {
+        "test_seconds": 4.362635125173256,
+        "f1": {
+          "validation": {
+            "threshold": 8.791546689580832,
+            "pairs": 137841,
+            "precision": 0.9218882625633883,
+            "recall": 0.824888023369036,
+            "f1": 0.8706948826788082
+          },
+          "test": {
+            "threshold": 8.791546689580832,
+            "pairs": 133456,
+            "precision": 0.9256908644047477,
+            "recall": 0.8240822888247027,
+            "f1": 0.8719363934403089
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 10.026017327261913,
+            "pairs": 127265,
+            "precision": 0.9578674419518328,
+            "recall": 0.79132099967543,
+            "f1": 0.8666654817553276
+          },
+          "test": {
+            "threshold": 10.026017327261913,
+            "pairs": 123940,
+            "precision": 0.9529611102146199,
+            "recall": 0.7878674680310317,
+            "f1": 0.8625858587333989
+          }
+        },
+        "entities": {
+          "validation": {
+            "threshold": 15.927689770849328,
+            "pairs": 141761,
+            "precision": 0.9471434315502854,
+            "recall": 0.871587147030185,
+            "f1": 0.9077958561378718,
+            "largest_group": 54
+          },
+          "test": {
+            "threshold": 15.927689770849328,
+            "pairs": 135733,
+            "precision": 0.9578952797035356,
+            "recall": 0.8673012654174811,
+            "f1": 0.9103499460867374,
+            "largest_group": 38
+          }
+        },
+        "test_pairs_written": 163321,
+        "test_recall_of_pairs_written": 0.8629320063237521
+      },
+      "names, birth, postcode, occupation": {
+        "test_seconds": 4.841711790999398,
+        "f1": {
+          "validation": {
+            "threshold": 8.880856800812728,
+            "pairs": 139119,
+            "precision": 0.9280400232894142,
+            "recall": 0.8380915287244401,
+            "f1": 0.8807752524994116
+          },
+          "test": {
+            "threshold": 8.880856800812728,
+            "pairs": 136088,
+            "precision": 0.9236817353477161,
+            "recall": 0.8385108497708641,
+            "f1": 0.8790380385945405
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 9.790817969221905,
+            "pairs": 132022,
+            "precision": 0.9501749708381937,
+            "recall": 0.8143070431678027,
+            "f1": 0.8770099835006572
+          },
+          "test": {
+            "threshold": 9.790817969221905,
+            "pairs": 129312,
+            "precision": 0.9438644518683494,
+            "recall": 0.8141697407128229,
+            "f1": 0.8742331398201437
+          }
+        },
+        "entities": {
+          "validation": {
+            "threshold": 16.37695006311204,
+            "pairs": 142410,
+            "precision": 0.9577347096411769,
+            "recall": 0.8853683868873742,
+            "f1": 0.9201308776900763,
+            "largest_group": 54
+          },
+          "test": {
+            "threshold": 16.37695006311204,
+            "pairs": 137477,
+            "precision": 0.9639503335103327,
+            "recall": 0.8839978387176392,
+            "f1": 0.9222444917672276,
+            "largest_group": 39
+          }
+        },
+        "test_pairs_written": 165064,
+        "test_recall_of_pairs_written": 0.876339961710615
+      },
+      "full name, birth, postcode": {
+        "test_seconds": 3.337603790918365,
+        "f1": {
+          "validation": {
+            "threshold": 8.698623887680567,
+            "pairs": 120449,
+            "precision": 0.8906508148677034,
+            "recall": 0.6963842908146706,
+            "f1": 0.7816276197727496
+          },
+          "test": {
+            "threshold": 8.698623887680567,
+            "pairs": 114340,
+            "precision": 0.8975686548889278,
+            "recall": 0.6845928584293347,
+            "f1": 0.7767463510071864
+          }
+        },
+        "precise": {
+          "validation": {
+            "threshold": 10.956691853776086,
+            "pairs": 96577,
+            "precision": 0.9555794857988962,
+            "recall": 0.5990717299578059,
+            "f1": 0.7364489859432544
+          },
+          "test": {
+            "threshold": 10.956691853776086,
+            "pairs": 91505,
+            "precision": 0.9673351182995464,
+            "recall": 0.5904570044893304,
+            "f1": 0.7333068230771779
+          }
+        },
+        "entities": {
+          "validation": {
+            "threshold": 15.337698571664827,
+            "pairs": 124896,
+            "precision": 0.9288928388419164,
+            "recall": 0.7530996429730606,
+            "f1": 0.8318097409534462,
+            "largest_group": 43
+          },
+          "test": {
+            "threshold": 15.337698571664827,
+            "pairs": 117344,
+            "precision": 0.9484251431688029,
+            "recall": 0.7423871497088272,
+            "f1": 0.8328525191296703,
+            "largest_group": 37
+          }
+        },
+        "test_pairs_written": 164425,
+        "test_recall_of_pairs_written": 0.7571292300098058
+      }
+    }
+  },
+  {
     "tool": "univo",
     "version": "1.0.2",
     "dataset": "historical_50k",
@@ -3570,7 +4595,7 @@
         "recall": 0.7263176151183035,
         "f1": 0.7907348300816639
       },
-      "test_seconds": 17.087138458853588,
+      "test_seconds": 16.62089033308439,
       "test_pairs_written": 302060,
       "test_recall_of_pairs_written": 0.8156773018657737
     },
@@ -3590,7 +4615,7 @@
         "recall": 0.6351768716104889,
         "f1": 0.7631397566800776
       },
-      "test_seconds": 17.087138458853588,
+      "test_seconds": 16.62089033308439,
       "test_pairs_written": 302060,
       "test_recall_of_pairs_written": 0.8156773018657737
     },
@@ -3612,13 +4637,13 @@
         "f1": 0.5808569113698826,
         "largest_group": 274
       },
-      "test_seconds": 17.744349415879697,
+      "test_seconds": 18.771706291940063,
       "test_pairs_written": 375262,
       "test_recall_of_pairs_written": 0.854893903716205
     },
     "by_variant": {
       "names, birth, postcode": {
-        "test_seconds": 16.689847792033106,
+        "test_seconds": 16.877002708846703,
         "f1": {
           "validation": {
             "threshold": 0.714476,
@@ -3658,7 +4683,7 @@
         "test_recall_of_pairs_written": 0.8460820086584707
       },
       "names, birth, postcode, by coverage": {
-        "test_seconds": 16.689847792033106,
+        "test_seconds": 16.877002708846703,
         "f1": {
           "validation": {
             "threshold": 0.4,
@@ -3713,7 +4738,7 @@
         "test_recall_of_pairs_written": 0.8460820086584707
       },
       "names, birth, postcode, occupation": {
-        "test_seconds": 17.744349415879697,
+        "test_seconds": 18.771706291940063,
         "f1": {
           "validation": {
             "threshold": 0.714476,
@@ -3753,7 +4778,7 @@
         "test_recall_of_pairs_written": 0.854893903716205
       },
       "names, birth, postcode, occupation, by coverage": {
-        "test_seconds": 17.744349415879697,
+        "test_seconds": 18.771706291940063,
         "f1": {
           "validation": {
             "threshold": 0.355556,
@@ -3808,7 +4833,7 @@
         "test_recall_of_pairs_written": 0.854893903716205
       },
       "full name, birth, postcode": {
-        "test_seconds": 17.087138458853588,
+        "test_seconds": 16.62089033308439,
         "f1": {
           "validation": {
             "threshold": 0.666842,
@@ -3863,7 +4888,7 @@
         "test_recall_of_pairs_written": 0.8156773018657737
       },
       "full name, birth, postcode, by coverage": {
-        "test_seconds": 17.087138458853588,
+        "test_seconds": 16.62089033308439,
         "f1": {
           "validation": {
             "threshold": 0.480769,
