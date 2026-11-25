@@ -14,8 +14,10 @@ mod validation;
 
 use pyo3::prelude::*;
 
-#[pymodule]
-fn _univo(module: &Bound<'_, PyModule>) -> PyResult<()> {
+// Named by the attribute: clippy 1.100 refuses the use of an item whose
+// name starts with an underscore, which the macro's expansion is.
+#[pymodule(name = "_univo")]
+fn extension(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add("__version__", univo_core::VERSION)?;
     module.add("ERROR_KINDS", errors::kind_names())?;
     module.add("SCORING_VERSION", univo_core::SCORING_VERSION)?;
