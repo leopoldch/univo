@@ -18,6 +18,7 @@ mod schema;
 mod semantic;
 pub mod snapshot;
 mod value;
+mod weights;
 
 pub use acronym::{
     ACRONYM_SIMILARITY, AcronymKeys, MAX_ACRONYM_CHARS, MIN_ACRONYM_CHARS, acronym,
@@ -49,6 +50,7 @@ pub use semantic::{
     semantic_similarity,
 };
 pub use value::{DuplicateKey, Finite, Lookup, Map, Value};
+pub use weights::{FieldWeights, Fit, LEVELS, Level, Weights};
 
 /// Version of the Univo core, shared by every binding.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
