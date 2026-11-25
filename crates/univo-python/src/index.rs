@@ -537,7 +537,7 @@ impl NativeIndex {
             max_entries,
             every_lane: false,
         };
-        let (report, weighed, paths, weights) = py
+        let (report, weighed, paths, weights, learned_from) = py
             .detach(|| {
                 let state = self.read()?;
                 let result = run(self.report_pool(state.index.len())?.as_deref(), || {
@@ -580,7 +580,7 @@ impl NativeIndex {
                     processed: state.index.len(),
                     generation: state.generation,
                 };
-                Ok((report, weighed, paths, result.weights))
+                Ok((report, weighed, paths, result.weights, result.fit.rows))
             })
             .map_err(|e: Error| to_py_err(py, &e))?;
         let out = report_dict(py, &report)?;
@@ -598,6 +598,7 @@ impl NativeIndex {
             found.set_item("field_weights", fields)?;
         }
         out.set_item("weights", weights_dict(py, &paths, &weights)?)?;
+        out.set_item("learned_from", learned_from)?;
         Ok(out)
     }
 

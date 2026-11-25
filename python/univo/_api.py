@@ -82,6 +82,10 @@ class Schema:
         object.__setattr__(self, "_native", native)
 
 
+# Candidate pairs below which learned weights are reported as unreliable.
+_LEARNABLE_PAIRS = 200
+
+
 @dataclass(frozen=True)
 class Match:
     left_id: RecordId
@@ -489,6 +493,10 @@ class Finder:
         if result["output_truncated"]:
             warnings.append("Output limit reached; total_matches includes omitted matches.")
         weights = result.get("weights")
+        if weights is not None and result.get("learned_from", 0) < _LEARNABLE_PAIRS:
+            warnings.append(
+                "Too few candidate pairs to learn weights from; probabilities are unreliable."
+            )
         return Report(
             weights=None if weights is None else Weights(**weights),
             matches=tuple(Match(**match) for match in result["matches"]),

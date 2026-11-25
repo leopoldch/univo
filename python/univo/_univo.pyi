@@ -79,6 +79,7 @@ class RawWeights(TypedDict):
 
 class RawReport(TypedDict):
     weights: NotRequired[RawWeights]
+    learned_from: NotRequired[int]
     matches: list[RawMatch]
     processed: int
     total_matches: int

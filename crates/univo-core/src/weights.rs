@@ -136,6 +136,8 @@ pub struct Weights {
 /// What [`Weights::fit`] learned beyond the weights.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Fit {
+    /// Candidate pairs the weights were learned from.
+    pub rows: usize,
     /// Share of the candidates in the class that agrees.
     pub share: f64,
     pub rounds: usize,
@@ -192,6 +194,7 @@ impl Weights {
                 prior: odds.max(1e-12).log2(),
             },
             Fit {
+                rows,
                 share: classes.share,
                 rounds: classes.rounds,
             },
