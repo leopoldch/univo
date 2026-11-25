@@ -180,6 +180,34 @@ pub fn score_with_vectors(
     Ok(Some(aggregate(schema, fields)))
 }
 
+/// The similarity of each field of two records, in schema order, without
+/// allocating: what [`compare_with_vectors`] gives as
+/// [`FieldComparison::similarity`]. `None` for records of different
+/// partitions.
+///
+/// # Errors
+///
+/// As [`compare`].
+pub fn similarities_with_vectors<'a>(
+    schema: &'a Schema,
+    left: &'a PreparedRecord,
+    left_vectors: &'a [Option<&[f32]>],
+    right: &'a PreparedRecord,
+    right_vectors: &'a [Option<&[f32]>],
+) -> Result<Option<impl Iterator<Item = Option<f32>> + 'a>> {
+    let expected = schema.preparation_fingerprint();
+    if left.schema != expected || right.schema != expected {
+        return Err(Error::schema_mismatch());
+    }
+    if left.partition != right.partition {
+        return Ok(None);
+    }
+    Ok(Some(
+        field_comparisons(schema, left, left_vectors, right, right_vectors)
+            .map(|field| field.similarity),
+    ))
+}
+
 fn field_comparisons<'a>(
     schema: &'a Schema,
     left: &'a PreparedRecord,

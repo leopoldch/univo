@@ -131,7 +131,7 @@ impl SearchIndex {
             slot: None,
             min_slot: 0,
             dense: None,
-            values: true,
+            lanes: None,
         };
         if exhaustive {
             let slots = self

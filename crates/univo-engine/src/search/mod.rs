@@ -141,8 +141,22 @@ struct Query<'a> {
     /// The dense candidates of each semantic field, when an all-pairs
     /// report computed them for a block of queries ([`crate::blocks`]).
     dense: Option<&'a [Vec<u32>]>,
-    /// Whether the lanes of exact values propose candidates.
-    values: bool,
+    /// The lowest similarity at which the lanes of each field propose
+    /// candidates, by schema index, when it is not the search's own:
+    /// infinite for a field whose lanes propose nothing.
+    lanes: Option<&'a [f32]>,
+}
+
+impl Query<'_> {
+    /// The threshold of the lanes of `field`, at least `threshold`; `None`
+    /// when they propose nothing.
+    fn lane(&self, field: usize, threshold: f32) -> Option<f32> {
+        match self.lanes.and_then(|lanes| lanes.get(field)) {
+            Some(lane) if lane.is_infinite() => None,
+            Some(&lane) => Some(threshold.max(lane_threshold(lane))),
+            None => Some(threshold),
+        }
+    }
 }
 
 impl SearchIndex {
@@ -536,7 +550,7 @@ impl SearchIndex {
             slot: None,
             min_slot: 0,
             dense: None,
-            values: true,
+            lanes: None,
         };
         self.search_candidates(&query, options)
     }
@@ -577,7 +591,7 @@ impl SearchIndex {
             slot: None,
             min_slot: 0,
             dense: None,
-            values: true,
+            lanes: None,
         };
         let slots = self
             .partition(query.record)
@@ -663,7 +677,7 @@ impl SearchIndex {
             slot: Some(slot),
             min_slot: 0,
             dense: None,
-            values: true,
+            lanes: None,
         })
     }
 
@@ -686,11 +700,6 @@ impl SearchIndex {
             ));
         }
         Ok(Some(embedded))
-    }
-
-    /// The fields whose equal values propose candidates, in schema order.
-    pub(crate) fn value_fields(&self) -> impl Iterator<Item = usize> + '_ {
-        self.values.iter().map(crate::values::ValueIndex::field)
     }
 
     pub(crate) fn partition(&self, record: &PreparedRecord) -> &[u32] {

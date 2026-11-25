@@ -126,6 +126,11 @@ impl LexicalIndex {
         Ok(index)
     }
 
+    /// The schema field indexed.
+    pub(crate) fn field(&self) -> usize {
+        self.field
+    }
+
     /// Number of records, indexed or not.
     pub fn len(&self) -> usize {
         self.entries.len()

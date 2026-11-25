@@ -6,7 +6,7 @@ use std::collections::BinaryHeap;
 
 use univo_core::{
     Comparison, Error, PreparedRecord, RecordId, Result, Schema, Signal, compare_with_vectors,
-    has_value, is_exact_match, score_with_vectors,
+    has_value, is_exact_match, score_with_vectors, similarities_with_vectors,
 };
 
 use super::{Query, SearchIndex, SearchMatch, SearchOptions, SearchResult, check_options};
@@ -21,8 +21,6 @@ pub(crate) struct Candidates {
     pub exhaustive: bool,
     /// Only the records after the query's slot: each pair once.
     pub later: bool,
-    /// Whether equal exact values propose records.
-    pub values: bool,
 }
 
 impl SearchIndex {
@@ -91,12 +89,15 @@ impl SearchIndex {
     /// Hands `visit` each record a lane proposes for the stored record at
     /// `slot` with a field similarity of at least `wanted.lane`, with its
     /// score, whatever that score: the pairs that share evidence, for a
-    /// decision the mean of similarities does not make. Counts and flags
-    /// are returned as by [`Self::visit_pairs`].
+    /// decision the mean of similarities does not make. `lanes` raises the
+    /// similarity at which the lanes of each field propose records, to
+    /// infinity for none. Counts and flags are returned as by
+    /// [`Self::visit_pairs`].
     pub(crate) fn visit_candidates(
         &self,
         slot: usize,
         wanted: Candidates,
+        lanes: Option<&[f32]>,
         dense: Option<&[Vec<u32>]>,
         visit: &mut dyn FnMut(usize, f32) -> Result<()>,
     ) -> Result<SearchResult> {
@@ -109,7 +110,7 @@ impl SearchIndex {
         let mut query = self.stored_query(slot)?;
         query.min_slot = if wanted.later { slot + 1 } else { 0 };
         query.dense = dense;
-        query.values = wanted.values;
+        query.lanes = lanes;
         let mut result = SearchResult::default();
         if wanted.exhaustive {
             let partition = self.partition(query.record);
@@ -121,6 +122,33 @@ impl SearchIndex {
             self.score_each(&query, candidates.into_iter(), 0.0, &mut result, visit)?;
         }
         Ok(result)
+    }
+
+    /// Hands `read` the similarity of each field of stored records `left`
+    /// and `right`, in schema order, without allocating for them; nothing
+    /// for records of different partitions.
+    pub(crate) fn similarities(
+        &self,
+        left: usize,
+        right: usize,
+        read: &mut dyn FnMut(usize, Option<f32>),
+    ) -> Result<()> {
+        let query = self.stored_query(left)?;
+        let vectors = self
+            .vectors
+            .as_ref()
+            .map_or_else(Vec::new, |vectors| vectors.record(right));
+        let found = similarities_with_vectors(
+            self.schema(),
+            query.record,
+            &query.vectors,
+            &self.store().records()[right],
+            &vectors,
+        )?;
+        for (field, similarity) in found.into_iter().flatten().enumerate() {
+            read(field, similarity);
+        }
+        Ok(())
     }
 
     /// The comparison of stored records `left` and `right`, whatever their

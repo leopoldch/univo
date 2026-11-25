@@ -26,10 +26,13 @@ impl SearchIndex {
         candidates.extend(exact);
 
         for index in &self.lexical {
+            let Some(lane) = query.lane(index.field(), threshold) else {
+                continue;
+            };
             let found = index.search_from(
                 self.store(),
                 query.record,
-                threshold,
+                lane,
                 options.max_entries,
                 query.min_slot,
             )?;
@@ -41,9 +44,10 @@ impl SearchIndex {
         if let Some(vectors) = &self.vectors {
             let partition = self.partition(query.record);
             for (position, &field) in self.semantic.iter().enumerate() {
-                let (Some(field_vectors), Some(query_vector)) = (
+                let (Some(field_vectors), Some(query_vector), Some(lane)) = (
                     vectors.field(field),
                     query.vectors.get(field).copied().flatten(),
+                    query.lane(field, threshold),
                 ) else {
                     continue;
                 };
@@ -52,7 +56,7 @@ impl SearchIndex {
                         self.store(),
                         (query.record, query_vector),
                         field,
-                        threshold,
+                        lane,
                         options,
                         (query.slot, query.min_slot),
                     )
@@ -64,6 +68,8 @@ impl SearchIndex {
                     continue;
                 }
                 if let Some(dense) = query.dense {
+                    // Found at the search's threshold: at least what the
+                    // field's own would find.
                     result.lanes.semantic += dense[position].len();
                     candidates.extend(dense[position].iter().map(|&slot| slot as usize));
                     continue;
@@ -78,41 +84,30 @@ impl SearchIndex {
                         .iter()
                         .map(|&slot| slot as usize)
                         .filter(|&slot| self.store().is_active(slot)),
-                    threshold,
+                    lane,
                     &mut candidates,
                 );
             }
         }
 
-        for index in self.values.iter().filter(|_| query.values) {
-            let mut read = 0usize;
-            'lists: for slots in index.lists(self.store(), query.record) {
-                for &slot in slots {
-                    if read == options.max_entries {
-                        result.truncated = true;
-                        break 'lists;
-                    }
-                    read += 1;
-                    result.lanes.values += 1;
-                    candidates.push(slot as usize);
-                }
+        for index in &self.values {
+            if query.lane(index.field(), threshold).is_some() {
+                let lists = index.lists(self.store(), query.record);
+                let (read, stopped) = read_lists(&lists, options.max_entries, &mut candidates);
+                result.lanes.values += read;
+                result.truncated |= stopped;
             }
         }
 
-        if threshold <= ACRONYM_SIMILARITY {
-            for index in &self.acronyms {
-                let mut read = 0usize;
-                'lists: for slots in index.lists(self.store(), query.record) {
-                    for &slot in slots {
-                        if read == options.max_entries {
-                            result.truncated = true;
-                            break 'lists;
-                        }
-                        read += 1;
-                        result.lanes.acronyms += 1;
-                        candidates.push(slot as usize);
-                    }
-                }
+        for index in &self.acronyms {
+            if query
+                .lane(index.field(), threshold)
+                .is_some_and(|lane| lane <= ACRONYM_SIMILARITY)
+            {
+                let lists = index.lists(self.store(), query.record);
+                let (read, stopped) = read_lists(&lists, options.max_entries, &mut candidates);
+                result.lanes.acronyms += read;
+                result.truncated |= stopped;
             }
         }
 
@@ -120,4 +115,20 @@ impl SearchIndex {
         candidates.dedup();
         Ok(candidates)
     }
+}
+
+/// Adds the slots of posting `lists` to `candidates`, `max_entries` at
+/// most. Returns the slots read and whether the limit stopped the reading.
+fn read_lists(lists: &[&[u32]], max_entries: usize, candidates: &mut Vec<usize>) -> (usize, bool) {
+    let mut read = 0usize;
+    for slots in lists {
+        for &slot in *slots {
+            if read == max_entries {
+                return (read, true);
+            }
+            read += 1;
+            candidates.push(slot as usize);
+        }
+    }
+    (read, false)
 }

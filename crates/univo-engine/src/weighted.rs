@@ -16,11 +16,13 @@
 //!    and the heaviest are kept, so memory follows the limit, not the
 //!    candidates.
 //!
-//! An equal exact value shared by many records proposes many pairs. In the
-//! second pass a record's exact values propose candidates only when, all
-//! equal, they could reach the minimum probability by themselves: otherwise
-//! a pair needs a field at least partially alike, and the lane of that field
-//! proposes it. No pair that reaches the minimum is lost to this.
+//! A common value, or a loose likeness, proposes many pairs. In the second
+//! pass, each record leaves out the partial likenesses of some fields and
+//! the lanes of its most common values, as long as what is left out could
+//! not bring a pair to the minimum probability: a pair that reaches it then
+//! agrees on something else too, whose lane proposes it. No pair that
+//! reaches the minimum is lost to this
+//! ([`Scale::lanes`]).
 //!
 //! Vetoes and partitions apply as in any search: a vetoed pair is not a
 //! candidate.
@@ -30,7 +32,8 @@ use std::collections::{BinaryHeap, HashMap};
 
 use rayon::prelude::*;
 use univo_core::{
-    Comparison, Error, FieldWeights, Fit, LEVELS, Level, PARTIAL_SIMILARITY, Result, Weights,
+    CLOSE_SIMILARITY, Comparison, Error, FieldKind, FieldWeights, Fit, LEVELS, Level,
+    PARTIAL_SIMILARITY, Result, Weights,
 };
 
 use crate::SearchIndex;
@@ -165,68 +168,139 @@ struct Scale {
     weights: Weights,
     counts: Vec<HashMap<u64, u32>>,
     valued: Vec<u32>,
+    /// Fields compared by meaning: two texts can be equal for the model
+    /// without being the same value.
+    semantic: Vec<bool>,
+    /// Fields compared by equality.
+    exact: Vec<bool>,
+    /// Bits the fields of a pair can add while all different.
+    different: f64,
 }
 
 impl Scale {
-    /// The share of the other records holding the value of `field` in the
-    /// record at `slot`; `None` without a value.
-    fn share(&self, index: &SearchIndex, field: usize, slot: usize) -> Option<f64> {
+    /// How many active records hold the value of `field` in the record at
+    /// `slot`, and the share of the other records it is; `None` without a
+    /// value.
+    fn common(&self, index: &SearchIndex, field: usize, slot: usize) -> Option<(u32, f64)> {
         let key = index.store().records()[slot].fields()[field].value_key()?;
-        let (count, valued) = (self.counts[field].get(&key)?, self.valued[field]);
+        let (count, valued) = (*self.counts[field].get(&key)?, self.valued[field]);
         let others = f64::from(valued.saturating_sub(1).max(1));
-        Some((f64::from(count.saturating_sub(1)) / others).max(1.0 / f64::from(valued.max(1))))
+        let share =
+            (f64::from(count.saturating_sub(1)) / others).max(1.0 / f64::from(valued.max(1)));
+        Some((count, share))
     }
 
-    /// The bits each field of a compared pair adds.
-    fn bits(
+    /// The bits `field` adds to the pair at `similarity`. An equal value
+    /// weighs by how common the left record's value is; for a field
+    /// compared by meaning, only when both records hold that value.
+    fn field_bits(
         &self,
         index: &SearchIndex,
-        left: usize,
-        right: usize,
-        comparison: &Comparison,
-    ) -> Box<[Option<f64>]> {
+        field: usize,
+        (left, right): (usize, usize),
+        similarity: f32,
+    ) -> f64 {
+        let level = Level::of(similarity);
         let records = index.store().records();
-        comparison
-            .fields
-            .iter()
-            .zip(&self.weights.fields)
-            .enumerate()
-            .map(|(field, (compared, learned))| {
-                let level = Level::of(compared.similarity?);
-                // The frequency of a value only speaks for values that are
-                // the same, not for texts a model finds alike.
-                let same = level == Level::Equal
-                    && records[left].fields()[field].value_key()
-                        == records[right].fields()[field].value_key();
-                let share = same.then(|| self.share(index, field, left)).flatten();
-                Some(learned.weight(level, share))
-            })
-            .collect()
+        let same = level == Level::Equal
+            && (!self.semantic[field]
+                || records[left].fields()[field].value_key()
+                    == records[right].fields()[field].value_key());
+        let share = same
+            .then(|| self.common(index, field, left))
+            .flatten()
+            .map(|(_, share)| share);
+        self.weights.fields[field].weight(level, share)
     }
 
-    /// The most bits the exact values of the record at `slot` can add, all
-    /// of them equal in the other record.
-    fn exact_at_best(&self, index: &SearchIndex, slot: usize) -> f64 {
-        index
-            .value_fields()
-            .filter_map(|field| {
-                let share = self.share(index, field, slot)?;
-                Some(
-                    self.weights.fields[field]
-                        .weight(Level::Equal, Some(share))
-                        .max(0.0),
-                )
-            })
-            .sum()
+    /// The bits each field of the pair adds, in schema order.
+    fn bits(&self, index: &SearchIndex, left: usize, right: usize) -> Result<Box<[Option<f64>]>> {
+        let mut bits = vec![None; self.weights.fields.len()];
+        index.similarities(left, right, &mut |field, similarity| {
+            bits[field] = similarity
+                .map(|similarity| self.field_bits(index, field, (left, right), similarity));
+        })?;
+        Ok(bits.into_boxed_slice())
     }
-}
 
-/// The level of each field of a comparison, as [`Weights::fit`] reads them.
-fn codes(comparison: &Comparison) -> impl Iterator<Item = u8> + '_ {
-    comparison
-        .fields
-        .iter()
-        .map(|field| Level::code(field.similarity.map(Level::of)))
+    /// The sum of [`Self::bits`], without allocating.
+    fn weight(&self, index: &SearchIndex, left: usize, right: usize) -> Result<f64> {
+        let mut weight = 0.0;
+        index.similarities(left, right, &mut |field, similarity| {
+            if let Some(similarity) = similarity {
+                weight += self.field_bits(index, field, (left, right), similarity);
+            }
+        })?;
+        Ok(weight)
+    }
+
+    /// The similarity from which the lanes of each field propose candidates
+    /// for the record at `slot`, into `lanes`, so that every pair weighing
+    /// at least `needed` bits is still proposed.
+    ///
+    /// A pair that no lane proposes agrees only on what was left out: a
+    /// partial likeness where the lane starts at [`CLOSE_SIMILARITY`], any
+    /// agreement where the field is left out whole. It weighs at most the
+    /// bits left out, plus what different fields can add. Partial
+    /// likenesses are left out first, the lightest first, then whole
+    /// fields, the most common values first, as long as that sum stays
+    /// below `needed`.
+    fn lanes(&self, index: &SearchIndex, slot: usize, needed: f64, lanes: &mut Vec<f32>) {
+        let fields = self.weights.fields.len();
+        lanes.clear();
+        lanes.resize(fields, PARTIAL_SIMILARITY);
+        let valued: Vec<Option<(u32, f64)>> = (0..fields)
+            .map(|field| self.common(index, field, slot))
+            .collect();
+        let mut left_out = vec![0.0f64; fields];
+        let mut spent = self.different;
+
+        let mut partial: Vec<(f64, usize)> = (0..fields)
+            .filter(|&field| valued[field].is_some() && !self.exact[field])
+            .map(|field| {
+                let bits = self.weights.fields[field].bits[Level::Partial as usize];
+                (bits.max(0.0), field)
+            })
+            .collect();
+        partial.sort_unstable_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        for (bits, field) in partial {
+            if spent + bits < needed - 1e-9 {
+                spent += bits;
+                left_out[field] = bits;
+                lanes[field] = CLOSE_SIMILARITY;
+            }
+        }
+
+        let mut whole: Vec<(u32, usize)> = (0..fields)
+            .map(|field| (valued[field].map_or(u32::MAX, |(count, _)| count), field))
+            .collect();
+        whole.sort_unstable_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+        for (_, field) in whole {
+            // Without a value, the lanes of the field propose nothing.
+            let best = valued[field].map_or(0.0, |(_, share)| self.at_best(field, share));
+            if spent - left_out[field] + best < needed - 1e-9 {
+                spent += best - left_out[field];
+                lanes[field] = f32::INFINITY;
+            }
+        }
+    }
+
+    /// The most bits `field` adds to a pair that agrees on it, for a record
+    /// whose value is `share` of the others.
+    fn at_best(&self, field: usize, share: f64) -> f64 {
+        let learned = &self.weights.fields[field];
+        let equal = learned.weight(Level::Equal, Some(share));
+        let mut best = equal.max(0.0);
+        if !self.exact[field] {
+            best = best
+                .max(learned.bits[Level::Close as usize])
+                .max(learned.bits[Level::Partial as usize]);
+        }
+        if self.semantic[field] {
+            best = best.max(learned.bits[Level::Equal as usize]);
+        }
+        best
+    }
 }
 
 impl SearchIndex {
@@ -261,32 +335,31 @@ impl SearchIndex {
         let needed = (certain / (1.0 - certain)).log2() - scale.weights.prior;
 
         let sketches = self.dense_sketches(queries.len(), exhaustive);
+        let wanted = Candidates {
+            lane: PARTIAL_SIMILARITY,
+            max_entries: options.max_entries,
+            exhaustive,
+            later: true,
+        };
         let kept = crate::fold_queries(
             self.query_blocks(&queries),
-            || Kept::new(options.limit),
-            |mut kept, block| {
+            || (Kept::new(options.limit), Vec::new()),
+            |(mut kept, mut lanes), block| {
                 self.for_each_in_block(
                     &block,
                     PARTIAL_SIMILARITY,
                     exhaustive,
                     &sketches,
                     &mut |left, dense| {
-                        let wanted = Candidates {
-                            lane: PARTIAL_SIMILARITY,
-                            max_entries: options.max_entries,
-                            exhaustive,
-                            later: true,
-                            values: scale.exact_at_best(self, left) >= needed,
-                        };
+                        scale.lanes(self, left, needed, &mut lanes);
                         let pairs = &mut kept;
-                        let result =
-                            self.visit_candidates(left, wanted, dense, &mut |right, score| {
-                                let comparison = self.explain_pair(left, right, score)?;
-                                let weight: f64 = scale
-                                    .bits(self, left, right, &comparison)
-                                    .iter()
-                                    .flatten()
-                                    .sum();
+                        let result = self.visit_candidates(
+                            left,
+                            wanted,
+                            Some(&lanes),
+                            dense,
+                            &mut |right, score| {
+                                let weight = scale.weight(self, left, right)?;
                                 if scale.weights.probability(weight) >= options.min_probability {
                                     pairs.keep(Ranked {
                                         weight,
@@ -296,27 +369,28 @@ impl SearchIndex {
                                     });
                                 }
                                 Ok(())
-                            })?;
+                            },
+                        )?;
                         kept.scored += result.candidates;
                         kept.truncated |= result.truncated;
                         kept.approximate |= result.approximate;
                         Ok(())
                     },
                 )?;
-                Ok(kept)
+                Ok((kept, lanes))
             },
-            Kept::merge,
-        )?;
+            |(kept, lanes), (other, _)| (kept.merge(other), lanes),
+        )?
+        .0;
 
         let explain = |ranked: &Ranked| {
-            let comparison = self.explain_pair(ranked.left, ranked.right, ranked.score)?;
             Ok(WeightedMatch {
                 left: ranked.left,
                 right: ranked.right,
-                bits: scale.bits(self, ranked.left, ranked.right, &comparison),
+                bits: scale.bits(self, ranked.left, ranked.right)?,
                 weight: ranked.weight,
                 probability: scale.weights.probability(ranked.weight),
-                comparison,
+                comparison: self.explain_pair(ranked.left, ranked.right, ranked.score)?,
             })
         };
         let ranked = kept.heap.into_sorted_vec();
@@ -341,6 +415,7 @@ impl SearchIndex {
     /// over `queries`.
     fn fit_weights(&self, queries: &[usize], exhaustive: bool) -> Result<(Weights, Fit)> {
         let chance = self.chance()?;
+        let fields = self.schema().fields().len();
         let sample: Vec<usize> = queries
             .iter()
             .copied()
@@ -351,16 +426,18 @@ impl SearchIndex {
             max_entries: FIT_ENTRIES,
             exhaustive,
             later: false,
-            values: true,
         };
         // One row of codes per candidate, in the order of the sample.
         let rows = crate::fold_queries(
             sample.clone(),
             Vec::new,
             |mut rows: Vec<u8>, left| {
-                self.visit_candidates(left, wanted, None, &mut |right, score| {
-                    rows.extend(codes(&self.explain_pair(left, right, score)?));
-                    Ok(())
+                self.visit_candidates(left, wanted, None, None, &mut |right, _| {
+                    let start = rows.len();
+                    rows.resize(start + fields, 0);
+                    self.similarities(left, right, &mut |field, similarity| {
+                        rows[start + field] = Level::code(similarity.map(Level::of));
+                    })
                 })?;
                 Ok(rows)
             },
@@ -472,10 +549,25 @@ impl SearchIndex {
 
     fn scale(&self, weights: Weights) -> Scale {
         let fields = self.schema().fields().len();
+        let different = weights
+            .fields
+            .iter()
+            .map(|field| field.bits[Level::Different as usize].max(0.0))
+            .sum();
         let mut scale = Scale {
             weights,
             counts: vec![HashMap::new(); fields],
             valued: vec![0; fields],
+            semantic: (0..fields)
+                .map(|field| self.semantic.contains(&field))
+                .collect(),
+            exact: self
+                .schema()
+                .fields()
+                .iter()
+                .map(|field| matches!(field.kind, FieldKind::Exact(_)))
+                .collect(),
+            different,
         };
         let records = self.store().records();
         for slot in self.store().active_slots() {

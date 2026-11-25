@@ -29,7 +29,7 @@ pub const LEVELS: usize = 4;
 /// Similarity from which two values are [`Level::Equal`]: 1 up to rounding.
 const EQUAL: f32 = 0.9999;
 /// Similarity from which two values are [`Level::Close`].
-const CLOSE: f32 = 0.88;
+pub const CLOSE_SIMILARITY: f32 = 0.88;
 /// Similarity from which two values are [`Level::Partial`]: below it, a
 /// field counts as different.
 pub const PARTIAL_SIMILARITY: f32 = 0.7;
@@ -59,7 +59,7 @@ impl Level {
     pub fn of(similarity: f32) -> Self {
         if similarity >= EQUAL {
             Self::Equal
-        } else if similarity >= CLOSE {
+        } else if similarity >= CLOSE_SIMILARITY {
             Self::Close
         } else if similarity >= PARTIAL_SIMILARITY {
             Self::Partial
