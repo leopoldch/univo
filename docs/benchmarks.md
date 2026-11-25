@@ -92,6 +92,25 @@ Raw results: [Univo lexical](../benchmarks/comparison/results/critical-univo-lex
 | Records | typed fields, IDs, partitions, vetoes, missing values | text columns |
 | Index | add, upsert, remove, snapshots, `check_or_add` | rebuilt per call |
 
+## Record datasets
+
+Five public datasets of records with several fields and known duplicates, with [Splink](https://github.com/moj-analytical-services/splink) 5.0.0 run with the settings of its own examples where it publishes some. Schemas and thresholds are chosen on one half of each dataset and measured once on the other. F1 on pairs, then on the entities the pairs form once closed transitively:
+
+| Dataset | Univo 1.0.2 code | Splink |
+| --- | --- | --- |
+| Febrl 3, 5,000 synthetic persons | **0.998**, entities **0.999** | 0.995, entities 0.998 |
+| Febrl 4, linking 5,000 persons | 0.999 | 0.999 |
+| 50,000 historical persons with errors | **0.791**, entities 0.581 | 0.773, entities **0.840** |
+| DBLP and ACM publications, linking | 0.980 | no published settings |
+| Abt and Buy products, linking | 0.546 | no published settings |
+
+- **Clean records.** Both tools find nearly every pair.
+- **Many noisy records per person.** Univo finds pairs as well as Splink, but its wrong pairs score high enough to join entities: its own `group`, which does not chain pairs, reaches 0.713 at 94% precision. Splink's weighted evidence keeps 90% precision while chaining.
+- **Several fields in a batch.** Univo is 3 to 5 times slower than Splink on the two largest runs, timed once on battery.
+- **Free text.** Product names and descriptions are beyond a static model on names.
+
+Method, every number and the limits of the comparison: [benchmarks/records](../benchmarks/records/README.md). A [prototype](../benchmarks/spikes/field-weights/results.md) of weights learned without labels, on Univo's own candidates, reaches 0.867 on pairs and 0.926 on entities on the historical persons; it is not in Univo.
+
 ## Reproduce
 
 Build the corpus from the ROR archive, whose SHA-256 the builder checks. Install SemHash 0.5.0 in its own environment; it is not a dependency of Univo.

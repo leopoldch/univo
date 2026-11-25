@@ -72,6 +72,7 @@ module = [
     "pyarrow.*",
     "semhash.*",
     "sentence_transformers.*",
+    "splink.*",
     "torch.*",
 ]
 ignore_missing_imports = true
