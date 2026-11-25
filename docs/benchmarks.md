@@ -100,15 +100,15 @@ Five public datasets of records with several fields and known duplicates, with [
 | --- | --- | --- | --- |
 | Febrl 3, 5,000 synthetic persons | 0.998, entities 0.999 | **1.000**, entities **1.000** | 0.995, entities 0.998 |
 | Febrl 4, linking 5,000 persons | 0.999 | **1.000** | 0.999 |
-| 50,000 historical persons with errors | 0.791, entities 0.581 | **0.879**, entities **0.923** | 0.773, entities 0.840 |
+| 50,000 historical persons with errors | 0.791, entities 0.581 | **0.879**, entities **0.922** | 0.773, entities 0.840 |
 | DBLP and ACM publications, linking | **0.980** | 0.962 | no published settings |
 | Abt and Buy products, linking | **0.546** | 0.457 | no published settings |
 
-By score is the 1.0.2 code; by probability is `find(min_probability=...)`, with weights learned from the records without labels ([learned weights](reference/scoring.md#learned-weights)).
+By score gives the pairs of 1.0.2; by probability is `find(min_probability=...)`, with weights learned from the records without labels ([learned weights](reference/scoring.md#learned-weights)).
 
 - **Clean records.** Every tool finds nearly every pair.
-- **Many noisy records per person.** By score, wrong pairs score high enough to join entities; `group`, which does not chain pairs, reaches 0.713 at 94% precision. By probability, Univo passes Splink on pairs and on entities, in 6 s against 17 s by score and 3.7 s for Splink, timed once on battery.
-- **Probabilities.** Above 0.9, the probability given is the share of true pairs on that dataset: 0.961 given, 0.961 true.
+- **Many noisy records per person.** By score, wrong pairs score high enough to join entities; `group`, which does not chain pairs, reaches 0.713 at 94% precision. By probability, Univo passes Splink on pairs and on entities, in 4.8 s against 16.6 s by score and 3.7 s for Splink, timed once.
+- **Probabilities.** Above 0.9, the probability given is the share of true pairs on that dataset: 0.961 given, 0.960 true.
 - **Easy linking and free text.** A well chosen schema by score still does better on publications, and on product descriptions weights have nothing to weigh.
 
 Method, every number and the limits of the comparison: [benchmarks/records](../benchmarks/records/README.md).
