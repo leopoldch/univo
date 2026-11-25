@@ -9,7 +9,9 @@
 //! 1. **Learn.** Chance agreement is counted over pairs of one partition
 //!    taken at random, every pair when the index has at most a million.
 //!    Agreement inside an entity comes from the candidates of at most
-//!    [`FIT_QUERIES`] records spread over the index.
+//!    [`FIT_QUERIES`] records drawn over the index, at most [`FIT_PAIRS`]
+//!    each, with a fixed seed: the order of the records does not choose
+//!    which pairs are learned from.
 //! 2. **Decide.** Every candidate gets the bits of its fields, an equal
 //!    value weighing by how common it is among the active records, and a
 //!    probability. The pairs reaching the minimum probability are counted
@@ -37,7 +39,7 @@ use univo_core::{
 };
 
 use crate::SearchIndex;
-use crate::search::Candidates;
+use crate::search::{Candidates, Draws, one_in};
 
 /// Pairs taken at random to count chance agreement.
 const CHANCE_PAIRS: usize = 1_000_000;
@@ -52,10 +54,16 @@ pub const FIT_QUERIES: usize = 1024;
 /// Index entries one lane reads for one of these records.
 const FIT_ENTRIES: usize = 4096;
 
-/// Candidates one of these records gives at most, spread over the slots.
+/// Candidates one of these records gives at most, drawn among all of them.
 /// With [`FIT_QUERIES`] it bounds what is learned from: about a million
 /// pairs, kept as counts of their distinct combinations of levels.
 pub const FIT_PAIRS: usize = 1024;
+
+/// Seed of the draw of the records the weights are learned from.
+const FIT_SEED: u64 = 0xF175_EED0_F7E5_7A11;
+
+/// Seed of the pairs taken at random, one sequence per batch.
+const CHANCE_SEED: u64 = 0x9E37_79B9_7F4A_7C15;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WeightedOptions {
@@ -434,16 +442,17 @@ impl SearchIndex {
     }
 
     /// The weights of the index: chance agreement from random pairs,
-    /// agreement inside an entity from the candidates of records spread
+    /// agreement inside an entity from the candidates of records drawn
     /// over `queries`.
     fn fit_weights(&self, queries: &[usize], exhaustive: bool) -> Result<(Weights, Fit)> {
         let chance = self.chance()?;
         let fields = self.schema().fields().len();
-        let sample: Vec<usize> = queries
-            .iter()
-            .copied()
-            .step_by(queries.len().div_ceil(FIT_QUERIES).max(1))
-            .collect();
+        let sample: Vec<usize> = one_in(
+            queries.iter().copied(),
+            queries.len().div_ceil(FIT_QUERIES),
+            FIT_SEED,
+        )
+        .collect();
         let wanted = Candidates {
             lane: PARTIAL_SIMILARITY,
             max_entries: FIT_ENTRIES,
@@ -475,8 +484,8 @@ impl SearchIndex {
                         }
                         Ok(())
                     })?;
-                proposed += found;
-                kept += found.div_ceil(wanted.stride(found));
+                proposed += found.proposed;
+                kept += found.kept;
                 Ok((combinations, proposed, kept))
             },
             |(mut combinations, proposed, kept), (others, more, held)| {
@@ -560,18 +569,12 @@ impl SearchIndex {
                 }
                 return Ok(counts);
             }
-            let mut state = (0x9E37_79B9_7F4A_7C15_u64 ^ ((number as u64 + 1) << 32)) | 1;
-            let mut below = |bound: usize| {
-                state ^= state << 13;
-                state ^= state >> 7;
-                state ^= state << 17;
-                usize::try_from(state % bound as u64).unwrap_or(0)
-            };
+            let mut random = Draws::new(CHANCE_SEED ^ number as u64);
             for _ in 0..CHANCE_PAIRS / CHANCE_BATCHES {
-                let drawn = below(pairs);
+                let drawn = random.below(pairs);
                 let slots = &partitions[before.partition_point(|&start| start <= drawn) - 1];
-                let left = below(slots.len());
-                let right = (left + 1 + below(slots.len() - 1)) % slots.len();
+                let left = random.below(slots.len());
+                let right = (left + 1 + random.below(slots.len() - 1)) % slots.len();
                 count(&mut counts, slots[left], slots[right])?;
             }
             Ok(counts)
@@ -765,5 +768,85 @@ mod tests {
         // whatever the first rounds left. What was not kept still counts in
         // the prior: most pairs match, and the odds are in favour.
         assert!(weights.prior > 1.0, "{fit:?} {}", weights.prior);
+    }
+
+    /// 2,048 records of one city, stored as 1,024 pairs of duplicates next
+    /// to each other, each pair with three codes of its own.
+    fn neighbours() -> SearchIndex {
+        let schema = Schema::builder()
+            .text(path("city"), Text::default())
+            .exact(path("a"), Exact::default())
+            .exact(path("b"), Exact::default())
+            .exact(path("c"), Exact::default())
+            .build()
+            .unwrap();
+        let prepared = (0..2048i64)
+            .map(|slot| {
+                let mut entries = vec![("city".to_owned(), Value::Str("lyon".into()))];
+                for (code, base) in [("a", 0), ("b", 10_000), ("c", 20_000)] {
+                    entries.push((code.to_owned(), Value::Int(base + slot / 2)));
+                }
+                prepare(&schema, &Value::Map(Map::new(entries).unwrap())).unwrap()
+            })
+            .collect();
+        let mut index = SearchIndex::new(schema, 10_000, None).unwrap();
+        index.add(prepared).unwrap();
+        index
+    }
+
+    #[test]
+    fn duplicates_stored_next_to_each_other_are_learned_from() {
+        // One record in two is a query and gives one in two of its 2,048
+        // candidates. Taken at fixed places, both keep the even slots and
+        // no query ever meets its duplicate, at the next odd slot.
+        let index = neighbours();
+        let queries: Vec<usize> = index.store().active_slots().collect();
+        let (weights, fit) = index.fit_weights(&queries, false).unwrap();
+        // One query in two keeps its duplicate: about 512 of the rows.
+        #[allow(clippy::cast_precision_loss)]
+        let agreeing = fit.share * fit.rows as f64;
+        assert!((400.0..=624.0).contains(&agreeing), "{agreeing} {fit:?}");
+        for codes in &weights.fields[1..] {
+            assert!(codes.m[Level::Equal as usize] > 0.99, "{codes:?}");
+            assert!(codes.bits[Level::Different as usize] < -5.0, "{codes:?}");
+        }
+
+        let report = index
+            .find_weighted(
+                WeightedOptions {
+                    min_probability: 0.9,
+                    limit: usize::MAX,
+                    max_entries: usize::MAX,
+                    every_lane: false,
+                },
+                false,
+                usize::MAX,
+                usize::MAX,
+            )
+            .unwrap();
+        assert_eq!(report.total_matches, 1024);
+        assert!(
+            report
+                .matches
+                .iter()
+                .all(|found| found.left % 2 == 0 && found.right == found.left + 1)
+        );
+        // The prior counts what was not kept: a pair in about 2,047.
+        assert!(
+            (-11.5..=-10.5).contains(&report.weights.prior),
+            "{}",
+            report.weights.prior
+        );
+    }
+
+    #[test]
+    fn the_sample_is_the_same_in_exhaustive_mode() {
+        // Without lanes, every record of the partition is a candidate: the
+        // same draw, so the same duplicates are met.
+        let index = neighbours();
+        let queries: Vec<usize> = index.store().active_slots().collect();
+        let lanes = index.fit_weights(&queries, false).unwrap();
+        let exhaustive = index.fit_weights(&queries, true).unwrap();
+        assert_eq!(lanes, exhaustive);
     }
 }

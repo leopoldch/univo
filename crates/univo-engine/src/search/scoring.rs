@@ -22,16 +22,74 @@ pub(crate) struct Candidates {
     /// Only the records after the query's slot: each pair once.
     pub later: bool,
     /// Records handed over at most. Above it, one record in so many is
-    /// kept, spread over the slots: the first ones alone would leave out
-    /// the neighbours of most records, where their duplicates often are.
+    /// kept, drawn by [`one_in`] from the slot of the query: the same
+    /// records for the same index, whatever the threads.
     pub at_most: usize,
 }
 
 impl Candidates {
     /// One record in how many is handed over, of `proposed`.
-    pub(crate) fn stride(&self, proposed: usize) -> usize {
+    fn stride(&self, proposed: usize) -> usize {
         proposed.div_ceil(self.at_most.max(1)).max(1)
     }
+}
+
+/// How many records the lanes proposed for a query, and how many of them
+/// [`Candidates::at_most`] kept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Proposed {
+    pub proposed: usize,
+    pub kept: usize,
+}
+
+/// Seed of the draws that thin the candidates of a query.
+const CANDIDATE_SEED: u64 = 0x5EED_CA9D_1DA7_E5A1;
+
+/// A sequence of numbers that depends only on its seed (`SplitMix64`). Seeds
+/// that differ by one bit give unrelated sequences from the first number.
+pub(crate) struct Draws(u64);
+
+impl Draws {
+    pub(crate) fn new(seed: u64) -> Self {
+        Self(seed)
+    }
+
+    /// A number below `bound`, which is at least one.
+    pub(crate) fn below(&mut self, bound: usize) -> usize {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut mixed = self.0;
+        mixed = (mixed ^ (mixed >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        mixed = (mixed ^ (mixed >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        mixed ^= mixed >> 31;
+        // The high bits of the product: below `bound`, so it fits.
+        #[allow(clippy::cast_possible_truncation)]
+        let drawn = ((u128::from(mixed) * bound as u128) >> 64) as usize;
+        drawn
+    }
+}
+
+/// One item in `stride`, each with the same chance: of every `stride`
+/// consecutive items, the one at a place drawn anew from `seed`. A fixed
+/// place would follow any pattern of that period in the order of the items:
+/// with duplicates stored next to each other, one record in two from the
+/// first keeps the even places and never a record's neighbour.
+pub(crate) fn one_in<T>(
+    items: impl Iterator<Item = T>,
+    stride: usize,
+    seed: u64,
+) -> impl Iterator<Item = T> {
+    let stride = stride.max(1);
+    let mut draws = Draws::new(seed);
+    let mut place = 0;
+    items.enumerate().filter_map(move |(position, item)| {
+        if stride == 1 {
+            return Some(item);
+        }
+        if position % stride == 0 {
+            place = draws.below(stride);
+        }
+        (position % stride == place).then_some(item)
+    })
 }
 
 impl SearchIndex {
@@ -103,8 +161,8 @@ impl SearchIndex {
     /// decision the mean of similarities does not make. `lanes` raises the
     /// similarity at which the lanes of each field propose records, to
     /// infinity for none. Counts and flags are returned as by
-    /// [`Self::visit_pairs`], with the records proposed before
-    /// `wanted.at_most` cut them.
+    /// [`Self::visit_pairs`], with the records proposed and those
+    /// `wanted.at_most` kept of them.
     pub(crate) fn visit_candidates(
         &self,
         slot: usize,
@@ -112,7 +170,7 @@ impl SearchIndex {
         lanes: Option<&[f32]>,
         dense: Option<&[Vec<u32>]>,
         visit: &mut dyn FnMut(usize, f32) -> Result<()>,
-    ) -> Result<(SearchResult, usize)> {
+    ) -> Result<(SearchResult, Proposed)> {
         let options = SearchOptions {
             min_score: wanted.lane,
             limit: usize::MAX,
@@ -124,22 +182,25 @@ impl SearchIndex {
         query.dense = dense;
         query.lanes = lanes;
         let mut result = SearchResult::default();
+        let seed = CANDIDATE_SEED ^ slot as u64;
+        let mut kept = 0;
         let proposed = if wanted.exhaustive {
             let partition = self.partition(query.record);
             let from = partition.partition_point(|&slot| (slot as usize) < query.min_slot);
             let proposed = partition.len() - from;
             let others = partition[from..].iter().map(|&slot| slot as usize);
-            let kept = others.step_by(wanted.stride(proposed));
-            self.score_each(&query, kept, 0.0, &mut result, visit)?;
+            let drawn = one_in(others, wanted.stride(proposed), seed).inspect(|_| kept += 1);
+            self.score_each(&query, drawn, 0.0, &mut result, visit)?;
             proposed
         } else {
             let candidates = self.candidates(&query, options, &mut result)?;
             let proposed = candidates.len();
-            let kept = candidates.into_iter().step_by(wanted.stride(proposed));
-            self.score_each(&query, kept, 0.0, &mut result, visit)?;
+            let drawn = one_in(candidates.into_iter(), wanted.stride(proposed), seed)
+                .inspect(|_| kept += 1);
+            self.score_each(&query, drawn, 0.0, &mut result, visit)?;
             proposed
         };
-        Ok((result, proposed))
+        Ok((result, Proposed { proposed, kept }))
     }
 
     /// Hands `read` the similarity of each field of stored records `left`
@@ -380,5 +441,49 @@ fn exact_evidence(schema: &Schema, record: &PreparedRecord, comparison: &mut Com
     #[allow(clippy::cast_possible_truncation)]
     {
         comparison.coverage = (backed / total) as f32;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn one_in_keeps_each_item_with_the_same_chance() {
+        // Ten items by runs of three: the last run holds one item, which
+        // must be kept as often as any other, one time in three.
+        let mut kept = [0usize; 10];
+        for seed in 0..6000 {
+            let drawn: Vec<usize> = one_in(0..10, 3, seed).collect();
+            assert!(drawn.len() <= 4 && drawn.windows(2).all(|pair| pair[0] < pair[1]));
+            assert_eq!(drawn, one_in(0..10, 3, seed).collect::<Vec<_>>());
+            for item in drawn {
+                kept[item] += 1;
+            }
+        }
+        for (item, &count) in kept.iter().enumerate() {
+            assert!((1800..=2200).contains(&count), "{item}: {kept:?}");
+        }
+        assert_eq!(one_in(0..10, 1, 7).count(), 10);
+        assert_eq!(one_in(0..10, 0, 7).count(), 10);
+        assert_eq!(one_in(0..0, 3, 7).count(), 0);
+    }
+
+    #[test]
+    fn one_in_does_not_follow_the_places() {
+        // One record in two, for queries whose seeds differ by their slot
+        // alone: the place of an item says nothing of whether it is kept,
+        // whichever the query and whichever the run.
+        let mut odd = 0usize;
+        let mut neighbour = 0usize;
+        for slot in 0..2048usize {
+            let drawn: Vec<usize> = one_in(0..2048, 2, CANDIDATE_SEED ^ slot as u64).collect();
+            assert_eq!(drawn.len(), 1024);
+            odd += drawn.iter().filter(|&&item| item % 2 == 1).count();
+            neighbour += usize::from(drawn.contains(&(slot ^ 1)));
+        }
+        let half = 2048 * 1024 / 2;
+        assert!(odd.abs_diff(half) < half / 100, "{odd} of {}", 2 * half);
+        assert!((900..=1150).contains(&neighbour), "{neighbour}");
     }
 }

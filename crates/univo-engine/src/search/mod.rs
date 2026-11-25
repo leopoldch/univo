@@ -40,7 +40,7 @@ mod check;
 mod lanes;
 mod scoring;
 pub use check::{CheckOrAdd, Decision, QueryEncoder};
-pub(crate) use scoring::Candidates;
+pub(crate) use scoring::{Candidates, Draws, one_in};
 
 /// Relative margin by which lanes lower the minimum score, so that rounding
 /// in the weighted mean never drops a record that reaches it. Relative, so
