@@ -42,7 +42,7 @@ Test half of each dataset, with the schema and the threshold chosen on the valid
 
 - **Clean records: no difference.** On Febrl, where most fields are present and altered copies stay close, every tool finds nearly every pair.
 - **By score, entities on `historical_50k` are far behind.** With ten records per person, a deduplicated table depends on chaining pairs. The score is a mean of field similarities: its wrong pairs score high enough to join entities, so closing them drops precision to 55%, and `group`, which does not chain, keeps precision and loses recall.
-- **By probability, Univo passes Splink there**, on pairs and on entities, with the same kind of model: its candidates hold more of the true pairs. It is 3 to 4 times faster than by score, and 1.6 times slower than Splink on that half.
+- **By probability, Univo passes Splink there**, on pairs and on entities, with the same kind of model: its candidates hold more of the true pairs. It is about 3 times faster than by score, and 1.6 times slower than Splink on that half.
 - **A well chosen schema still wins on easy linking.** On `dblp_acm` the score with title, authors and year reaches 0.980; weights reach 0.962.
 - **Free text: weak either way.** On `abt_buy` the product names and descriptions carry everything; weights have nothing to weigh.
 
